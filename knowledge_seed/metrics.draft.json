@@ -1,0 +1,283 @@
+{
+  "schema_version": "preparation-v1",
+  "status": "draft_not_imported",
+  "authority_note": "全部为项目口径，不能称为 BTS 官方指标。没有审核人或批准日期。",
+  "effective_interval": "[effective_from, effective_to)，首版限制在当前实测月份。",
+  "definitions": [
+    {
+      "key": "scheduled_flights",
+      "version": 1,
+      "name": "计划航班记录数",
+      "authority": "project_policy",
+      "review_state": "draft",
+      "unit": "count",
+      "grain": "所选日期及明确声明的分组；航线使用有向起讫机场 ID",
+      "numerator_description": "所选范围 S 中的全部记录数；包含取消与备降",
+      "denominator_description": null,
+      "population_filters": [
+        "flight_date >= start_date",
+        "flight_date < end_date",
+        "same selected carrier/airport/group scope for numerator and denominator"
+      ],
+      "required_columns": [
+        "flight_date"
+      ],
+      "null_policy": "空范围返回 0，不代表所有美国航班。",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-02-01",
+      "source_revision_ids": [],
+      "template_key": null
+    },
+    {
+      "key": "eligible_arrivals",
+      "version": 1,
+      "name": "有效到达航班数",
+      "authority": "project_policy",
+      "review_state": "draft",
+      "unit": "count",
+      "grain": "所选日期及明确声明的分组；航线使用有向起讫机场 ID",
+      "numerator_description": "同时满足集合 E 条件的记录数",
+      "denominator_description": null,
+      "population_filters": [
+        "flight_date >= start_date",
+        "flight_date < end_date",
+        "same selected carrier/airport/group scope for numerator and denominator",
+        "cancelled = 0",
+        "diverted = 0",
+        "arrival_delay IS NOT NULL",
+        "arrival_delay_nonnegative IS NOT NULL",
+        "arrival_delayed_15 IN (0, 1)"
+      ],
+      "required_columns": [
+        "flight_date",
+        "cancelled",
+        "diverted",
+        "arrival_delay",
+        "arrival_delay_nonnegative",
+        "arrival_delayed_15"
+      ],
+      "null_policy": "缺少 E 所需字段则不属于 E；空范围返回 0，并披露 S-E。",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-02-01",
+      "source_revision_ids": [],
+      "template_key": null
+    },
+    {
+      "key": "arrival_delay_rate",
+      "version": 1,
+      "name": "有效到达航班延误率",
+      "authority": "project_policy",
+      "review_state": "draft",
+      "unit": "percent",
+      "grain": "所选日期及明确声明的分组；航线使用有向起讫机场 ID",
+      "numerator_description": "E 中 arrival_delayed_15=1 的记录数 × 100",
+      "denominator_description": "同范围 E 的记录数",
+      "population_filters": [
+        "flight_date >= start_date",
+        "flight_date < end_date",
+        "same selected carrier/airport/group scope for numerator and denominator",
+        "cancelled = 0",
+        "diverted = 0",
+        "arrival_delay IS NOT NULL",
+        "arrival_delay_nonnegative IS NOT NULL",
+        "arrival_delayed_15 IN (0, 1)"
+      ],
+      "required_columns": [
+        "flight_date",
+        "cancelled",
+        "diverted",
+        "arrival_delay",
+        "arrival_delay_nonnegative",
+        "arrival_delayed_15"
+      ],
+      "null_policy": "零分母返回 null；阈值冲突需审核，不填零或修改原标记。",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-02-01",
+      "source_revision_ids": [],
+      "template_key": null
+    },
+    {
+      "key": "cancellation_rate",
+      "version": 1,
+      "name": "取消率",
+      "authority": "project_policy",
+      "review_state": "draft",
+      "unit": "percent",
+      "grain": "所选日期及明确声明的分组；航线使用有向起讫机场 ID",
+      "numerator_description": "S 中 cancelled=1 的记录数 × 100",
+      "denominator_description": "同范围 S 的全部计划记录数",
+      "population_filters": [
+        "flight_date >= start_date",
+        "flight_date < end_date",
+        "same selected carrier/airport/group scope for numerator and denominator"
+      ],
+      "required_columns": [
+        "flight_date",
+        "cancelled"
+      ],
+      "null_policy": "零分母返回 null；状态标记缺失不作为 0。",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-02-01",
+      "source_revision_ids": [],
+      "template_key": null
+    },
+    {
+      "key": "diversion_rate",
+      "version": 1,
+      "name": "备降率",
+      "authority": "project_policy",
+      "review_state": "draft",
+      "unit": "percent",
+      "grain": "所选日期及明确声明的分组；航线使用有向起讫机场 ID",
+      "numerator_description": "S 中 diverted=1 的记录数 × 100",
+      "denominator_description": "同范围 S 的全部计划记录数",
+      "population_filters": [
+        "flight_date >= start_date",
+        "flight_date < end_date",
+        "same selected carrier/airport/group scope for numerator and denominator"
+      ],
+      "required_columns": [
+        "flight_date",
+        "diverted"
+      ],
+      "null_policy": "零分母返回 null；不假定与取消互斥。",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-02-01",
+      "source_revision_ids": [],
+      "template_key": null
+    },
+    {
+      "key": "mean_arrival_deviation",
+      "version": 1,
+      "name": "平均到达时间偏差",
+      "authority": "project_policy",
+      "review_state": "draft",
+      "unit": "minutes",
+      "grain": "所选日期及明确声明的分组；航线使用有向起讫机场 ID",
+      "numerator_description": "E 中 arrival_delay 的总和",
+      "denominator_description": "同范围 E 的记录数",
+      "population_filters": [
+        "flight_date >= start_date",
+        "flight_date < end_date",
+        "same selected carrier/airport/group scope for numerator and denominator",
+        "cancelled = 0",
+        "diverted = 0",
+        "arrival_delay IS NOT NULL",
+        "arrival_delay_nonnegative IS NOT NULL",
+        "arrival_delayed_15 IN (0, 1)"
+      ],
+      "required_columns": [
+        "flight_date",
+        "cancelled",
+        "diverted",
+        "arrival_delay",
+        "arrival_delay_nonnegative",
+        "arrival_delayed_15"
+      ],
+      "null_policy": "保留提前负数；E 为空返回 null。",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-02-01",
+      "source_revision_ids": [],
+      "template_key": null
+    },
+    {
+      "key": "mean_nonnegative_delay",
+      "version": 1,
+      "name": "平均非负到达延误",
+      "authority": "project_policy",
+      "review_state": "draft",
+      "unit": "minutes",
+      "grain": "所选日期及明确声明的分组；航线使用有向起讫机场 ID",
+      "numerator_description": "E 中 arrival_delay_nonnegative 的总和",
+      "denominator_description": "同范围 E 的记录数，包含 0 分钟记录",
+      "population_filters": [
+        "flight_date >= start_date",
+        "flight_date < end_date",
+        "same selected carrier/airport/group scope for numerator and denominator",
+        "cancelled = 0",
+        "diverted = 0",
+        "arrival_delay IS NOT NULL",
+        "arrival_delay_nonnegative IS NOT NULL",
+        "arrival_delayed_15 IN (0, 1)"
+      ],
+      "required_columns": [
+        "flight_date",
+        "cancelled",
+        "diverted",
+        "arrival_delay",
+        "arrival_delay_nonnegative",
+        "arrival_delayed_15"
+      ],
+      "null_policy": "不能仅对晚到航班求平均；E 为空返回 null。",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-02-01",
+      "source_revision_ids": [],
+      "template_key": null
+    },
+    {
+      "key": "reported_delay_cause_share",
+      "version": 1,
+      "name": "已报告延误原因分钟构成",
+      "authority": "project_policy",
+      "review_state": "draft",
+      "unit": "percent",
+      "grain": "所选日期及明确声明的分组；航线使用有向起讫机场 ID；原因构成另按 cause 分组",
+      "numerator_description": "S 中指定原因列的非空已上报分钟总和 × 100",
+      "denominator_description": "同范围五类非空已上报分钟总和",
+      "population_filters": [
+        "flight_date >= start_date",
+        "flight_date < end_date",
+        "same selected carrier/airport/group scope for numerator and denominator"
+      ],
+      "required_columns": [
+        "flight_date",
+        "delay_carrier",
+        "delay_weather",
+        "delay_nas",
+        "delay_security",
+        "delay_late_aircraft"
+      ],
+      "null_policy": "空白不填零；任一原因完全无观测值或五类合计为零则占比 null。部分缺失须披露；分别报告 S 与 E 中延误记录的覆盖。",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-02-01",
+      "source_revision_ids": [],
+      "template_key": null
+    }
+  ],
+  "pending_source_bindings": {
+    "scheduled_flights": [
+      "project-metric-policy-v1",
+      "bts-selected-fields-v1"
+    ],
+    "eligible_arrivals": [
+      "project-metric-policy-v1",
+      "bts-selected-fields-v1"
+    ],
+    "arrival_delay_rate": [
+      "project-metric-policy-v1",
+      "bts-selected-fields-v1"
+    ],
+    "cancellation_rate": [
+      "project-metric-policy-v1",
+      "bts-selected-fields-v1"
+    ],
+    "diversion_rate": [
+      "project-metric-policy-v1",
+      "bts-selected-fields-v1"
+    ],
+    "mean_arrival_deviation": [
+      "project-metric-policy-v1",
+      "bts-selected-fields-v1"
+    ],
+    "mean_nonnegative_delay": [
+      "project-metric-policy-v1",
+      "bts-selected-fields-v1"
+    ],
+    "reported_delay_cause_share": [
+      "project-metric-policy-v1",
+      "bts-selected-fields-v1",
+      "bts-directive-2026-v1"
+    ]
+  },
+  "binding_note": "source_revision_ids 必须由阶段2导入服务根据真实 DocumentRevision 填写；材料 ID 不能直接填入。template_key 尚未实现，保持 null。"
+}

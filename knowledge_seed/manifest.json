@@ -1,0 +1,268 @@
+{
+  "schema_version": "preparation-v1",
+  "prepared_at": "2026-10-29T12:34:13.861573+00:00",
+  "stage": "stage2_preparation_only",
+  "state": "materials_ready_policies_draft",
+  "snapshot_id": "snapshot_9795875de7eb417cba66787d7fc651e5",
+  "knowledge_snapshot_id": null,
+  "scope": {
+    "table": "Reporting Carrier On-Time Performance",
+    "start_date": "2026-01-01",
+    "end_date_exclusive": "2026-02-01",
+    "source_sha256": "318d477ee8b36ac803aa9b85cce991f82ebfee152d29dab49b3d8a2acbce424d"
+  },
+  "documents": [
+    {
+      "material_id": "bts-selected-fields-v1",
+      "seed_version": 1,
+      "title": "BTS 选用字段字典",
+      "source_kind": "official_reference",
+      "path": "data/knowledge_prepared/01-bts-selected-fields.md",
+      "content_hash": "bcd43d992845eabed7ffb87be698f12edb0e093d75bedb0bdb2853ac95e6e10e",
+      "status": "prepared_reference",
+      "origin_url": "https://www.transtats.bts.gov/Fields.asp?gnoyr_VQ=FGJ",
+      "origin_url_role": "官方发现入口，原始下载文件的精确 URL 未在所有文件中保留",
+      "retrieved_at": null,
+      "retrieved_at_note": "用户下载原件的精确时刻未提供",
+      "prepared_at": "2026-10-29T12:34:13.861573+00:00",
+      "effective_from": null,
+      "effective_to": null,
+      "effective_note": "未声明/未验证的历史适用期保持 null；指引仅核对起始生效日，未确认截止日；项目规则的截止日是本次验证范围。",
+      "raw_sources": [
+        {
+          "path": "data/knowledge_sources/bts_reporting_fields_page1.html",
+          "bytes": 155306,
+          "sha256": "fd845ecd2768880666fb50c9e537892b2ea15646bcfb01cf428ba286bf283703",
+          "retrieved_at": null,
+          "retrieved_at_note": "用户手动下载，精确获取时间未提供；不使用文件 mtime 代替。"
+        },
+        {
+          "path": "data/knowledge_sources/bts_reporting_fields_page2.html",
+          "bytes": 149696,
+          "sha256": "2302cb7bf1ae8354e73d2a43793cb4ce718095626e639e0391a8b73f4a7f413d",
+          "retrieved_at": null,
+          "retrieved_at_note": "用户手动下载，精确获取时间未提供；不使用文件 mtime 代替。"
+        }
+      ],
+      "preparation_method": "官方摘录与项目提示分别标记；UTF-8 整理，不是官方新发布文件",
+      "locator": "Markdown 标题及原文定位段；字段使用 Field Name/Description；PDF 使用一基页码和起始文字",
+      "source_locator_index": "data/knowledge_prepared/source_locators.json"
+    },
+    {
+      "material_id": "bts-directive-2026-v1",
+      "seed_version": 1,
+      "title": "BTS 2026 填报指引相关章节",
+      "source_kind": "official_reference",
+      "path": "data/knowledge_prepared/02-bts-directive-2026-excerpts.md",
+      "content_hash": "d5ba375a3a524b19fc845b75655d884fadf26c9d14a3ed5f3b33146c86aa2e56",
+      "status": "prepared_reference",
+      "origin_url": "https://www.bts.gov/explore-topics-and-geography/modes/aviation/number-40-technical-directive-reporting-time",
+      "origin_url_role": "官方发现入口，原始下载文件的精确 URL 未在所有文件中保留",
+      "retrieved_at": null,
+      "retrieved_at_note": "用户下载原件的精确时刻未提供",
+      "prepared_at": "2026-10-29T12:34:13.861573+00:00",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "effective_note": "未声明/未验证的历史适用期保持 null；指引仅核对起始生效日，未确认截止日；项目规则的截止日是本次验证范围。",
+      "raw_sources": [
+        {
+          "path": "data/knowledge_sources/Technical Directive No 40 On-Time 2026.pdf",
+          "bytes": 950668,
+          "sha256": "58b4058fae7750a0d4ce3b03019589aa1f895c58f428b13dd626353227c7a4c3",
+          "retrieved_at": null,
+          "retrieved_at_note": "用户手动下载，精确获取时间未提供；不使用文件 mtime 代替。"
+        }
+      ],
+      "preparation_method": "官方摘录与项目提示分别标记；UTF-8 整理，不是官方新发布文件",
+      "locator": "Markdown 标题及原文定位段；字段使用 Field Name/Description；PDF 使用一基页码和起始文字",
+      "source_locator_index": "data/knowledge_prepared/source_locators.json"
+    },
+    {
+      "material_id": "bts-carrier-lookup-v1",
+      "seed_version": 1,
+      "title": "BTS 航空公司 ID 对照说明",
+      "source_kind": "official_reference",
+      "path": "data/knowledge_prepared/03-bts-carrier-lookup.md",
+      "content_hash": "722a724f9d827736186d0eea6568d4f99037abfd73e24810f18680120611a054",
+      "status": "prepared_reference",
+      "origin_url": "https://www.transtats.bts.gov/Fields.asp?gnoyr_VQ=FGJ",
+      "origin_url_role": "官方发现入口，原始下载文件的精确 URL 未在所有文件中保留",
+      "retrieved_at": null,
+      "retrieved_at_note": "用户下载原件的精确时刻未提供",
+      "prepared_at": "2026-10-29T12:34:13.861573+00:00",
+      "effective_from": null,
+      "effective_to": null,
+      "effective_note": "未声明/未验证的历史适用期保持 null；指引仅核对起始生效日，未确认截止日；项目规则的截止日是本次验证范围。",
+      "raw_sources": [
+        {
+          "path": "data/knowledge_sources/L_AIRLINE_ID.csv",
+          "bytes": 66760,
+          "sha256": "22eef1d86f945ed04bf06cdc99aef23cb2dc3643cb7a1e4c34490cfac566837f",
+          "retrieved_at": null,
+          "retrieved_at_note": "用户手动下载，精确获取时间未提供；不使用文件 mtime 代替。"
+        },
+        {
+          "path": "data/knowledge_sources/bts_reporting_fields_page1.html",
+          "bytes": 155306,
+          "sha256": "fd845ecd2768880666fb50c9e537892b2ea15646bcfb01cf428ba286bf283703",
+          "retrieved_at": null,
+          "retrieved_at_note": "用户手动下载，精确获取时间未提供；不使用文件 mtime 代替。"
+        }
+      ],
+      "preparation_method": "官方摘录与项目提示分别标记；UTF-8 整理，不是官方新发布文件",
+      "locator": "Markdown 标题及原文定位段；字段使用 Field Name/Description；PDF 使用一基页码和起始文字",
+      "source_locator_index": "data/knowledge_prepared/source_locators.json"
+    },
+    {
+      "material_id": "bts-airport-lookup-v1",
+      "seed_version": 1,
+      "title": "BTS 机场 ID 对照说明",
+      "source_kind": "official_reference",
+      "path": "data/knowledge_prepared/04-bts-airport-lookup.md",
+      "content_hash": "928093c2ec9ca2c1101270db39f08b2e0e3c0556191897a1a70345b120999259",
+      "status": "prepared_reference",
+      "origin_url": "https://www.transtats.bts.gov/Fields.asp?gnoyr_VQ=FGJ",
+      "origin_url_role": "官方发现入口，原始下载文件的精确 URL 未在所有文件中保留",
+      "retrieved_at": null,
+      "retrieved_at_note": "用户下载原件的精确时刻未提供",
+      "prepared_at": "2026-10-29T12:34:13.861573+00:00",
+      "effective_from": null,
+      "effective_to": null,
+      "effective_note": "未声明/未验证的历史适用期保持 null；指引仅核对起始生效日，未确认截止日；项目规则的截止日是本次验证范围。",
+      "raw_sources": [
+        {
+          "path": "data/knowledge_sources/L_AIRPORT_ID.csv",
+          "bytes": 332707,
+          "sha256": "bea24dd3e7a516a6dac8674b86ea3da50f575b3cadec59d78cb10529c4bbb709",
+          "retrieved_at": null,
+          "retrieved_at_note": "用户手动下载，精确获取时间未提供；不使用文件 mtime 代替。"
+        },
+        {
+          "path": "data/knowledge_sources/bts_reporting_fields_page1.html",
+          "bytes": 155306,
+          "sha256": "fd845ecd2768880666fb50c9e537892b2ea15646bcfb01cf428ba286bf283703",
+          "retrieved_at": null,
+          "retrieved_at_note": "用户手动下载，精确获取时间未提供；不使用文件 mtime 代替。"
+        }
+      ],
+      "preparation_method": "官方摘录与项目提示分别标记；UTF-8 整理，不是官方新发布文件",
+      "locator": "Markdown 标题及原文定位段；字段使用 Field Name/Description；PDF 使用一基页码和起始文字",
+      "source_locator_index": "data/knowledge_prepared/source_locators.json"
+    },
+    {
+      "material_id": "project-metric-policy-v1",
+      "seed_version": 1,
+      "title": "项目指标口径 v1",
+      "source_kind": "project_policy",
+      "path": "knowledge_seed/project/05-metric-policy-v1.md",
+      "content_hash": "534197cd91683d872448423b90bced602725f2d87c46058157166095107c8022",
+      "status": "draft",
+      "origin_url": null,
+      "origin_url_role": null,
+      "retrieved_at": null,
+      "retrieved_at_note": "项目自写材料，不存在远程下载时刻",
+      "prepared_at": "2026-10-29T12:34:13.861573+00:00",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-02-01",
+      "effective_note": "未声明/未验证的历史适用期保持 null；指引仅核对起始生效日，未确认截止日；项目规则的截止日是本次验证范围。",
+      "raw_sources": [],
+      "preparation_method": "开发助手根据蓝图、实际快照和官方字段整理，待用户审核",
+      "locator": "Markdown 标题及原文定位段；字段使用 Field Name/Description；PDF 使用一基页码和起始文字",
+      "source_locator_index": null
+    },
+    {
+      "material_id": "project-data-scope-v1",
+      "seed_version": 1,
+      "title": "数据范围与限制",
+      "source_kind": "project_policy",
+      "path": "knowledge_seed/project/06-data-scope-and-limitations.md",
+      "content_hash": "12c851781b3fdd9ec3f5e8e0fd81273243d3601996fc0135177c969b0f6d98c9",
+      "status": "draft",
+      "origin_url": null,
+      "origin_url_role": null,
+      "retrieved_at": null,
+      "retrieved_at_note": "项目自写材料，不存在远程下载时刻",
+      "prepared_at": "2026-10-29T12:34:13.861573+00:00",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-02-01",
+      "effective_note": "未声明/未验证的历史适用期保持 null；指引仅核对起始生效日，未确认截止日；项目规则的截止日是本次验证范围。",
+      "raw_sources": [],
+      "preparation_method": "开发助手根据蓝图、实际快照和官方字段整理，待用户审核",
+      "locator": "Markdown 标题及原文定位段；字段使用 Field Name/Description；PDF 使用一基页码和起始文字",
+      "source_locator_index": null
+    },
+    {
+      "material_id": "project-analysis-guide-v1",
+      "seed_version": 1,
+      "title": "分析使用说明",
+      "source_kind": "project_policy",
+      "path": "knowledge_seed/project/07-analysis-guide.md",
+      "content_hash": "7687df5b14245ddc3d951865729ee5b1e283b1f3ffef8f8fbdec3e88c8704724",
+      "status": "draft",
+      "origin_url": null,
+      "origin_url_role": null,
+      "retrieved_at": null,
+      "retrieved_at_note": "项目自写材料，不存在远程下载时刻",
+      "prepared_at": "2026-10-29T12:34:13.861573+00:00",
+      "effective_from": null,
+      "effective_to": null,
+      "effective_note": "未声明/未验证的历史适用期保持 null；指引仅核对起始生效日，未确认截止日；项目规则的截止日是本次验证范围。",
+      "raw_sources": [],
+      "preparation_method": "开发助手根据蓝图、实际快照和官方字段整理，待用户审核",
+      "locator": "Markdown 标题及原文定位段；字段使用 Field Name/Description；PDF 使用一基页码和起始文字",
+      "source_locator_index": null
+    }
+  ],
+  "metrics": {
+    "path": "knowledge_seed/metrics.draft.json",
+    "content_hash": "a816eb607834bc91d1ba120fe3f579455be83f2bb3226464c324cf1dfe1fa702",
+    "count": 8,
+    "review_state": "draft",
+    "formal_revision_ids_assigned": false
+  },
+  "local_validation": {
+    "path": "data/knowledge_prepared/validation.json",
+    "content_hash": "d232dadc7b2bab046e7c1c5c839f84151c55e8cc1a0b2165d1dd7f1ffec0e2ed",
+    "material_checks_passed": true
+  },
+  "source_locator_index": {
+    "path": "data/knowledge_prepared/source_locators.json",
+    "content_hash": "ad2b985973699cf452ba2824276da17d964ac3c23fecb2a5825e5252139a058c"
+  },
+  "normalized_dimensions": {
+    "carrier_id": {
+      "raw_file": "data/knowledge_sources/L_AIRLINE_ID.csv",
+      "encoding_used": "utf-8-sig",
+      "rows": 1779,
+      "unique_keys": 1779,
+      "prepared_file": "data/knowledge_prepared/dim_carriers.csv",
+      "prepared_sha256": "d8fc487f1be9348c8af007f8bc4575eac72c4933ecf8f8da79cae9d9c16783ed",
+      "used_unique_keys": 13,
+      "unmatched_ids": [],
+      "matched_occurrences": 544003
+    },
+    "airport_id": {
+      "raw_file": "data/knowledge_sources/L_AIRPORT_ID.csv",
+      "encoding_used": "cp1252",
+      "rows": 6915,
+      "unique_keys": 6915,
+      "prepared_file": "data/knowledge_prepared/dim_airports.csv",
+      "prepared_sha256": "21261b41e3a6de60f1a1ac430aaccbaf06d867686dafc1eafd4a8741879f25dc",
+      "used_unique_keys": 342,
+      "unmatched_ids": [],
+      "matched_occurrences": 1088006
+    }
+  },
+  "model_configuration": {
+    "llm": "configured_unverified",
+    "embedding": "configured_unverified"
+  },
+  "limitations": [
+    "本清单是准备包，不是服务端知识快照或文档修订。",
+    "原始下载时间未知；checked_at/prepared_at 不是 retrieved_at。",
+    "代码表无历史名称有效期；只证实当前文件的 ID 覆盖。",
+    "现有数据快照、当前激活状态和查询产物未更改。",
+    "尚无 embedding/生成调用、检索/Wiki/指标审核验收。"
+  ],
+  "license_note": "原始与整理后的第三方材料仅存本地被忽略的 data；再分发许可未在此确认，未复制到可提交目录。"
+}
