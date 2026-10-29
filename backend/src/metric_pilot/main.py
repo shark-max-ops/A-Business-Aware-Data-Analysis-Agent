@@ -10,6 +10,9 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
 from metric_pilot.contracts import ErrorDetail, ErrorResponse, HealthResponse
+from metric_pilot.data.api import router as data_router
+from metric_pilot.data.common import DataError
+from metric_pilot.data.executor import CONNECTION_CONFIG
 from metric_pilot.database import create_metadata_engine, inspect_database
 from metric_pilot.settings import Settings
 
@@ -48,6 +51,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         输入：application - FastAPI 应用
         输出：异步生命周期上下文
         """
+        import duckdb
+
+        # 启动即验证锁定版本支持全部安全配置，不静默忽略未知设置。
+        with duckdb.connect(":memory:", config=CONNECTION_CONFIG):
+            pass
+        application.state.settings = config
         application.state.engine = create_metadata_engine(config)
         try:
             yield
@@ -134,6 +143,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         return JSONResponse(status_code=200 if ready else 503, content=body.model_dump())
 
+    @application.exception_handler(DataError)
+    async def handle_data_error(request: Request, exc: DataError):
+        """
+        作用：将数据层安全诊断转换为统一错误契约
+        输入：请求与安全数据错误
+        输出：HTTP 错误响应
+        """
+        missing = exc.code.endswith("NOT_FOUND")
+        unavailable = exc.code in {
+            "MIGRATION_REQUIRED",
+            "SNAPSHOT_FILE_UNAVAILABLE",
+            "ARTIFACT_FILE_UNAVAILABLE",
+        }
+        status = 404 if missing else 503 if unavailable else 409
+        return error_response(
+            request,
+            status,
+            exc.code,
+            "资源不存在" if missing else "数据服务尚未就绪" if unavailable else "数据操作无法完成",
+            exc.details,
+        )
+
+    application.include_router(data_router)
     return application
 
 

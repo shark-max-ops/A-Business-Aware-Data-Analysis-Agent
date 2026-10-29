@@ -1,12 +1,21 @@
 import { test, expect } from '@playwright/test';
 
-test('real backend, navigation and disabled analysis', async ({ page }) => {
+test('real backend, navigation and disabled analysis', async ({ page, request }) => {
+  const sources = await (await request.get('/api/v1/sources')).json();
+  const synthetic = sources.items.find((source: { source_kind: string }) => source.source_kind === 'synthetic');
+  expect(synthetic).toBeDefined();
   await page.goto('/analysis');
   await expect(page.getByText('本地服务已连接', { exact: false })).toBeVisible();
   await expect(page.getByText('模型未配置', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: '发送问题' })).toBeDisabled();
   await page.getByRole('button', { name: '查看数据源' }).click();
-  await expect(page.getByText('数据导入尚未开放', { exact: true })).toBeVisible();
+  await page.getByRole('combobox', { name: '数据源', exact: true }).press('ArrowDown');
+  await page.locator('.ant-select-item-option-content').getByText(synthetic.name, { exact: true }).click();
+  await expect(page.getByText('人工合成测试数据', { exact: true })).toBeVisible();
+  await expect(page.getByText('v_flights', { exact: true })).toBeVisible();
+  await expect(page.getByText('arrival_delay', { exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: '质量报告' }).click();
+  await expect(page.getByText('out_of_period', { exact: false })).toBeVisible();
   await page.keyboard.press('Escape');
   await page.getByRole('link', { name: '知识管理', exact: true }).click();
   await expect(page.getByText('文档导入尚未开放', { exact: true })).toBeVisible();
@@ -31,4 +40,25 @@ test('backend failure and recovery', async ({ page }) => {
   await page.unroute('**/api/v1/health');
   await page.getByRole('button', { name: '重新连接' }).click();
   await expect(page.getByText('本地服务已连接', { exact: false })).toBeVisible();
+});
+
+
+test('registered real BTS snapshot, schema and quality', async ({ page, request }) => {
+  const sources = await (await request.get('/api/v1/sources')).json();
+  const source = sources.items.find((item: { source_kind: string; current_snapshot_id: string | null }) => item.source_kind === 'official_bts' && item.current_snapshot_id);
+  test.skip(!source, '真实 CSV 尚未在本地登记');
+  const snapshots = await (await request.get(`/api/v1/sources/${source.id}/snapshots`)).json();
+  const snapshot = snapshots.items.find((item: { id: string }) => item.id === source.current_snapshot_id);
+  await page.goto('/analysis');
+  await page.getByRole('button', { name: '查看数据源' }).click();
+  await page.getByRole('combobox', { name: '数据源', exact: true }).press('ArrowDown');
+  await page.locator('.ant-select-item-option-content').getByText(source.name, { exact: true }).click();
+  await expect(page.getByText('用户登记的 BTS Reporting 来源', { exact: true })).toBeVisible();
+  await expect(page.getByText(snapshot.row_count.toLocaleString(), { exact: true })).toBeVisible();
+  await expect(page.getByText('v_flights', { exact: true })).toBeVisible();
+  await expect(page.getByText('arrival_delay', { exact: true })).toBeVisible();
+  await page.screenshot({ path: '../.cache/screenshots/real-bts-source.png', fullPage: true });
+  await page.getByRole('tab', { name: '质量报告' }).click();
+  await expect(page.getByText('negative_duration_counts', { exact: false })).toBeVisible();
+  await page.screenshot({ path: '../.cache/screenshots/real-bts-quality.png', fullPage: true });
 });

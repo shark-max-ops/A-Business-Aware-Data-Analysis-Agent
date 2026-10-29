@@ -7,7 +7,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from metric_pilot.settings import Settings
 
-SCHEMA_REVISION = "0001_foundation"
+SCHEMA_REVISION = "0002_data"
 
 
 class Base(DeclarativeBase):
@@ -81,6 +81,13 @@ def inspect_database(engine: Engine) -> tuple[str, str]:
                 revisions = connection.execute(text("SELECT version_num FROM alembic_version"))
                 ready = set(revisions.scalars()) == {SCHEMA_REVISION}
                 connection.execute(text("SELECT key, value FROM app_settings LIMIT 0"))
+                for table in (
+                    "data_sources",
+                    "data_snapshots",
+                    "query_executions",
+                    "query_artifacts",
+                ):
+                    connection.execute(text(f"SELECT id FROM {table} LIMIT 0"))
                 database = "ready" if ready else "migration_required"
             except SQLAlchemyError:
                 database = "migration_required"

@@ -26,10 +26,162 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sources
+         * @description 作用：读取真实来源列表，空数据库返回空列表
+         *     输入：工作区目录
+         *     输出：来源列表
+         */
+        get: operations["list_sources_api_v1_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/{source_id}/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Snapshots
+         * @description 作用：读取固定来源的历史快照
+         *     输入：来源标识与目录
+         *     输出：快照列表
+         */
+        get: operations["list_snapshots_api_v1_sources__source_id__snapshots_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/{source_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Activate
+         * @description 作用：显式设置默认快照，不覆盖旧文件
+         *     输入：来源标识、严格请求体与目录
+         *     输出：来源状态
+         */
+        post: operations["activate_api_v1_sources__source_id__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/{source_id}/schema": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Schema
+         * @description 作用：读取允许查询的固定业务结构
+         *     输入：来源、可选快照与目录
+         *     输出：表结构
+         */
+        get: operations["schema_api_v1_sources__source_id__schema_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}/artifacts/{artifact_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Artifact
+         * @description 作用：验证运行关联后读取成功产物，不执行查询
+         *     输入：运行和产物标识、分页范围与目录
+         *     输出：有限结果及其元数据
+         */
+        get: operations["read_artifact_api_v1_runs__run_id__artifacts__artifact_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ActivateRequest
+         * @description 作用：显式选择默认快照
+         *     输入：快照标识
+         *     输出：校验后的请求
+         */
+        ActivateRequest: {
+            /** Snapshot Id */
+            snapshot_id: string;
+        };
+        /**
+         * ArtifactPage
+         * @description 作用：返回冻结产物的有限分页，不执行原查询
+         *     输入：产物元数据、行和分页位置
+         *     输出：产物读取 DTO
+         */
+        ArtifactPage: {
+            artifact: components["schemas"]["QueryArtifact"];
+            /** Rows */
+            rows: unknown[][];
+            /** Offset */
+            offset: number;
+            /** Next Offset */
+            next_offset: number | null;
+        };
+        /**
+         * ColumnDTO
+         * @description 作用：描述结果或视图列
+         *     输入：名称和 DuckDB 类型
+         *     输出：列 DTO
+         */
+        ColumnDTO: {
+            /** Name */
+            name: string;
+            /** Type */
+            type: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+        };
         /**
          * ErrorDetail
          * @description 作用：统一错误信息并提供请求追踪标识
@@ -71,10 +223,10 @@ export interface components {
             status: "ok" | "degraded";
             /**
              * Stage
-             * @default 0
+             * @default 1
              * @constant
              */
-            stage: 0;
+            stage: 1;
             /**
              * Database
              * @enum {string}
@@ -107,6 +259,163 @@ export interface components {
              * @constant
              */
             analysis: "not_implemented";
+        };
+        /** Page[SnapshotDTO] */
+        Page_SnapshotDTO_: {
+            /** Items */
+            items: components["schemas"]["SnapshotDTO"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** Page[SourceDTO] */
+        Page_SourceDTO_: {
+            /** Items */
+            items: components["schemas"]["SourceDTO"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /**
+         * QueryArtifact
+         * @description 作用：保存成功执行的不可变证据元数据
+         *     输入：服务端执行信息、快照、结果哈希和规则引用
+         *     输出：蓝图 05 查询产物
+         */
+        QueryArtifact: {
+            /** Id */
+            id: string;
+            /** Run Id */
+            run_id: string;
+            /** Execution Id */
+            execution_id: string;
+            /** Snapshot Id */
+            snapshot_id: string;
+            /** Sql */
+            sql: string;
+            /** Parameters */
+            parameters: {
+                [key: string]: unknown;
+            };
+            /** Guard Version */
+            guard_version: string;
+            /** Normalized Sql */
+            normalized_sql: string;
+            /** Executed Sql */
+            executed_sql: string;
+            /** Parameter Keys */
+            parameter_keys: string[];
+            /** Tables */
+            tables: string[];
+            /** Functions */
+            functions: string[];
+            /** Columns */
+            columns: components["schemas"]["ColumnDTO"][];
+            /** Returned Rows */
+            returned_rows: number;
+            /** Truncated */
+            truncated: boolean;
+            /** Result Hash */
+            result_hash: string;
+            /** Metric Revision Ids */
+            metric_revision_ids?: string[];
+            /** Knowledge Revision Ids */
+            knowledge_revision_ids?: string[];
+            /** Duration Ms */
+            duration_ms: number;
+            /** Created At */
+            created_at: string;
+            /** Ordered */
+            ordered: boolean;
+        };
+        /**
+         * SchemaDTO
+         * @description 作用：返回某个固定快照的公开结构
+         *     输入：快照标识与表结构
+         *     输出：结构 DTO
+         */
+        SchemaDTO: {
+            /** Snapshot Id */
+            snapshot_id: string;
+            /** Tables */
+            tables: components["schemas"]["TableDTO"][];
+        };
+        /**
+         * SnapshotDTO
+         * @description 作用：描述固定数据与导入质量
+         *     输入：服务端计算的版本、清单和质量摘要
+         *     输出：快照 DTO
+         */
+        SnapshotDTO: {
+            /** Id */
+            id: string;
+            /** Source Id */
+            source_id: string;
+            /** Period */
+            period: string;
+            /** Row Count */
+            row_count: number;
+            /** File Hash */
+            file_hash: string;
+            /** Schema Hash */
+            schema_hash: string;
+            /** Created At */
+            created_at: string;
+            /** Manifest */
+            manifest: {
+                [key: string]: unknown;
+            };
+            /** Quality Report */
+            quality_report: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * SourceDTO
+         * @description 作用：描述已登记数据源
+         *     输入：来源身份和当前快照
+         *     输出：不含本机路径的数据源
+         */
+        SourceDTO: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Adapter
+             * @default duckdb
+             * @constant
+             */
+            adapter: "duckdb";
+            /**
+             * Source Kind
+             * @enum {string}
+             */
+            source_kind: "official_bts" | "synthetic";
+            /** Current Snapshot Id */
+            current_snapshot_id: string | null;
+            /**
+             * Status
+             * @default ready
+             * @constant
+             */
+            status: "ready";
+        };
+        /**
+         * TableDTO
+         * @description 作用：公开允许查询的固定业务结构
+         *     输入：视图名、列、样本和关联键
+         *     输出：表结构 DTO
+         */
+        TableDTO: {
+            /** Name */
+            name: string;
+            /** Columns */
+            columns: components["schemas"]["ColumnDTO"][];
+            /** Sample */
+            sample: {
+                [key: string]: unknown;
+            }[];
+            /** Join Keys */
+            join_keys?: string[];
         };
     };
     responses: never;
@@ -160,6 +469,214 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    list_sources_api_v1_sources_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SourceDTO_"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_snapshots_api_v1_sources__source_id__snapshots_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SnapshotDTO_"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    activate_api_v1_sources__source_id__activate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    schema_api_v1_sources__source_id__schema_get: {
+        parameters: {
+            query?: {
+                snapshot_id?: string | null;
+            };
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SchemaDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_artifact_api_v1_runs__run_id__artifacts__artifact_id__get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                run_id: string;
+                artifact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactPage"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

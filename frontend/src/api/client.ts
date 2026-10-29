@@ -28,7 +28,7 @@ export async function loadHealth(signal?: AbortSignal): Promise<HealthState> {
 function isHealth(value: unknown): value is Health {
   if (!value || typeof value !== 'object') return false;
   const h = value as Record<string, unknown>;
-  return ['ok', 'degraded'].includes(String(h.status)) && h.stage === 0
+  return ['ok', 'degraded'].includes(String(h.status)) && h.stage === 1
     && ['ready', 'migration_required', 'unavailable'].includes(String(h.database))
     && ['available', 'unavailable'].includes(String(h.fts5))
     && h.worker === 'not_implemented' && h.analysis === 'not_implemented'

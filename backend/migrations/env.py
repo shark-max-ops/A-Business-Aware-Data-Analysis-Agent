@@ -1,6 +1,7 @@
 """从与服务相同的配置加载 SQLite 迁移目标。"""
 
 from alembic import context
+from metric_pilot.data import models  # noqa: F401
 from metric_pilot.database import Base, create_metadata_engine
 from metric_pilot.settings import Settings
 

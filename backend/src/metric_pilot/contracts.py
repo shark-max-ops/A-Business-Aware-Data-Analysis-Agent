@@ -46,7 +46,7 @@ class HealthResponse(StrictDTO):
     """
 
     status: Literal["ok", "degraded"]
-    stage: Literal[0] = 0
+    stage: Literal[1] = 1
     database: Literal["ready", "migration_required", "unavailable"]
     fts5: Literal["available", "unavailable"]
     worker: Literal["not_implemented"] = "not_implemented"

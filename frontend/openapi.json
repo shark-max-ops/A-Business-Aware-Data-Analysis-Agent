@@ -53,10 +53,387 @@
           }
         }
       }
+    },
+    "/api/v1/sources": {
+      "get": {
+        "summary": "List Sources",
+        "description": "作用：读取真实来源列表，空数据库返回空列表\n输入：工作区目录\n输出：来源列表",
+        "operationId": "list_sources_api_v1_sources_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_SourceDTO_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources/{source_id}/snapshots": {
+      "get": {
+        "summary": "List Snapshots",
+        "description": "作用：读取固定来源的历史快照\n输入：来源标识与目录\n输出：快照列表",
+        "operationId": "list_snapshots_api_v1_sources__source_id__snapshots_get",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_SnapshotDTO_"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/v1/sources/{source_id}/activate": {
+      "post": {
+        "summary": "Activate",
+        "description": "作用：显式设置默认快照，不覆盖旧文件\n输入：来源标识、严格请求体与目录\n输出：来源状态",
+        "operationId": "activate_api_v1_sources__source_id__activate_post",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/v1/sources/{source_id}/schema": {
+      "get": {
+        "summary": "Schema",
+        "description": "作用：读取允许查询的固定业务结构\n输入：来源、可选快照与目录\n输出：表结构",
+        "operationId": "schema_api_v1_sources__source_id__schema_get",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          },
+          {
+            "name": "snapshot_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Snapshot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{run_id}/artifacts/{artifact_id}": {
+      "get": {
+        "summary": "Read Artifact",
+        "description": "作用：验证运行关联后读取成功产物，不执行查询\n输入：运行和产物标识、分页范围与目录\n输出：有限结果及其元数据",
+        "operationId": "read_artifact_api_v1_runs__run_id__artifacts__artifact_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Artifact Id"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "ActivateRequest": {
+        "properties": {
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "snapshot_id"
+        ],
+        "title": "ActivateRequest",
+        "description": "作用：显式选择默认快照\n输入：快照标识\n输出：校验后的请求"
+      },
+      "ArtifactPage": {
+        "properties": {
+          "artifact": {
+            "$ref": "#/components/schemas/QueryArtifact"
+          },
+          "rows": {
+            "items": {
+              "items": {},
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Offset"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "artifact",
+          "rows",
+          "offset",
+          "next_offset"
+        ],
+        "title": "ArtifactPage",
+        "description": "作用：返回冻结产物的有限分页，不执行原查询\n输入：产物元数据、行和分页位置\n输出：产物读取 DTO"
+      },
+      "ColumnDTO": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "ColumnDTO",
+        "description": "作用：描述结果或视图列\n输入：名称和 DuckDB 类型\n输出：列 DTO"
+      },
       "ErrorDetail": {
         "properties": {
           "code": {
@@ -114,9 +491,9 @@
           },
           "stage": {
             "type": "integer",
-            "const": 0,
+            "const": 1,
             "title": "Stage",
-            "default": 0
+            "default": 1
           },
           "database": {
             "type": "string",
@@ -175,6 +552,366 @@
         ],
         "title": "HealthResponse",
         "description": "作用：描述本地服务可用性与真实功能状态\n输入：元数据库、自检和集成配置状态\n输出：健康检查响应，不包含凭据或本机路径"
+      },
+      "Page_SnapshotDTO_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SnapshotDTO"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "Page[SnapshotDTO]"
+      },
+      "Page_SourceDTO_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SourceDTO"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "Page[SourceDTO]"
+      },
+      "QueryArtifact": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "execution_id": {
+            "type": "string",
+            "title": "Execution Id"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "sql": {
+            "type": "string",
+            "title": "Sql"
+          },
+          "parameters": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Parameters"
+          },
+          "guard_version": {
+            "type": "string",
+            "title": "Guard Version"
+          },
+          "normalized_sql": {
+            "type": "string",
+            "title": "Normalized Sql"
+          },
+          "executed_sql": {
+            "type": "string",
+            "title": "Executed Sql"
+          },
+          "parameter_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Parameter Keys"
+          },
+          "tables": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tables"
+          },
+          "functions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Functions"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/ColumnDTO"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "returned_rows": {
+            "type": "integer",
+            "title": "Returned Rows"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          },
+          "result_hash": {
+            "type": "string",
+            "title": "Result Hash"
+          },
+          "metric_revision_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Metric Revision Ids"
+          },
+          "knowledge_revision_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Knowledge Revision Ids"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "title": "Duration Ms"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "ordered": {
+            "type": "boolean",
+            "title": "Ordered"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "run_id",
+          "execution_id",
+          "snapshot_id",
+          "sql",
+          "parameters",
+          "guard_version",
+          "normalized_sql",
+          "executed_sql",
+          "parameter_keys",
+          "tables",
+          "functions",
+          "columns",
+          "returned_rows",
+          "truncated",
+          "result_hash",
+          "duration_ms",
+          "created_at",
+          "ordered"
+        ],
+        "title": "QueryArtifact",
+        "description": "作用：保存成功执行的不可变证据元数据\n输入：服务端执行信息、快照、结果哈希和规则引用\n输出：蓝图 05 查询产物"
+      },
+      "SchemaDTO": {
+        "properties": {
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "tables": {
+            "items": {
+              "$ref": "#/components/schemas/TableDTO"
+            },
+            "type": "array",
+            "title": "Tables"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "snapshot_id",
+          "tables"
+        ],
+        "title": "SchemaDTO",
+        "description": "作用：返回某个固定快照的公开结构\n输入：快照标识与表结构\n输出：结构 DTO"
+      },
+      "SnapshotDTO": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "row_count": {
+            "type": "integer",
+            "title": "Row Count"
+          },
+          "file_hash": {
+            "type": "string",
+            "title": "File Hash"
+          },
+          "schema_hash": {
+            "type": "string",
+            "title": "Schema Hash"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "manifest": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Manifest"
+          },
+          "quality_report": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Quality Report"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "source_id",
+          "period",
+          "row_count",
+          "file_hash",
+          "schema_hash",
+          "created_at",
+          "manifest",
+          "quality_report"
+        ],
+        "title": "SnapshotDTO",
+        "description": "作用：描述固定数据与导入质量\n输入：服务端计算的版本、清单和质量摘要\n输出：快照 DTO"
+      },
+      "SourceDTO": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "adapter": {
+            "type": "string",
+            "const": "duckdb",
+            "title": "Adapter",
+            "default": "duckdb"
+          },
+          "source_kind": {
+            "type": "string",
+            "enum": [
+              "official_bts",
+              "synthetic"
+            ],
+            "title": "Source Kind"
+          },
+          "current_snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Snapshot Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "ready",
+            "title": "Status",
+            "default": "ready"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "source_kind",
+          "current_snapshot_id"
+        ],
+        "title": "SourceDTO",
+        "description": "作用：描述已登记数据源\n输入：来源身份和当前快照\n输出：不含本机路径的数据源"
+      },
+      "TableDTO": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/ColumnDTO"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "sample": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Sample"
+          },
+          "join_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Join Keys"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "columns",
+          "sample"
+        ],
+        "title": "TableDTO",
+        "description": "作用：公开允许查询的固定业务结构\n输入：视图名、列、样本和关联键\n输出：表结构 DTO"
       }
     }
   }
