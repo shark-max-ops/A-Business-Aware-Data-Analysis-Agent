@@ -1,0 +1,181 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "MetricPilot",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "Health",
+        "description": "作用：报告数据库、FTS5 和配置状态，不执行模型请求\n输入：request - 请求\n输出：健康 DTO，数据库异常时返回 503",
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ErrorDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "details",
+          "request_id"
+        ],
+        "title": "ErrorDetail",
+        "description": "作用：统一错误信息并提供请求追踪标识\n输入：错误码、说明、脱敏细节和请求标识\n输出：错误详情"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "description": "作用：提供统一错误响应外层\n输入：error - 错误详情\n输出：HTTP 错误响应"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded"
+            ],
+            "title": "Status"
+          },
+          "stage": {
+            "type": "integer",
+            "const": 0,
+            "title": "Stage",
+            "default": 0
+          },
+          "database": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "migration_required",
+              "unavailable"
+            ],
+            "title": "Database"
+          },
+          "fts5": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unavailable"
+            ],
+            "title": "Fts5"
+          },
+          "worker": {
+            "type": "string",
+            "const": "not_implemented",
+            "title": "Worker",
+            "default": "not_implemented"
+          },
+          "llm": {
+            "type": "string",
+            "enum": [
+              "configured_unverified",
+              "not_configured"
+            ],
+            "title": "Llm"
+          },
+          "embedding": {
+            "type": "string",
+            "enum": [
+              "configured_unverified",
+              "not_configured"
+            ],
+            "title": "Embedding"
+          },
+          "analysis": {
+            "type": "string",
+            "const": "not_implemented",
+            "title": "Analysis",
+            "default": "not_implemented"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "database",
+          "fts5",
+          "llm",
+          "embedding"
+        ],
+        "title": "HealthResponse",
+        "description": "作用：描述本地服务可用性与真实功能状态\n输入：元数据库、自检和集成配置状态\n输出：健康检查响应，不包含凭据或本机路径"
+      }
+    }
+  }
+}

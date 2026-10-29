@@ -1,0 +1,9 @@
+FlightDate,DOT_ID_Reporting_Airline,Reporting_Airline,ArrDelay,ArrDelayMinutes,ArrDel15,Cancelled,Diverted
+2026-01-01,90001,ZZ,-10,0,0,0,0
+2026-01-01,90001,ZZ,0,0,0,0,0
+2026-01-02,90001,ZZ,20,20,1,0,0
+2026-01-02,90002,ZX,14,14,0,0,0
+2026-01-02,90002,ZX,15,15,1,0,0
+2026-01-03,90002,ZX,,,,1,0
+2026-01-03,90002,ZX,,,,0,1
+2026-01-03,90002,ZX,,,,0,0

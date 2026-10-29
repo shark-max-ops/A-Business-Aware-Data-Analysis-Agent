@@ -1,0 +1,94 @@
+{
+  "captured_on": "2026-10-27",
+  "origin": "local DB-GPT working tree",
+  "git_head_context": "8733ce9071dbbfb09d3612c0d60a3d9bb3c66e20",
+  "note": "Snapshots preserve local working-tree bytes, which can differ from HEAD or upstream. HEAD is context, not a claim these files match that commit.",
+  "license_file": "LICENSE.txt",
+  "license_sha256": "57f31efaa6924350100148563b68eb2e235cfb32680de836b6f6b3cd683a0eea",
+  "files": [
+    {
+      "source_path": "packages/dbgpt-core/src/dbgpt/agent/core/agent.py",
+      "snapshot_file": "01-agent.py.txt",
+      "sha256": "c8e03cae97c48b972a78891c5643065f20a987cb4b8d225c980c69b1e1fd0f46",
+      "bytes": 12710,
+      "working_tree_status": "clean"
+    },
+    {
+      "source_path": "packages/dbgpt-core/src/dbgpt/agent/core/base_agent.py",
+      "snapshot_file": "02-base-agent.py.txt",
+      "sha256": "d353e2f6931c5e59d1dc012fa85204b09cf2d6d9eb305ad77f56aedb3f9ae26c",
+      "bytes": 65404,
+      "working_tree_status": "clean"
+    },
+    {
+      "source_path": "packages/dbgpt-core/src/dbgpt/agent/expand/react_agent.py",
+      "snapshot_file": "03-react-agent.py.txt",
+      "sha256": "62cd1b1285256b1e33bb2360dedca7bf4a65fa493254cdd306cc7353d2a24e84",
+      "bytes": 14578,
+      "working_tree_status": "clean"
+    },
+    {
+      "source_path": "packages/dbgpt-core/src/dbgpt/agent/expand/tool_calling_agent.py",
+      "snapshot_file": "04-tool-calling-agent.py.txt",
+      "sha256": "5f5dbb1df6510caa2c59aaa14903e472f5d360155f3291aab6292a1a337e091c",
+      "bytes": 28267,
+      "working_tree_status": "clean"
+    },
+    {
+      "source_path": "packages/dbgpt-core/src/dbgpt/agent/expand/actions/tool_action.py",
+      "snapshot_file": "05-tool-action.py.txt",
+      "sha256": "5d040d893b0b0f3e92763974e890131341c39d3c0048901535efd938db163008",
+      "bytes": 15221,
+      "working_tree_status": "clean"
+    },
+    {
+      "source_path": "packages/dbgpt-core/src/dbgpt/agent/core/context/manager.py",
+      "snapshot_file": "06-context-manager.py.txt",
+      "sha256": "f2bf51084f74c5b3b0efe3f5c28aada66e8c774d6a225a68d6258c234305cdcb",
+      "bytes": 7076,
+      "working_tree_status": "clean"
+    },
+    {
+      "source_path": "packages/dbgpt-core/src/dbgpt/agent/middleware/base.py",
+      "snapshot_file": "07-middleware.py.txt",
+      "sha256": "af9a0a0504b0a4388ae050e655b6ecce75e85021f138f36071214376953bf898",
+      "bytes": 14458,
+      "working_tree_status": "clean"
+    },
+    {
+      "source_path": "packages/dbgpt-serve/src/dbgpt_serve/rag/service/wiki/pipeline.py",
+      "snapshot_file": "08-wiki-pipeline.py.txt",
+      "sha256": "785fc958ce6048007ca94931e0381c61f1b737e8f95e189c7f44e16ffb310452",
+      "bytes": 44243,
+      "working_tree_status": "clean"
+    },
+    {
+      "source_path": "packages/dbgpt-serve/src/dbgpt_serve/rag/models/wiki_db.py",
+      "snapshot_file": "09-wiki-models.py.txt",
+      "sha256": "83ae45cf3ca695cf9e4d854734ef090bfb1876e3033a0558a21735b66d5751ef",
+      "bytes": 28389,
+      "working_tree_status": "clean"
+    },
+    {
+      "source_path": "packages/dbgpt-app/src/dbgpt_app/openapi/api_v1/tools/sql_read_only.py",
+      "snapshot_file": "10-sql-read-only.py.txt",
+      "sha256": "c1198ee0dc99734a866a5d69f421c9427f445b5bf96f29216ac23494f09ccc21",
+      "bytes": 1851,
+      "working_tree_status": "clean"
+    },
+    {
+      "source_path": "packages/dbgpt-app/src/dbgpt_app/openapi/api_v1/tools/report_evidence.py",
+      "snapshot_file": "11-report-evidence.py.txt",
+      "sha256": "c54c5864bf012b0548eb036b5ed5bc8f9be26151ea7885e454e2365b72bc9943",
+      "bytes": 24933,
+      "working_tree_status": "clean"
+    },
+    {
+      "source_path": "web/components/knowledge/wiki/wiki-browser.tsx",
+      "snapshot_file": "12-wiki-browser.tsx.txt",
+      "sha256": "d5b13a6c95894773a5e2accb1fc68e10598856d6a9d5b3fccbfb1190f256ba78",
+      "bytes": 7844,
+      "working_tree_status": "clean"
+    }
+  ]
+}
