@@ -55,7 +55,7 @@
 
 - 没有数据源登记、SQL 执行、知识处理、Wiki、指标审核、Run / Job worker、SSE、模型分析或报告保存能力。
 - RunContext、ToolResult、QueryArtifact、MetricDefinition、ReportDraft 与 SSE envelope 将按 02—06 在对应阶段实现，不制造另一套临时业务契约。
-- 阶段 0 只有应用设置表，不预建整个平台的数据模型；当前目录未初始化 Git。
+- 阶段 0 只有应用设置表，不预建整个平台的数据模型；当前目录已初始化 Git。
 - 模型已填配置只表示格式完整，不表示服务可连通。APP_HOST / APP_PORT 尚由启动命令显式指定。
 - 当前 Ant Design 主包构建约 675 kB（gzip 约 219 kB），Vite 给出大于 500 kB 的提示；阶段 0 尚未做路由拆包。
 - 当前 Starlette 测试客户端对 httpx 给出弃用提示，5 项测试仍通过；依赖已锁定，后续升级时迁移测试客户端。
@@ -63,3 +63,22 @@
 ## 下一阶段入口
 
 按蓝图 03 / 07 实现阶段 1：扩充合成 fixture、BTS CSV 导入 CLI、manifest 与质量报告、DataSnapshot 和业务视图、SQL AST 允许集、受限只读连接、可终止的查询子进程、成功 QueryArtifact，以及前端数据源抽屉的真实路径。优先验证分母、空值、负延误、SQL 防护、超时/取消与快照不可覆盖。
+
+
+## 阶段 0 后续修正：CSS 导入类型声明
+
+根据编辑器截图定位到 `main.tsx` 的 CSS 副作用导入缺少类型声明。启用严格副作用导入检查后在本地复现了错误。
+
+新增 `frontend/src/vite-env.d.ts` 引用 `vite/client`，并在 `frontend/tsconfig.json` 开启 `noUncheckedSideEffectImports`，使构建也覆盖这一检查。
+
+实际复验：`node frontend/node_modules/typescript/bin/tsc --project frontend/tsconfig.json --noEmit` 和前端 `npm.cmd run build` 均通过。原有大包提示仍存在；无需为纯类型配置变更重复运行后端或浏览器测试。
+
+## 阶段 0 全面复验
+
+按蓝图 07 的阶段 0 验收项再次检查，Windows 本机阶段 0 已完成：`uv sync --locked`、后端测试 5 项、Ruff、Alembic 结构检查、前端测试 4 项和生产构建均通过；后端 OpenAPI 和生成的前端类型与现有文件一致。
+
+使用独立数据库和端口完成迁移、启动及无密钥健康检查；使用独立目录从锁文件离线执行 `npm ci` 成功。真实浏览器在现有后端与重启后的前端上完成导航、刷新、移动端、断线和恢复检查，2 项通过。`.env`、虚拟环境、数据和缓存由 `.gitignore` 排除，检查的敏感本地路径没有被 Git 跟踪。
+
+复验发现 README 原有复制配置命令可能覆盖现有 `.env`，现已改为仅在文件不存在时复制，并更新了已初始化 Git 的说明。运行中的 Vite 会锁住 Windows 依赖文件：尝试在原目录 `npm ci` 未成功，随后已恢复依赖、重启本会话启动的 Vite 并重新通过前端测试、构建和浏览器检查；README 已补充重新安装前先停止前端服务的说明。
+
+Linux / macOS、真实 BTS 数据及远程模型仍未验证，原因与上文相同，不把这些后续阶段工作算入阶段 0 验收。

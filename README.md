@@ -15,7 +15,7 @@ Python 3.12、uv、Node.js 22+、npm。Python 版本固定为 3.12，依赖由 `
 ```powershell
 $env:UV_CACHE_DIR = Join-Path (Get-Location) '.cache/uv'
 uv sync --locked
-Copy-Item .env.example .env
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 uv run alembic upgrade head
 uv run uvicorn metric_pilot.main:app --host 127.0.0.1 --port 8000
 ```
@@ -30,12 +30,14 @@ npm.cmd run dev
 
 PowerShell 可能阻止 `npm.ps1`，使用 `npm.cmd` 即可，无需修改系统执行策略。打开 http://127.0.0.1:5173 。Vite 固定该端口，代理 `/api` 到 8000，端口冲突会明确失败。前后端均仅监听回环地址。
 
+重新执行 `npm ci` 前，请先停止正在运行的前端开发服务器；Windows 可能锁定正在使用的依赖文件。安装完成后再启动前端。
+
 ## Linux / macOS
 
 ```bash
 export UV_CACHE_DIR="$PWD/.cache/uv"
 uv sync --locked
-cp .env.example .env
+test -f .env || cp .env.example .env
 uv run alembic upgrade head
 uv run uvicorn metric_pilot.main:app --host 127.0.0.1 --port 8000
 ```
@@ -61,7 +63,7 @@ Linux / macOS 命令尚需在相应系统实测，本次 Windows 验收不代表
 - `worker` 与 `analysis` 为 `not_implemented`，阶段 0 不启动占位 worker。
 - 普通错误：`{error: {code, message, details, request_id}}`。健康检查的 503 保留健康 DTO，供页面诊断。
 
-不提交 `.env`、`.venv`、`storage/`、真实原始数据或本机路径。目录尚未初始化 Git，已建立 `.gitignore`。合成数据见 [fixtures/README.md](fixtures/README.md)。
+不提交 `.env`、`.venv`、`storage/`、真实原始数据或本机路径。项目的 `.gitignore` 包含这些本地文件；合成数据见 [fixtures/README.md](fixtures/README.md)。
 
 ## 检查与契约同步
 
