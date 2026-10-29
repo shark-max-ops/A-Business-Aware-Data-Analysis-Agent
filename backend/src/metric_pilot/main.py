@@ -64,7 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             application.state.engine.dispose()
 
     application = FastAPI(
-        title="MetricPilot",
+        title="A Business-Aware Data Analysis Agent",
         version="0.1.0",
         lifespan=lifespan,
         responses={422: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},

@@ -1,4 +1,4 @@
-# MetricPilot：编码 AI 工作约束
+# A Business-Aware Data Analysis Agent：编码 AI 工作约束
 
 本文件位于工作区根目录，适用于整个工作区。设计蓝图位于 `参考/docs/blueprint/`。
 

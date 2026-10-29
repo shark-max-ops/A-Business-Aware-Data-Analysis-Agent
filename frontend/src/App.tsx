@@ -20,7 +20,7 @@ export function App() {
   const health = state.kind === 'ready' || state.kind === 'degraded' ? state.health : null;
   return <div className="app-shell">
     <header className="topbar">
-      <Link to="/analysis" className="brand"><span className="brand-mark">M</span><span>MetricPilot<small>业务口径驱动的数据分析</small></span></Link>
+      <Link to="/analysis" className="brand"><span className="brand-mark">A</span><span className="brand-title">A Business-Aware Data Analysis Agent<small>业务口径驱动的数据分析</small></span></Link>
       <nav aria-label="主导航"><NavLink to="/knowledge">知识管理</NavLink><NavLink to="/analysis">分析</NavLink><NavLink to="/reports">报告</NavLink></nav>
       <div className="connection"><span className={`status-dot ${state.kind === 'ready' ? 'online' : ''}`} />{state.kind === 'loading' ? '正在连接服务' : state.kind === 'error' ? '后端未连接' : state.kind === 'degraded' ? '服务需要处理' : '本地服务已连接'}<Tag>{health?.llm === 'configured_unverified' ? '模型配置待验证' : health ? '模型未配置' : '模型状态未知'}</Tag></div>
     </header>
