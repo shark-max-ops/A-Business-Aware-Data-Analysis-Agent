@@ -1,30 +1,80 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 
-test('real runtime, repair, reload, event replay and mobile layout', async ({ page }) => {
+const rangeSql = 'SELECT COUNT(*) AS record_count, COUNT(DISTINCT flight_date) AS distinct_days, MIN(flight_date) AS min_date, MAX(flight_date) AS max_date FROM v_flights';
+
+test('inline execution, actual repair, drawer, replay and mobile layout', async ({ page }) => {
   const errors: string[] = [];
+  const cancellations: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
+  page.on('request', request => { if (request.url().endsWith('/cancel')) cancellations.push(request.url()); });
   await page.goto('/analysis');
   await expect(page.getByText('本地服务已连接', { exact: false })).toBeVisible();
   await page.getByLabel('分析问题', { exact: true }).fill('核对合成数据范围');
   await page.getByRole('button', { name: '发送问题' }).click();
   await expect(page.getByRole('button', { name: '停止分析' })).toBeVisible();
+  await expect(page.locator('.run-timeline')).toHaveCount(0);
+  const toggle = page.locator('.execution-toggle');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('.execution-step').first()).toBeVisible();
+  await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/execution-running.png', fullPage: true });
+  await page.getByRole('button', { name: '执行详情' }).click();
+  const dialog = page.getByRole('dialog', { name: '执行详情' });
+  await expect(dialog).toBeVisible();
+  await expect.poll(() => dialog.evaluate(element => Math.abs(element.getBoundingClientRect().right - innerWidth) < 1)).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
   await page.reload();
-  await expect(page.getByText('查询已完成。以下是冻结结果预览', { exact: false })).toBeVisible({ timeout: 30000 });
-  await expect(page.getByRole('columnheader', { name: 'record_count' })).toBeVisible();
-  await expect(page.getByText('查询未成功，未生成证据产物', { exact: true })).toBeVisible();
-  await expect(page.getByText('查询完成，保存 1 行', { exact: true })).toBeVisible();
-  const count = await page.locator('.run-event').count();
+  await expect(page.getByRole('columnheader', { name: 'record_count' })).toBeVisible({ timeout: 30000 });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(toggle).toContainText('5 次工具调用');
+  await expect(toggle).toContainText('1 次失败记录');
+  await expect(page.getByRole('region', { name: '工具步骤' })).toHaveCount(0);
+  await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/execution-desktop-collapsed.png', fullPage: true });
+
+  await toggle.click();
+  await expect(page.locator('.execution-step')).toHaveCount(5);
+  await expect(page.locator('.execution-step.failed')).toHaveCount(1);
+  await page.locator('.execution-step.failed').click();
+  await expect(dialog).toBeVisible();
+  await expect.poll(() => dialog.evaluate(element => Math.abs(element.getBoundingClientRect().right - innerWidth) < 1)).toBe(true);
+  await expect(dialog.getByText('SQL_EXECUTION_FAILED', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('SELECT wrong_column FROM v_flights', { exact: true })).toBeVisible();
+  await dialog.getByRole('combobox', { name: '选择工具记录' }).press('ArrowDown');
+  await page.locator('.ant-select-item-option-content').getByText('5. 执行只读查询 · 已完成', { exact: true }).click();
+  await expect(page.locator('.ant-select-dropdown:visible')).toHaveCount(0);
+  await expect(dialog.getByText(rangeSql, { exact: true })).toBeVisible();
+  await dialog.getByText('固定版本与运行信息', { exact: true }).click();
+  await expect(dialog.getByText('固定版本与运行信息', { exact: true }).locator('..')).toContainText('knowledge_snapshot_id');
+  await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/execution-desktop-drawer.png', fullPage: false });
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await page.locator('.analysis-question').click();
+  await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/execution-desktop-expanded.png', fullPage: true });
   await page.reload();
-  await expect(page.locator('.run-event')).toHaveCount(count);
-  await expect(page.getByText('查询完成，保存 1 行', { exact: true })).toHaveCount(1);
-  await page.screenshot({ path: '../.cache/screenshots/stage3-analysis-desktop.png', fullPage: true });
+  await expect(toggle).toContainText('5 次工具调用');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(page.locator('.execution-step')).toHaveCount(5);
+  await expect(page.locator('.execution-step.failed')).toHaveCount(1);
+  await toggle.click();
+
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({ path: '../.cache/screenshots/stage3-analysis-mobile.png', fullPage: true });
+  await expect(page.getByRole('columnheader', { name: 'max_date' })).toBeAttached();
+  await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/execution-mobile-collapsed.png', fullPage: true });
+  await toggle.click();
+  await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/execution-mobile-expanded.png', fullPage: true });
+  await page.getByRole('button', { name: '执行详情' }).click();
+  await expect(dialog).toBeVisible();
+  await expect.poll(() => dialog.evaluate(element => Math.abs(element.getBoundingClientRect().right - innerWidth) < 1)).toBe(true);
+  expect(await dialog.evaluate(element => element.getBoundingClientRect().width <= innerWidth)).toBe(true);
+  await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/execution-mobile-drawer.png', fullPage: false });
+  expect(cancellations).toEqual([]);
   expect(errors).toEqual([]);
 });
 
-test('explicit cancellation survives reload and stops model work', async ({ page, request }) => {
+test('explicit cancellation survives reload and remains distinct from success', async ({ page, request }) => {
   await page.goto('/analysis');
   await page.getByLabel('分析问题', { exact: true }).fill('等待取消');
   await page.getByRole('button', { name: '发送问题' }).click();
@@ -33,10 +83,39 @@ test('explicit cancellation survives reload and stops model work', async ({ page
   const stop = page.getByRole('button', { name: '停止分析' });
   await expect(stop).toBeVisible();
   await stop.click();
-  await expect(page.getByText('已取消：RUN_CANCELLED', { exact: true })).toBeVisible();
+  await expect(page.getByText('本次分析已取消', { exact: true })).toBeVisible();
+  await expect(page.locator('.execution-toggle')).toContainText('分析已取消');
+  await expect(page.locator('.execution-trace.success')).toHaveCount(0);
   await page.reload();
-  await expect(page.getByText('已取消：RUN_CANCELLED', { exact: true })).toBeVisible();
+  await expect(page.getByText('本次分析已取消', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '执行详情' }).click();
+  await expect(page.getByRole('dialog').getByText('RUN_CANCELLED', { exact: true })).toBeVisible();
   const sessions = await (await request.get('/api/v1/conversations')).json();
   const runs = await (await request.get(`/api/v1/conversations/${sessions.items[0].id}`)).json();
   expect(runs.items.at(-1).status).toBe('cancelled');
+});
+
+test('clarification does not show a green completed-query indicator or invented tools', async ({ page }) => {
+  await page.goto('/analysis');
+  await page.getByLabel('分析问题', { exact: true }).fill('需要补充条件');
+  await page.getByRole('button', { name: '发送问题' }).click();
+  await expect(page.getByText('需要先审核项目指标口径', { exact: true })).toBeVisible();
+  await expect(page.locator('.execution-toggle')).toContainText('需要补充条件');
+  await expect(page.locator('.execution-trace.success')).toHaveCount(0);
+  await page.locator('.execution-toggle').click();
+  await expect(page.getByText('本次运行没有工具执行记录。', { exact: true })).toBeVisible();
+  await expect(page.locator('.execution-step')).toHaveCount(0);
+  await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/execution-clarification.png', fullPage: true });
+});
+
+test('failed runtime exposes the actual error in the drawer and no query result', async ({ page }) => {
+  await page.goto('/analysis');
+  await page.getByLabel('分析问题', { exact: true }).fill('模拟服务失败');
+  await page.getByRole('button', { name: '发送问题' }).click();
+  await expect(page.getByText('本次分析未完成', { exact: true })).toBeVisible();
+  await expect(page.locator('.execution-trace.error')).toBeVisible();
+  await expect(page.getByRole('table')).toHaveCount(0);
+  await page.getByRole('button', { name: '执行详情' }).click();
+  await expect(page.getByRole('dialog').getByText('MODEL_REQUEST_FAILED', { exact: true })).toBeVisible();
+  await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/execution-failed.png', fullPage: true });
 });

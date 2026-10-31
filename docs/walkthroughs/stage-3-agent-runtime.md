@@ -124,7 +124,11 @@ SQL 取消和超时最终进入 [QueryExecutor.execute()](../../backend/src/metr
 
 [AnalysisPage.tsx](../../frontend/src/components/AnalysisPage.tsx) 提供会话/历史、快照选择、问题提交、显式停止和结果分页；[api/analysis.ts](../../frontend/src/api/analysis.ts) 的 `mergeEvents()` 按运行 ID 和序号去重。
 
-同一个工具的开始与结束合成一张卡片，完整技术记录默认收起。日期、Decimal 和大整数以原值文本显示，null 显示缺失；前端不重新计算指标。
+[ExecutionTrace.tsx](../../frontend/src/components/ExecutionTrace.tsx) 把执行过程放在本次问题下方：运行时显示真实当前操作，完成后自动收起；点击箭头展开短步骤，点击“执行详情”或某一步再打开右侧抽屉，集中查看 SQL、参数、来源、错误和版本。页面不再常驻显示执行侧栏。
+
+[executionPresentation.ts](../../frontend/src/components/executionPresentation.ts) 按真实事件序号和执行 ID 配对步骤，保留失败与后续成功尝试，避免把所有状态都显示为绿色完成。用时只从实际开始/结束事件计算，缺失时不编造。抽屉关闭和步骤折叠不会发出取消请求。
+
+日期、Decimal 和大整数以原值文本显示，null 显示缺失；前端不重新计算指标。
 
 刷新或断线后可以恢复状态与事件。关闭页面只停止订阅，不自动取消运行；“停止分析”才调用幂等取消接口。
 
@@ -145,3 +149,6 @@ SQL 取消和超时最终进入 [QueryExecutor.execute()](../../backend/src/metr
 已有 Windows 验收记录为后端 110 项、前端 9 项、浏览器合计 6 项通过，Agent 专项 18 项复验通过；真实模型三个案例另行记录。这些数字来自已有 [实施记录](../../IMPLEMENTATION_STATUS.md)，本文整理时没有重新运行测试或请求模型。
 
 当前 Agent 使用关键词检索，知识页保留真实混合检索。八项实际项目指标仍待人工审核，Wiki 未发布。自由 SQL 的业务语义没有被全面自动证明，完整报告和 ValueRef 物化尚未实施；Linux/macOS 与整体问答准确率也没有据这些 Windows 案例得到验证。
+
+
+2026-10-31 的执行进度展示修订另有前端单元与隔离浏览器检查，最新结果见实施记录；上面的 110/9/6 为阶段 3 原验收记录，不能当成本次全部重新运行的结果。

@@ -1,15 +1,15 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Alert, Button, Empty, Input, Select, Space, Table, Tag } from 'antd';
+import { Alert, Button, Empty, Input, Select, Space, Table } from 'antd';
 import type { components } from '../api/schema';
 import { analysisApi, eventTypes, jsonRequest, mergeEvents, terminal } from '../api/analysis';
 import type { Conversation, Run, RunEvent } from '../api/analysis';
+import { ExecutionTrace } from './ExecutionTrace';
 
 type Source = components['schemas']['SourceDTO'];
 type Snapshot = components['schemas']['SnapshotDTO'];
 type Artifact = components['schemas']['ArtifactPage'];
 const DataSourceDrawer = lazy(() => import('./DataSourceDrawer').then(module => ({ default: module.DataSourceDrawer })));
 const statusText: Record<Run['status'], string> = { queued: '已排队', running: '分析中', completed: '已完成', failed: '失败', cancelled: '已取消', interrupted: '服务中断' };
-const toolText: Record<string, string> = { search_knowledge: '查阅资料', read_wiki_page: '阅读 Wiki', resolve_metric: '查阅指标', list_tables: '查看可用表', describe_table: '查看字段', query_sql: '执行查询', read_artifact: '读取结果' };
 
 /** 作用：显示类型化冻结单元格；输入：原始值；输出：可读文本，不计算指标。 */
 function displayCell(value: unknown): string {
@@ -37,12 +37,6 @@ export function AnalysisPage() {
   const [attempt, setAttempt] = useState(0);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const active = !!run && !terminal(run.status);
-  const toolEvents = new Map<string, RunEvent>();
-  for (const event of events) {
-    const id = event.payload.tool_execution_id;
-    if (typeof id === 'string') toolEvents.set(id, event);
-  }
-  const visibleTools = [...toolEvents.values()];
 
   useEffect(() => {
     let alive = true;
@@ -152,7 +146,7 @@ export function AnalysisPage() {
     {!configured && <Alert type="warning" message="模型未配置或分析服务尚未就绪" description="请检查本机模型配置和后端状态。健康检查不会请求模型。" />}
     {!snapshots.length && <Alert type="info" message="暂无可分析的数据，请先导入数据快照" />}
     <div className="mobile-conversation"><Select aria-label="切换分析会话" value={conversationId || undefined} placeholder="选择会话" disabled={active || busy} onChange={setConversationId} options={conversations.map(item => ({ value: item.id, label: item.title }))} /><Button disabled={active || busy} onClick={() => { void newConversation().catch(e => setError(e.message)); }}>新会话</Button></div>
-    <div className="analysis-grid">
+    <div className="analysis-grid analysis-conversation-layout">
       <aside className="panel analysis-history"><Space direction="vertical"><h2>分析会话</h2><Button disabled={active || busy} onClick={() => { void newConversation().catch(e => setError(e.message)); }}>新会话</Button></Space>
         {conversations.map(item => <Button block type={conversationId === item.id ? 'primary' : 'text'} disabled={active || busy} key={item.id} onClick={() => setConversationId(item.id)}>{item.title}</Button>)}
       </aside>
@@ -162,20 +156,17 @@ export function AnalysisPage() {
         <p className="analysis-hint">涉及项目指标时需要人工审核的规则；草稿不会自动生效。切换快照会建立新的分析上下文。</p>
         {runs.length > 0 && <Select aria-label="历史分析运行" value={run?.id} disabled={active || busy} style={{ width: '100%' }} onChange={id => setRun(runs.find(item => item.id === id) ?? null)} options={runs.map(item => ({ value: item.id, label: `${item.question} · ${statusText[item.status]}` }))} />}
         {!run && <Empty description="输入问题后，模型会查阅依据并调用实际工具" />}
-        {run && <div className="run-result" aria-live="polite"><h3>{run.question}</h3><Tag>{statusText[run.status]}</Tag><div>数据与知识版本已固定 <details><summary>查看版本</summary><code>{run.snapshot_id}<br />{run.knowledge_snapshot_id}</code></details></div>
-          {run.error_code && <Alert type={run.status === 'cancelled' ? 'info' : 'error'} message={`${statusText[run.status]}：${run.error_code}`} description="可修改问题后重新发起。失败不会显示为成功报告。" />}
+        {run && <div className="run-result">
+          <div className="analysis-question"><span>你的问题</span><h3>{run.question}</h3></div>
+          <ExecutionTrace run={run} events={events} connection={connection} />
+          {run.error_code && <Alert type={run.status === 'cancelled' ? 'info' : 'error'} message={run.status === 'cancelled' ? '本次分析已取消' : run.status === 'interrupted' ? '分析因服务中断而停止' : '本次分析未完成'} description="可修改问题后重新发起，具体原因可在执行详情中查看。" />}
           {run.result?.kind === 'clarification' && <Alert type="info" message={run.result.question} description={run.result.missing_requirements.join('；')} />}
-          {run.result?.kind === 'query_result' && <p>查询已完成。以下是冻结结果预览；执行及引用有效不等于业务语义已自动验证。</p>}
-          {artifacts.map(page => <div key={page.artifact.id} className="artifact-preview"><h4>查询结果 · {page.artifact.returned_rows} 行</h4>{page.artifact.truncated && <Alert type="warning" message="结果已截断，不能作为完整统计" />}<Table size="small" pagination={false} scroll={{ x: true }} rowKey="_row" dataSource={page.rows.map((row, index) => Object.fromEntries([['_row', String(index)], ...row.map((cell, col) => [String(col), cell])]))} columns={page.artifact.columns.map((column, index) => ({ title: column.name, dataIndex: String(index), render: displayCell }))} /><p>当前显示 {page.rows.length} 行，起始位置 {page.offset + (page.rows.length ? 1 : 0)}</p><Space><Button size="small" disabled={page.offset === 0} onClick={() => { void artifactPage(page, Math.max(0, page.offset - 20)); }}>上一页</Button><Button size="small" disabled={page.next_offset === null} onClick={() => { if (page.next_offset !== null) void artifactPage(page, page.next_offset); }}>下一页</Button></Space><details><summary>SQL 与结果依据</summary><pre>{page.artifact.sql}</pre><pre>{JSON.stringify({ parameters: page.artifact.parameters, snapshot_id: page.artifact.snapshot_id, result_hash: page.artifact.result_hash, metric_revision_ids: page.artifact.metric_revision_ids }, null, 2)}</pre></details></div>)}
+          {run.result?.kind === 'query_result' && <p className="analysis-result-note">以下为本次冻结结果；执行与引用有效，业务语义未自动验证。</p>}
+          {artifacts.filter(page => page.artifact.run_id === run.id).map(page => <div key={page.artifact.id} className="artifact-preview"><h4>查询结果 · {page.artifact.returned_rows} 行</h4>{page.artifact.truncated && <Alert type="warning" message="结果已截断，不能作为完整统计" />}<Table size="small" pagination={false} scroll={{ x: true }} rowKey="_row" dataSource={page.rows.map((row, index) => Object.fromEntries([['_row', String(index)], ...row.map((cell, col) => [String(col), cell])]))} columns={page.artifact.columns.map((column, index) => ({ title: column.name, dataIndex: String(index), render: displayCell }))} /><p>当前显示 {page.rows.length} 行，起始位置 {page.offset + (page.rows.length ? 1 : 0)}</p>{(page.offset > 0 || page.next_offset !== null) && <Space><Button size="small" disabled={page.offset === 0} onClick={() => { void artifactPage(page, Math.max(0, page.offset - 20)); }}>上一页</Button><Button size="small" disabled={page.next_offset === null} onClick={() => { if (page.next_offset !== null) void artifactPage(page, page.next_offset); }}>下一页</Button></Space>}</div>)}
         </div>}
         <div className="composer"><label htmlFor="question">分析问题</label><Input.TextArea id="question" rows={3} maxLength={4000} value={question} onChange={e => setQuestion(e.target.value)} placeholder="例如：查看本月数据的日期范围和记录数" disabled={active || busy} /><div className="composer-bottom"><span>关闭页面后运行会继续</span><Space>{active && <Button danger onClick={() => { void cancel(); }} disabled={run?.cancel_requested}>停止分析</Button>}<Button type="primary" loading={busy} disabled={active || !configured || !snapshotId || !question.trim()} onClick={() => { void submit(); }}>发送问题</Button></Space></div></div>
       </section>
-      <aside className="panel run-timeline"><h2>执行进度</h2><p role="status">{connection}</p>
-        {active && <p>{String(events.at(-1)?.payload.summary ?? '正在分析…')}</p>}
-        {!visibleTools.length && <p>{run && terminal(run.status) ? '本次运行没有工具执行记录。' : '工具执行后，会在这里显示结果。'}</p>}
-        {visibleTools.map(event => <div key={String(event.payload.tool_execution_id)} className="run-event"><strong>{toolText[String(event.payload.tool)] ?? String(event.payload.tool)}</strong><Tag color={event.payload.status === 'failed' ? 'error' : event.payload.status === 'succeeded' ? 'success' : 'default'}>{({ succeeded: '完成', failed: '失败', cancelled: '已取消', interrupted: '已中断' } as Record<string, string>)[String(event.payload.status)] ?? '执行中'}</Tag><p>{String(event.payload.summary ?? '')}</p><details><summary>查看工具记录</summary><pre>{JSON.stringify(event.payload, null, 2)}</pre></details></div>)}
-        {events.length > 0 && <details className="event-history"><summary>完整事件记录 · {events.length} 条</summary><pre>{JSON.stringify(events, null, 2)}</pre></details>}
-      </aside>
+
     </div>
     <Suspense fallback={<p>正在加载数据源…</p>}>{drawer && <DataSourceDrawer open={drawer} onClose={() => setDrawer(false)} />}</Suspense>
   </>;
