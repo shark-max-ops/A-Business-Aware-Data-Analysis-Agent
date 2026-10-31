@@ -7,7 +7,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from metric_pilot.settings import Settings
 
-SCHEMA_REVISION = "0004_agent"
+SCHEMA_REVISION = "0005_reports"
 
 
 class Base(DeclarativeBase):
@@ -94,6 +94,8 @@ def inspect_database(engine: Engine) -> tuple[str, str]:
                     "conversations",
                     "agent_runs",
                     "tool_executions",
+                    "reports",
+                    "report_revisions",
                 ):
                     connection.execute(text(f"SELECT id FROM {table} LIMIT 0"))
                 connection.execute(text("SELECT key FROM knowledge_metrics LIMIT 0"))

@@ -21,6 +21,7 @@ from metric_pilot.knowledge.api import router as knowledge_router
 from metric_pilot.knowledge.jobs import KnowledgeWorker
 from metric_pilot.knowledge.provider import KnowledgeProvider
 from metric_pilot.knowledge.store import KnowledgeStore
+from metric_pilot.reports.api import router as reports_router
 from metric_pilot.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -200,6 +201,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             exc.details,
         )
 
+    application.include_router(reports_router)
     application.include_router(agent_router)
     application.include_router(data_router)
     application.include_router(knowledge_router)

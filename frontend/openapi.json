@@ -54,6 +54,427 @@
         }
       }
     },
+    "/api/v1/reports": {
+      "get": {
+        "summary": "Listing",
+        "description": "作用：展示真实报告列表\n输入：分页游标\n输出：列表",
+        "operationId": "listing_api_v1_reports_get",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ReportSummary_"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/v1/reports/{report_id}/revisions": {
+      "get": {
+        "summary": "History",
+        "description": "作用：查看保留的不可变修订历史\n输入：报告与分页游标\n输出：历史",
+        "operationId": "history_api_v1_reports__report_id__revisions_get",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Report Id"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ReportSummary_"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      },
+      "post": {
+        "summary": "Revise",
+        "description": "作用：人工修改标题、解释或布局并保留旧版\n输入：固定证据上的草稿与加载时版本\n输出：新修订",
+        "operationId": "revise_api_v1_reports__report_id__revisions_post",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Report Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportRevisionWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/v1/reports/{report_id}/revisions/{revision_id}": {
+      "get": {
+        "summary": "Detail",
+        "description": "作用：读取指定固定报告\n输入：报告及修订\n输出：详情",
+        "operationId": "detail_api_v1_reports__report_id__revisions__revision_id__get",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Report Id"
+            }
+          },
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Revision Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/v1/reports/{report_id}/revisions/{revision_id}/evidence": {
+      "get": {
+        "summary": "Evidence",
+        "description": "作用：只读当前报告内指定值的来源\n输入：固定修订、块和单元格选择\n输出：依据抽屉数据",
+        "operationId": "evidence_api_v1_reports__report_id__revisions__revision_id__evidence_get",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Report Id"
+            }
+          },
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Revision Id"
+            }
+          },
+          {
+            "name": "block_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Block Id"
+            }
+          },
+          {
+            "name": "row",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Row"
+            }
+          },
+          {
+            "name": "column",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Column"
+            }
+          },
+          {
+            "name": "value_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Value Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/v1/reports/{report_id}/revisions/{revision_id}/export": {
+      "get": {
+        "summary": "Export",
+        "description": "作用：导出当前固定修订，不重查数据或重新请求模型\n输入：报告、修订及格式\n输出：下载响应",
+        "operationId": "export_api_v1_reports__report_id__revisions__revision_id__export_get",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Report Id"
+            }
+          },
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Revision Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(markdown|json)$",
+              "default": "markdown",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
     "/api/v1/conversations": {
       "get": {
         "summary": "Conversations",
@@ -2394,6 +2815,90 @@
         ],
         "title": "Body_upload_document_api_v1_documents_post"
       },
+      "ChartBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "chart",
+            "title": "Type"
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "artifact_id": {
+            "type": "string",
+            "title": "Artifact Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "bar",
+              "line"
+            ],
+            "title": "Kind"
+          },
+          "x": {
+            "type": "string",
+            "title": "X"
+          },
+          "y": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Y"
+          },
+          "x_label": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "X Label",
+            "default": "分类"
+          },
+          "series_labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "maxProperties": 3,
+            "title": "Series Labels"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "integer",
+              "decimal_2",
+              "percent_2",
+              "minutes_2"
+            ],
+            "title": "Format",
+            "default": "decimal_2"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "title",
+          "artifact_id",
+          "kind",
+          "x",
+          "y"
+        ],
+        "title": "ChartBlock",
+        "description": "作用：限定图表种类与真实数据列\n输入：柱状或折线图、数据列和中文标签\n输出：不含可执行配置的图表声明"
+      },
       "ChunkDTO": {
         "properties": {
           "id": {
@@ -2785,6 +3290,7 @@
               "run.progress",
               "tool.started",
               "tool.finished",
+              "report.ready",
               "run.completed",
               "run.failed",
               "run.cancelled",
@@ -2813,6 +3319,136 @@
         ],
         "title": "EventDTO",
         "description": "作用：统一 SSE envelope\n输入：事务分配事件\n输出：可重放事件"
+      },
+      "EvidenceDTO": {
+        "properties": {
+          "block_id": {
+            "type": "string",
+            "title": "Block Id"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FrozenValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artifact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueryArtifact"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_snapshot": {
+            "$ref": "#/components/schemas/SnapshotDTO"
+          },
+          "knowledge_snapshot_id": {
+            "type": "string",
+            "title": "Knowledge Snapshot Id"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/FrozenSource"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "metrics": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Metrics"
+          },
+          "validation_level": {
+            "type": "string",
+            "const": "references_validated",
+            "title": "Validation Level",
+            "default": "references_validated"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "block_id",
+          "data_snapshot",
+          "knowledge_snapshot_id",
+          "sources",
+          "metrics"
+        ],
+        "title": "EvidenceDTO",
+        "description": "作用：只从指定报告的冻结索引返回依据\n输入：报告块和受限单元格选择\n输出：原值、执行记录、固定来源与口径"
+      },
+      "FrozenSource": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "source_kind": {
+            "type": "string",
+            "title": "Source Kind"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "locator": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Locator"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "revision_id",
+          "title",
+          "source_kind",
+          "content"
+        ],
+        "title": "FrozenSource",
+        "description": "作用：保存固定原文或知识版本的可读副本\n输入：来源类型、标题、原文与定位\n输出：不依赖当前版本的来源"
+      },
+      "FrozenValue": {
+        "properties": {
+          "raw": {
+            "title": "Raw"
+          },
+          "display": {
+            "type": "string",
+            "title": "Display"
+          },
+          "value_ref": {
+            "$ref": "#/components/schemas/ValueRef"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "raw",
+          "display",
+          "value_ref"
+        ],
+        "title": "FrozenValue",
+        "description": "作用：公开服务端读取和格式化的真实单元格\n输入：原始值、显示值与引用\n输出：带证据入口的单元格"
       },
       "GenerateWiki": {
         "properties": {
@@ -3020,9 +3656,9 @@
           },
           "stage": {
             "type": "integer",
-            "const": 3,
+            "const": 4,
             "title": "Stage",
-            "default": 3
+            "default": 4
           },
           "database": {
             "type": "string",
@@ -3201,6 +3837,51 @@
         ],
         "title": "JobDTO",
         "description": "作用：显示持久化任务状态，不暴露内部输入\n输入：任务记录\n输出：任务状态"
+      },
+      "KPIBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "kpi",
+            "title": "Type"
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "value_ref": {
+            "$ref": "#/components/schemas/ValueRef"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "integer",
+              "decimal_2",
+              "percent_2",
+              "minutes_2"
+            ],
+            "title": "Format"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "title",
+          "value_ref",
+          "format"
+        ],
+        "title": "KPIBlock",
+        "description": "作用：声明关键数值卡片\n输入：标签、取值引用和显示格式\n输出：待校验卡片"
       },
       "MetricDefinition": {
         "properties": {
@@ -3425,6 +4106,34 @@
           "items"
         ],
         "title": "Page[EventDTO]"
+      },
+      "Page_ReportSummary_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReportSummary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "Page[ReportSummary]"
       },
       "Page_RunDTO_": {
         "properties": {
@@ -3668,6 +4377,415 @@
         "title": "QueryResult",
         "description": "作用：提交查询产物清单\n输入：当前运行产物\n输出：阶段 3 结果"
       },
+      "RenderedBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "kpi",
+              "table",
+              "chart",
+              "text"
+            ],
+            "title": "Type"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FrozenValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artifact_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Id"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/ReportColumn"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "rows": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/FrozenValue"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "bar",
+                  "line"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/TextSegment"
+            },
+            "type": "array",
+            "title": "Segments"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Ids"
+          },
+          "ordered": {
+            "type": "boolean",
+            "title": "Ordered",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "id"
+        ],
+        "title": "RenderedBlock",
+        "description": "作用：提供由服务端物化的统一块 DTO\n输入：已校验块与冻结数据\n输出：只读展示数据"
+      },
+      "ReportColumn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "label"
+        ],
+        "title": "ReportColumn",
+        "description": "作用：保留真实列名与中文显示名\n输入：列键和标题\n输出：表格列"
+      },
+      "ReportDTO": {
+        "properties": {
+          "report_id": {
+            "type": "string",
+            "title": "Report Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          },
+          "validation_level": {
+            "type": "string",
+            "const": "references_validated",
+            "title": "Validation Level",
+            "default": "references_validated"
+          },
+          "data_snapshot": {
+            "$ref": "#/components/schemas/SnapshotDTO"
+          },
+          "knowledge_snapshot_id": {
+            "type": "string",
+            "title": "Knowledge Snapshot Id"
+          },
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/RenderedBlock"
+            },
+            "type": "array",
+            "title": "Blocks"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/FrozenSource"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "metrics": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Metrics"
+          },
+          "draft": {
+            "$ref": "#/components/schemas/ReportDraft"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "report_id",
+          "revision_id",
+          "version",
+          "run_id",
+          "question",
+          "created_at",
+          "title",
+          "scope",
+          "limitations",
+          "data_snapshot",
+          "knowledge_snapshot_id",
+          "blocks",
+          "sources",
+          "metrics",
+          "draft",
+          "content_hash"
+        ],
+        "title": "ReportDTO",
+        "description": "作用：提供不可变报告正文及固定依据\n输入：服务端冻结修订\n输出：报告详情 DTO"
+      },
+      "ReportDraft": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1",
+            "title": "Schema Version"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "scope": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Scope"
+          },
+          "metric_revision_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Metric Revision Ids"
+          },
+          "blocks": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/KPIBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/TableBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/ChartBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/TextBlock"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "chart": "#/components/schemas/ChartBlock",
+                  "kpi": "#/components/schemas/KPIBlock",
+                  "table": "#/components/schemas/TableBlock",
+                  "text": "#/components/schemas/TextBlock"
+                }
+              }
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Blocks"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schema_version",
+          "title",
+          "scope",
+          "blocks"
+        ],
+        "title": "ReportDraft",
+        "description": "作用：约束模型报告草稿，不接受模型填写数值或验证等级\n输入：范围、指标版本、布局和限制\n输出：严格报告候选"
+      },
+      "ReportResult": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "report",
+            "title": "Kind"
+          },
+          "report_id": {
+            "type": "string",
+            "title": "Report Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "report_id",
+          "revision_id"
+        ],
+        "title": "ReportResult",
+        "description": "作用：让运行结果仅引用已提交的报告\n输入：服务端报告和修订 ID\n输出：持久化运行结果"
+      },
+      "ReportRevisionWrite": {
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Version"
+          },
+          "report": {
+            "$ref": "#/components/schemas/ReportDraft"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_version",
+          "report"
+        ],
+        "title": "ReportRevisionWrite",
+        "description": "作用：显式修订同一批冻结证据上的报告\n输入：加载时版本和新草稿\n输出：带并发保护的修订请求"
+      },
+      "ReportSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope"
+          },
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "source_kind": {
+            "type": "string",
+            "title": "Source Kind"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "revision_id",
+          "version",
+          "title",
+          "question",
+          "scope",
+          "period",
+          "source_kind",
+          "created_at"
+        ],
+        "title": "ReportSummary",
+        "description": "作用：展示实际已提交报告列表\n输入：服务端报告记录\n输出：摘要卡片"
+      },
       "RunDTO": {
         "properties": {
           "id": {
@@ -3728,6 +4846,9 @@
               {
                 "oneOf": [
                   {
+                    "$ref": "#/components/schemas/ReportResult"
+                  },
+                  {
                     "$ref": "#/components/schemas/QueryResult"
                   },
                   {
@@ -3738,7 +4859,8 @@
                   "propertyName": "kind",
                   "mapping": {
                     "clarification": "#/components/schemas/Clarification",
-                    "query_result": "#/components/schemas/QueryResult"
+                    "query_result": "#/components/schemas/QueryResult",
+                    "report": "#/components/schemas/ReportResult"
                   }
                 }
               },
@@ -4052,6 +5174,59 @@
         "title": "SourceDTO",
         "description": "作用：描述已登记数据源\n输入：来源身份和当前快照\n输出：不含本机路径的数据源"
       },
+      "TableBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "table",
+            "title": "Type"
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "artifact_id": {
+            "type": "string",
+            "title": "Artifact Id"
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Columns"
+          },
+          "column_labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "maxProperties": 16,
+            "title": "Column Labels"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "title",
+          "artifact_id",
+          "columns"
+        ],
+        "title": "TableBlock",
+        "description": "作用：声明冻结结果表格\n输入：产物、原始列及可选中文列名\n输出：待校验表格"
+      },
       "TableDTO": {
         "properties": {
           "name": {
@@ -4090,6 +5265,116 @@
         ],
         "title": "TableDTO",
         "description": "作用：公开允许查询的固定业务结构\n输入：视图名、列、样本和关联键\n输出：表结构 DTO"
+      },
+      "TextBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "text",
+            "title": "Type"
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "text_template": {
+            "type": "string",
+            "maxLength": 2400,
+            "minLength": 1,
+            "title": "Text Template"
+          },
+          "values": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ValueRef"
+            },
+            "type": "object",
+            "maxProperties": 24,
+            "title": "Values"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 24,
+            "title": "Evidence Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "text_template"
+        ],
+        "title": "TextBlock",
+        "description": "作用：让文字中的数量通过受限占位符取值\n输入：纯文本模板、单元格引用及证据 ID\n输出：待物化说明"
+      },
+      "TextSegment": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FrozenValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "TextSegment",
+        "description": "作用：区分普通文字与可点击的服务端取值\n输入：文字或有命名键的单元格\n输出：安全文字片段"
+      },
+      "ValueRef": {
+        "properties": {
+          "artifact_id": {
+            "type": "string",
+            "title": "Artifact Id"
+          },
+          "row": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Row"
+          },
+          "column": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Column"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "artifact_id",
+          "row",
+          "column"
+        ],
+        "title": "ValueRef",
+        "description": "作用：定位冻结结果中的单元格\n输入：产物 ID、零基行号和原始列名\n输出：严格引用"
       },
       "VersionAction": {
         "properties": {

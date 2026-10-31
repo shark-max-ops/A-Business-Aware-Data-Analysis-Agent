@@ -328,6 +328,9 @@ def test_actual_async_model_request_is_stopped(agent_workspace, cancelled):
             输出：无
             """
             try:
+                # 等实际请求进入等待后再计时取消，避免把提前取消误当作关闭已打开连接。
+                if timer:
+                    timer.start()
                 await asyncio.sleep(10)
             finally:
                 self.closed = True
@@ -337,8 +340,6 @@ def test_actual_async_model_request_is_stopped(agent_workspace, cancelled):
     signal = threading.Event()
     model = SlowModel()
     timer = threading.Timer(0.15, signal.set) if cancelled else None
-    if timer:
-        timer.start()
     started = time.monotonic()
     asyncio.run(AgentRuntime(store, config, model).run(run, signal))
     if timer:

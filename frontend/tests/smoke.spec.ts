@@ -23,7 +23,7 @@ test('real backend, navigation and disabled analysis', async ({ page, request })
   await page.reload();
   await expect(page.getByRole('heading', { name: '为每个指标建立依据' })).toBeVisible();
   await page.getByRole('link', { name: '报告', exact: true }).click();
-  await expect(page.getByText('报告功能尚未开放', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '每个数字，都能找到依据' })).toBeVisible();
   await page.screenshot({ path: '../.cache/screenshots/reports-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

@@ -18,6 +18,7 @@ from metric_pilot.data.common import DataError, digest
 from metric_pilot.data.contracts import RunContext, ToolResult
 from metric_pilot.data.executor import QueryExecutor
 from metric_pilot.data.query import QueryService
+from metric_pilot.reports.service import ReportService
 
 
 class AgentRuntime:
@@ -87,16 +88,45 @@ class AgentRuntime:
                         if candidate.kind == "query_result":
                             for ident in candidate.artifact_ids:
                                 query.read_artifact(run["id"], ident, 0, 1)
+                        prepared = None
+                        if candidate.kind == "report":
+                            self.store.emit(
+                                run["id"], "run.progress", {"summary": "正在核对报告数字与依据"}
+                            )
+                            prepared = await asyncio.to_thread(
+                                ReportService(query).prepare, run, candidate.report
+                            )
                         self.check(ctx, cancel)
                         self.observer.on_finish(
                             run["id"],
                             "completed",
-                            candidate.model_dump(),
+                            None if prepared is not None else candidate.model_dump(),
                             usage=usage,
                             conversation_title=conversation_title,
+                            prepared_report=prepared,
+                            deadline=ctx.deadline_monotonic,
+                            cancel=cancel,
                         )
                         return
-                    except (ValidationError, DataError):
+                    except (ValidationError, DataError) as exc:
+                        if isinstance(exc, DataError) and exc.code in {
+                            "RUN_CANCELLED",
+                            "RUN_TIMEOUT",
+                        }:
+                            raise
+                        code = (
+                            exc.code if isinstance(exc, DataError) else "REPORT_STRUCTURE_INVALID"
+                        )
+                        details = (
+                            exc.details
+                            if isinstance(exc, DataError)
+                            else {
+                                "fields": [
+                                    {"location": list(e["loc"]), "type": e["type"]}
+                                    for e in exc.errors()[:12]
+                                ]
+                            }
+                        )
                         repairs += 1
                         if repairs > 2:
                             raise DataError("FINAL_CANDIDATE_INVALID") from None
@@ -105,7 +135,17 @@ class AgentRuntime:
                                 {"role": "assistant", "content": "最终候选待修正"},
                                 {
                                     "role": "user",
-                                    "content": "结果结构或产物引用无效，请按 JSON 契约修正。",
+                                    "content": json.dumps(
+                                        {
+                                            "error_code": code,
+                                            "details": details,
+                                            "instruction": (
+                                                "按报告契约修正；只引用本次成功产物。"
+                                                "截断需重新聚合查询。"
+                                            ),
+                                        },
+                                        ensure_ascii=False,
+                                    ),
                                 },
                             ]
                         )

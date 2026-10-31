@@ -26,6 +26,122 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listing
+         * @description 作用：展示真实报告列表
+         *     输入：分页游标
+         *     输出：列表
+         */
+        get: operations["listing_api_v1_reports_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/{report_id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * History
+         * @description 作用：查看保留的不可变修订历史
+         *     输入：报告与分页游标
+         *     输出：历史
+         */
+        get: operations["history_api_v1_reports__report_id__revisions_get"];
+        put?: never;
+        /**
+         * Revise
+         * @description 作用：人工修改标题、解释或布局并保留旧版
+         *     输入：固定证据上的草稿与加载时版本
+         *     输出：新修订
+         */
+        post: operations["revise_api_v1_reports__report_id__revisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/{report_id}/revisions/{revision_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Detail
+         * @description 作用：读取指定固定报告
+         *     输入：报告及修订
+         *     输出：详情
+         */
+        get: operations["detail_api_v1_reports__report_id__revisions__revision_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/{report_id}/revisions/{revision_id}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Evidence
+         * @description 作用：只读当前报告内指定值的来源
+         *     输入：固定修订、块和单元格选择
+         *     输出：依据抽屉数据
+         */
+        get: operations["evidence_api_v1_reports__report_id__revisions__revision_id__evidence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/{report_id}/revisions/{revision_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export
+         * @description 作用：导出当前固定修订，不重查数据或重新请求模型
+         *     输入：报告、修订及格式
+         *     输出：下载响应
+         */
+        get: operations["export_api_v1_reports__report_id__revisions__revision_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversations": {
         parameters: {
             query?: never;
@@ -894,6 +1010,49 @@ export interface components {
             expected_version: number;
         };
         /**
+         * ChartBlock
+         * @description 作用：限定图表种类与真实数据列
+         *     输入：柱状或折线图、数据列和中文标签
+         *     输出：不含可执行配置的图表声明
+         */
+        ChartBlock: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "chart";
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Artifact Id */
+            artifact_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "bar" | "line";
+            /** X */
+            x: string;
+            /** Y */
+            y: string[];
+            /**
+             * X Label
+             * @default 分类
+             */
+            x_label: string;
+            /** Series Labels */
+            series_labels?: {
+                [key: string]: string;
+            };
+            /**
+             * Format
+             * @default decimal_2
+             * @enum {string}
+             */
+            format: "integer" | "decimal_2" | "percent_2" | "minutes_2";
+        };
+        /**
          * ChunkDTO
          * @description 作用：返回真实摘录及定位
          *     输入：分块记录
@@ -1096,13 +1255,75 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "run.queued" | "run.started" | "run.progress" | "tool.started" | "tool.finished" | "run.completed" | "run.failed" | "run.cancelled" | "run.interrupted";
+            type: "run.queued" | "run.started" | "run.progress" | "tool.started" | "tool.finished" | "report.ready" | "run.completed" | "run.failed" | "run.cancelled" | "run.interrupted";
             /** Created At */
             created_at: string;
             /** Payload */
             payload: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * EvidenceDTO
+         * @description 作用：只从指定报告的冻结索引返回依据
+         *     输入：报告块和受限单元格选择
+         *     输出：原值、执行记录、固定来源与口径
+         */
+        EvidenceDTO: {
+            /** Block Id */
+            block_id: string;
+            value?: components["schemas"]["FrozenValue"] | null;
+            artifact?: components["schemas"]["QueryArtifact"] | null;
+            data_snapshot: components["schemas"]["SnapshotDTO"];
+            /** Knowledge Snapshot Id */
+            knowledge_snapshot_id: string;
+            /** Sources */
+            sources: components["schemas"]["FrozenSource"][];
+            /** Metrics */
+            metrics: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Validation Level
+             * @default references_validated
+             * @constant
+             */
+            validation_level: "references_validated";
+        };
+        /**
+         * FrozenSource
+         * @description 作用：保存固定原文或知识版本的可读副本
+         *     输入：来源类型、标题、原文与定位
+         *     输出：不依赖当前版本的来源
+         */
+        FrozenSource: {
+            /** Id */
+            id: string;
+            /** Revision Id */
+            revision_id: string;
+            /** Title */
+            title: string;
+            /** Source Kind */
+            source_kind: string;
+            /** Content */
+            content: string;
+            /** Locator */
+            locator?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * FrozenValue
+         * @description 作用：公开服务端读取和格式化的真实单元格
+         *     输入：原始值、显示值与引用
+         *     输出：带证据入口的单元格
+         */
+        FrozenValue: {
+            /** Raw */
+            raw: unknown;
+            /** Display */
+            display: string;
+            value_ref: components["schemas"]["ValueRef"];
         };
         /**
          * GenerateWiki
@@ -1198,10 +1419,10 @@ export interface components {
             status: "ok" | "degraded";
             /**
              * Stage
-             * @default 3
+             * @default 4
              * @constant
              */
-            stage: 3;
+            stage: 4;
             /**
              * Database
              * @enum {string}
@@ -1291,6 +1512,29 @@ export interface components {
             created_at: string;
         };
         /**
+         * KPIBlock
+         * @description 作用：声明关键数值卡片
+         *     输入：标签、取值引用和显示格式
+         *     输出：待校验卡片
+         */
+        KPIBlock: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "kpi";
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            value_ref: components["schemas"]["ValueRef"];
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "integer" | "decimal_2" | "percent_2" | "minutes_2";
+        };
+        /**
          * MetricDefinition
          * @description 作用：固定计算口径、来源与适用期
          *     输入：蓝图指标字段
@@ -1367,6 +1611,13 @@ export interface components {
         Page_EventDTO_: {
             /** Items */
             items: components["schemas"]["EventDTO"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** Page[ReportSummary] */
+        Page_ReportSummary_: {
+            /** Items */
+            items: components["schemas"]["ReportSummary"][];
             /** Next Cursor */
             next_cursor?: string | null;
         };
@@ -1459,6 +1710,179 @@ export interface components {
             artifact_ids: string[];
         };
         /**
+         * RenderedBlock
+         * @description 作用：提供由服务端物化的统一块 DTO
+         *     输入：已校验块与冻结数据
+         *     输出：只读展示数据
+         */
+        RenderedBlock: {
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "kpi" | "table" | "chart" | "text";
+            /** Id */
+            id: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            value?: components["schemas"]["FrozenValue"] | null;
+            /** Artifact Id */
+            artifact_id?: string | null;
+            /** Columns */
+            columns?: components["schemas"]["ReportColumn"][];
+            /** Rows */
+            rows?: components["schemas"]["FrozenValue"][][];
+            /** Kind */
+            kind?: ("bar" | "line") | null;
+            /** Segments */
+            segments?: components["schemas"]["TextSegment"][];
+            /** Evidence Ids */
+            evidence_ids?: string[];
+            /**
+             * Ordered
+             * @default false
+             */
+            ordered: boolean;
+        };
+        /**
+         * ReportColumn
+         * @description 作用：保留真实列名与中文显示名
+         *     输入：列键和标题
+         *     输出：表格列
+         */
+        ReportColumn: {
+            /** Name */
+            name: string;
+            /** Label */
+            label: string;
+        };
+        /**
+         * ReportDTO
+         * @description 作用：提供不可变报告正文及固定依据
+         *     输入：服务端冻结修订
+         *     输出：报告详情 DTO
+         */
+        ReportDTO: {
+            /** Report Id */
+            report_id: string;
+            /** Revision Id */
+            revision_id: string;
+            /** Version */
+            version: number;
+            /** Run Id */
+            run_id: string;
+            /** Question */
+            question: string;
+            /** Created At */
+            created_at: string;
+            /** Title */
+            title: string;
+            /** Scope */
+            scope: string;
+            /** Limitations */
+            limitations: string[];
+            /**
+             * Validation Level
+             * @default references_validated
+             * @constant
+             */
+            validation_level: "references_validated";
+            data_snapshot: components["schemas"]["SnapshotDTO"];
+            /** Knowledge Snapshot Id */
+            knowledge_snapshot_id: string;
+            /** Blocks */
+            blocks: components["schemas"]["RenderedBlock"][];
+            /** Sources */
+            sources: components["schemas"]["FrozenSource"][];
+            /** Metrics */
+            metrics: {
+                [key: string]: unknown;
+            }[];
+            draft: components["schemas"]["ReportDraft"];
+            /** Content Hash */
+            content_hash: string;
+        };
+        /**
+         * ReportDraft
+         * @description 作用：约束模型报告草稿，不接受模型填写数值或验证等级
+         *     输入：范围、指标版本、布局和限制
+         *     输出：严格报告候选
+         */
+        ReportDraft: {
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "1";
+            /** Title */
+            title: string;
+            /** Scope */
+            scope: string;
+            /** Metric Revision Ids */
+            metric_revision_ids?: string[];
+            /** Blocks */
+            blocks: (components["schemas"]["KPIBlock"] | components["schemas"]["TableBlock"] | components["schemas"]["ChartBlock"] | components["schemas"]["TextBlock"])[];
+            /** Limitations */
+            limitations?: string[];
+        };
+        /**
+         * ReportResult
+         * @description 作用：让运行结果仅引用已提交的报告
+         *     输入：服务端报告和修订 ID
+         *     输出：持久化运行结果
+         */
+        ReportResult: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "report";
+            /** Report Id */
+            report_id: string;
+            /** Revision Id */
+            revision_id: string;
+        };
+        /**
+         * ReportRevisionWrite
+         * @description 作用：显式修订同一批冻结证据上的报告
+         *     输入：加载时版本和新草稿
+         *     输出：带并发保护的修订请求
+         */
+        ReportRevisionWrite: {
+            /** Expected Version */
+            expected_version: number;
+            report: components["schemas"]["ReportDraft"];
+        };
+        /**
+         * ReportSummary
+         * @description 作用：展示实际已提交报告列表
+         *     输入：服务端报告记录
+         *     输出：摘要卡片
+         */
+        ReportSummary: {
+            /** Id */
+            id: string;
+            /** Revision Id */
+            revision_id: string;
+            /** Version */
+            version: number;
+            /** Title */
+            title: string;
+            /** Question */
+            question: string;
+            /** Scope */
+            scope: string;
+            /** Period */
+            period: string;
+            /** Source Kind */
+            source_kind: string;
+            /** Created At */
+            created_at: string;
+        };
+        /**
          * RunDTO
          * @description 作用：恢复运行状态
          *     输入：持久化记录
@@ -1489,7 +1913,7 @@ export interface components {
             /** Metric Revision Ids */
             metric_revision_ids: string[];
             /** Result */
-            result?: (components["schemas"]["QueryResult"] | components["schemas"]["Clarification"]) | null;
+            result?: (components["schemas"]["ReportResult"] | components["schemas"]["QueryResult"] | components["schemas"]["Clarification"]) | null;
             /** Error Code */
             error_code?: string | null;
             /** Cancel Requested */
@@ -1641,6 +2065,31 @@ export interface components {
             status: "ready";
         };
         /**
+         * TableBlock
+         * @description 作用：声明冻结结果表格
+         *     输入：产物、原始列及可选中文列名
+         *     输出：待校验表格
+         */
+        TableBlock: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "table";
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Artifact Id */
+            artifact_id: string;
+            /** Columns */
+            columns: string[];
+            /** Column Labels */
+            column_labels?: {
+                [key: string]: string;
+            };
+        };
+        /**
          * TableDTO
          * @description 作用：公开允许查询的固定业务结构
          *     输入：视图名、列、样本和关联键
@@ -1657,6 +2106,56 @@ export interface components {
             }[];
             /** Join Keys */
             join_keys?: string[];
+        };
+        /**
+         * TextBlock
+         * @description 作用：让文字中的数量通过受限占位符取值
+         *     输入：纯文本模板、单元格引用及证据 ID
+         *     输出：待物化说明
+         */
+        TextBlock: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "text";
+            /** Id */
+            id: string;
+            /** Text Template */
+            text_template: string;
+            /** Values */
+            values?: {
+                [key: string]: components["schemas"]["ValueRef"];
+            };
+            /** Evidence Ids */
+            evidence_ids?: string[];
+        };
+        /**
+         * TextSegment
+         * @description 作用：区分普通文字与可点击的服务端取值
+         *     输入：文字或有命名键的单元格
+         *     输出：安全文字片段
+         */
+        TextSegment: {
+            /** Text */
+            text: string;
+            /** Key */
+            key?: string | null;
+            value?: components["schemas"]["FrozenValue"] | null;
+        };
+        /**
+         * ValueRef
+         * @description 作用：定位冻结结果中的单元格
+         *     输入：产物 ID、零基行号和原始列名
+         *     输出：严格引用
+         */
+        ValueRef: {
+            /** Artifact Id */
+            artifact_id: string;
+            /** Row */
+            row: number;
+            /** Column */
+            column: string;
         };
         /**
          * VersionAction
@@ -1740,6 +2239,263 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    listing_api_v1_reports_get: {
+        parameters: {
+            query?: {
+                cursor?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ReportSummary_"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    history_api_v1_reports__report_id__revisions_get: {
+        parameters: {
+            query?: {
+                cursor?: number;
+            };
+            header?: never;
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ReportSummary_"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    revise_api_v1_reports__report_id__revisions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportRevisionWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    detail_api_v1_reports__report_id__revisions__revision_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+                revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    evidence_api_v1_reports__report_id__revisions__revision_id__evidence_get: {
+        parameters: {
+            query: {
+                block_id: string;
+                row?: number;
+                column?: string | null;
+                value_key?: string | null;
+            };
+            header?: never;
+            path: {
+                report_id: string;
+                revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    export_api_v1_reports__report_id__revisions__revision_id__export_get: {
+        parameters: {
+            query?: {
+                format?: string;
+            };
+            header?: never;
+            path: {
+                report_id: string;
+                revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

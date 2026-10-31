@@ -1,10 +1,11 @@
-"""阶段 3 运行与工具契约；查询结果不冒充阶段 4 报告。"""
+"""运行与工具契约；兼容历史查询结果并区分已提交报告。"""
 
 from typing import Annotated, Any, Literal
 
 from pydantic import Field
 
 from metric_pilot.contracts import StrictDTO
+from metric_pilot.reports.contracts import ReportCandidate, ReportResult
 
 RunStatus = Literal["queued", "running", "completed", "failed", "cancelled", "interrupted"]
 
@@ -58,7 +59,10 @@ class Clarification(StrictDTO):
     missing_requirements: list[str] = Field(min_length=1, max_length=10)
 
 
-FinalCandidate = Annotated[QueryResult | Clarification, Field(discriminator="kind")]
+FinalCandidate = Annotated[
+    ReportCandidate | QueryResult | Clarification, Field(discriminator="kind")
+]
+StoredResult = Annotated[ReportResult | QueryResult | Clarification, Field(discriminator="kind")]
 
 
 class RunDTO(StrictDTO):
@@ -77,7 +81,7 @@ class RunDTO(StrictDTO):
     budget: dict[str, int]
     context_run_ids: list[str]
     metric_revision_ids: list[str]
-    result: FinalCandidate | None = None
+    result: StoredResult | None = None
     error_code: str | None = None
     cancel_requested: bool
     created_at: str
@@ -101,6 +105,7 @@ class EventDTO(StrictDTO):
         "run.progress",
         "tool.started",
         "tool.finished",
+        "report.ready",
         "run.completed",
         "run.failed",
         "run.cancelled",

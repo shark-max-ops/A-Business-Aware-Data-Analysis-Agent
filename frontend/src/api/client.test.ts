@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadHealth } from './client';
 
-const ready = { status: 'ok', stage: 3, database: 'ready', fts5: 'available', worker: 'ready', llm: 'not_configured', embedding: 'not_configured', analysis: 'ready' };
+const ready = { status: 'ok', stage: 4, database: 'ready', fts5: 'available', worker: 'ready', llm: 'not_configured', embedding: 'not_configured', analysis: 'ready' };
 afterEach(() => vi.unstubAllGlobals());
 describe('health boundaries', () => {
   it('healthy without keys', async () => {

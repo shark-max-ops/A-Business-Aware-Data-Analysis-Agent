@@ -9,6 +9,7 @@ import { ExecutionTrace } from './ExecutionTrace';
 type Source = components['schemas']['SourceDTO'];
 type Snapshot = components['schemas']['SnapshotDTO'];
 type Artifact = components['schemas']['ArtifactPage'];
+const ReportPreview = lazy(() => import("./ReportsPage").then(module => ({ default: module.ReportPreview })));
 const DataSourceDrawer = lazy(() => import('./DataSourceDrawer').then(module => ({ default: module.DataSourceDrawer })));
 const statusText: Record<Run['status'], string> = { queued: '已排队', running: '分析中', completed: '已完成', failed: '失败', cancelled: '已取消', interrupted: '服务中断' };
 
@@ -144,7 +145,7 @@ export function AnalysisPage() {
   }
 
   return <>
-    <div className="page-heading"><div><p className="eyebrow">ANALYSIS WORKSPACE</p><h1>从业务问题开始分析</h1><p>查依据、看结构、执行安全查询。当前提供查询结果，完整报告将在阶段 4 开放。</p></div><Button onClick={() => setDrawer(true)}>查看数据源</Button></div>
+    <div className="page-heading"><div><p className="eyebrow">ANALYSIS WORKSPACE</p><h1>从业务问题开始分析</h1><p>查阅依据、执行安全查询，生成数字可核对的中文报告。</p></div><Button onClick={() => setDrawer(true)}>查看数据源</Button></div>
     {error && <Alert type="error" showIcon message={error} action={<Button onClick={() => setAttempt(a => a + 1)}>重新连接</Button>} />}
     {!configured && <Alert type="warning" message="模型未配置或分析服务尚未就绪" description="请检查本机模型配置和后端状态。健康检查不会请求模型。" />}
     {!snapshots.length && <Alert type="info" message="暂无可分析的数据，请先导入数据快照" />}
@@ -163,6 +164,7 @@ export function AnalysisPage() {
           <div className="analysis-question"><span>你的问题</span><h3>{run.question}</h3></div>
           <ExecutionTrace run={run} events={events} connection={connection} />
           {run.error_code && <Alert type={run.status === 'cancelled' ? 'info' : 'error'} message={run.status === 'cancelled' ? '本次分析已取消' : run.status === 'interrupted' ? '分析因服务中断而停止' : '本次分析未完成'} description="可修改问题后重新发起，具体原因可在执行详情中查看。" />}
+          {run.status === 'completed' && run.result?.kind === 'report' && <Suspense fallback={<p>正在加载报告…</p>}><ReportPreview reportId={run.result.report_id} revisionId={run.result.revision_id} /></Suspense>}
           {run.result?.kind === 'clarification' && <Alert type="info" message={run.result.question} description={run.result.missing_requirements.join('；')} />}
           {run.result?.kind === 'query_result' && <p className="analysis-result-note">以下为本次冻结结果；执行与引用有效，业务语义未自动验证。</p>}
           {artifacts.filter(page => page.artifact.run_id === run.id).map(page => <div key={page.artifact.id} className="artifact-preview"><h4>查询结果 · {page.artifact.returned_rows} 行</h4>{page.artifact.truncated && <Alert type="warning" message="结果已截断，不能作为完整统计" />}<Table size="small" pagination={false} scroll={{ x: true }} rowKey="_row" dataSource={page.rows.map((row, index) => Object.fromEntries([['_row', String(index)], ...row.map((cell, col) => [String(col), cell])]))} columns={page.artifact.columns.map((column, index) => ({ title: column.name, dataIndex: String(index), render: displayCell }))} /><p>当前显示 {page.rows.length} 行，起始位置 {page.offset + (page.rows.length ? 1 : 0)}</p>{(page.offset > 0 || page.next_offset !== null) && <Space><Button size="small" disabled={page.offset === 0} onClick={() => { void artifactPage(page, Math.max(0, page.offset - 20)); }}>上一页</Button><Button size="small" disabled={page.next_offset === null} onClick={() => { if (page.next_offset !== null) void artifactPage(page, page.next_offset); }}>下一页</Button></Space>}</div>)}

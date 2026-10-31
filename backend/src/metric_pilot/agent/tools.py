@@ -117,7 +117,14 @@ class ToolRegistry:
         except DataError as exc:
             return ToolResult(
                 ok=False,
-                summary="工具未成功：" + exc.code,
+                summary=(
+                    "指标尚不可用，需要补充已审核且日期适用的口径"
+                    if call.name == "resolve_metric"
+                    else "工具未成功：" + exc.code
+                ),
+                data={"requires_clarification": True, "metric_key": args.metric_key}
+                if call.name == "resolve_metric"
+                else {},
                 error_code=exc.code,
                 retryable=exc.code
                 in {"SQL_EXECUTION_FAILED", "QUERY_TIMEOUT", "INVALID_PARAMETERS"},

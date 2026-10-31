@@ -80,14 +80,14 @@ export function executionSummary(run: Run, events: RunEvent[], steps: ToolStep[]
     case 'queued': title = '分析已排队'; tone = 'running'; break;
     case 'running': title = run.cancel_requested ? '正在停止分析' : running ? runningLabels[running.name] ?? '正在执行工具' : '正在处理分析请求'; tone = 'running'; break;
     case 'completed':
-      title = run.result?.kind === 'clarification' ? '需要补充条件' : '查询已完成';
+      title = run.result?.kind === 'clarification' ? '需要补充条件' : run.result?.kind === 'report' ? '报告已生成' : '查询已完成';
       tone = run.result?.kind === 'clarification' || failed ? 'warning' : 'success';
       break;
     case 'failed': title = '分析未完成'; tone = 'error'; break;
     case 'cancelled': title = '分析已取消'; tone = 'neutral'; break;
     case 'interrupted': title = '分析已中断'; tone = 'warning'; break;
   }
-  if (run.status === 'completed' && run.result?.kind === 'query_result') {
+  if (run.status === 'completed' && ['query_result', 'report'].includes(run.result?.kind ?? '')) {
     if (!complete) tone = 'neutral';
     else if (steps.some(step => ['running', 'unknown'].includes(step.status))) tone = 'warning';
   }

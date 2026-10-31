@@ -35,4 +35,4 @@
 ## 导入与运行入口
 
 从项目根执行 `uv run alembic upgrade head`，再执行 `uv run python -m metric_pilot.knowledge.seed`；需要显式构建向量时附加 `--embed`，或在知识页操作。指标不会自动批准，第三方本地文件缺失或哈希不符会拒绝导入。
-当前操作和限制见 [分析使用说明 v2](project/07-analysis-guide.md)，验收结果见根目录 IMPLEMENTATION_STATUS.md。模型调用使用本机 .env，不输出密钥；本次已验证真实模型路径，准备期的 validation.json 仍只代表当时的材料检查。
+当前操作和限制见 [分析使用说明 v4](project/07-analysis-guide.md)，验收结果见根目录 IMPLEMENTATION_STATUS.md。模型调用使用本机 .env，不输出密钥；本次已验证真实模型路径，准备期的 validation.json 仍只代表当时的材料检查。

@@ -1,5 +1,7 @@
 """短事务保存运行、工具审计和严格递增事件。"""
 
+import time
+
 from sqlalchemy import select
 
 from metric_pilot.agent import models as m
@@ -199,7 +201,16 @@ class RunStore(KnowledgeStore):
             return self.public({**row, "status": "running"})
 
     def finish(
-        self, ident, status, result=None, error_code=None, usage=None, conversation_title=None
+        self,
+        ident,
+        status,
+        result=None,
+        error_code=None,
+        usage=None,
+        conversation_title=None,
+        prepared_report=None,
+        deadline=None,
+        cancel=None,
     ):
         """
         作用：原子保存终态与事件
@@ -212,6 +223,19 @@ class RunStore(KnowledgeStore):
                 return
             if row["cancel_requested"] and status != "interrupted":
                 status, result, error_code = "cancelled", None, "RUN_CANCELLED"
+            # 报告与终态同事务提交；锁等待后再次检查取消及总期限。
+            if prepared_report is not None and status == "completed":
+                if cancel is not None and cancel.is_set():
+                    status, result, error_code = "cancelled", None, "RUN_CANCELLED"
+                elif deadline is not None and time.monotonic() >= deadline:
+                    status, result, error_code = "failed", None, "RUN_TIMEOUT"
+                else:
+                    from metric_pilot.reports.service import ReportService
+
+                    if prepared_report["run_id"] != ident or row["status"] != "running":
+                        raise DataError("REPORT_RUN_MISMATCH")
+                    result = ReportService.persist(c, prepared_report)
+                    self.event(c, ident, "report.ready", result)
             payload = {
                 "model": "",
                 **row["payload"],

@@ -42,6 +42,27 @@ class BrowserModel(FakeLLM):
         输出：测试回合
         """
         question = json.loads(messages[1]["content"])["question"]
+        if "报告验收" in question and self.index == 0:
+            from test_reports import SQL, report_candidate
+
+            def report_with_bar(messages):
+                """
+                作用：以实际查询结果验收两种中文图表
+                输入：隔离工具消息
+                输出：仅测试使用的报告
+                """
+                result = report_candidate(messages)
+                chart = dict(result["report"]["blocks"][-1])
+                chart.update(id="bar", kind="bar", title="每日航班记录对比")
+                result["report"]["blocks"].append(chart)
+                return result
+
+            self.steps = [
+                calls(("search_knowledge", {"query": "ArrDelay"}), ("list_tables", {})),
+                calls(("describe_table", {"table_name": "v_flights"})),
+                calls(("query_sql", {"sql": SQL})),
+                report_with_bar,
+            ]
         if "需要补充条件" in question:
             return {
                 "calls": [],
