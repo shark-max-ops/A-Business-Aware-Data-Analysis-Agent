@@ -40,7 +40,15 @@ class QueryService:
         self.executor = executor
 
     def execute(
-        self, ctx: RunContext, sql: str, parameters: dict, cancel=None, on_started=None
+        self,
+        ctx: RunContext,
+        sql: str,
+        parameters: dict,
+        cancel=None,
+        on_started=None,
+        *,
+        metric_revision_ids=(),
+        knowledge_revision_ids=(),
     ) -> ToolResult:
         """
         作用：审计每次尝试，仅为成功执行产生不可变产物
@@ -119,6 +127,8 @@ class QueryService:
                 duration_ms=int((time.monotonic() - began) * 1000),
                 created_at=utc_now(),
                 ordered=guarded.ordered,
+                metric_revision_ids=list(metric_revision_ids),
+                knowledge_revision_ids=list(knowledge_revision_ids),
             )
             if cancel is not None and cancel.is_set():
                 raise DataError("QUERY_CANCELLED")

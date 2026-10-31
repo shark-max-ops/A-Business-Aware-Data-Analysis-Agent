@@ -1,0 +1,39 @@
+﻿# 0004：单 Agent、持久运行与阶段 3 查询结果
+
+日期：2026-10-30。依据蓝图 02 / 06 / 07，以及阶段 1、2 的实际服务。
+
+## 目标与阶段边界
+
+阶段 3 实现自然语言 → 固定知识/指标 → schema → 安全查询 → 冻结查询结果与澄清。阶段 4 的 ReportDraft、ValueRef 物化、ReportRevision 和 EvidenceDrawer 尚未实现。
+蓝图 02 / 06 的完整系统 final_candidate 包含 report；本阶段明确使用严格的 query_result | clarification 联合类型，run.completed 的 result_kind 同步为这两项，不发出 report.ready，也不生成空报告。阶段 4 接入时需一起更新后端、OpenAPI、前端和文档，不能把查询预览称为正式报告。
+
+## 设计参考与缩小
+
+阅读包内 DB-GPT 原生工具调用、工具执行、上下文管理和 middleware 快照，参考职责分离、批次调用和生命周期观测，自行实现组合对象；不依赖 DB-GPT、不复制其文本 ReAct、并行 Agent、thought 展示和大型压缩层。
+保留 AgentProvider、ToolRegistry、AgentRuntime、RuntimeObserver、RunStore。四个 hook 为 before_model、before_tool、after_tool、on_finish；限制仍在 Runtime 和 QueryExecutor 强制执行，不能由观测器放宽。
+
+## 服务端范围
+
+POST /runs 校验已登记数据，服务端冻结知识快照、运行/SQL 预算与模型名称。已选择指标必须属于快照的已审核清单，且生效期覆盖整月；工具 resolve_metric 同样检查月首和月末。公式字符串不执行，也不实现未经验证的模板构建器。
+显式注册七个工具；分析模型没有修改规则、发布 Wiki、导入文件或执行任意代码的工具。工具参数不接收工作区、路径、数据库连接或知识快照。只有实际成功查询产生 QueryArtifact，规则/知识引用由服务端绑定。跨 run 产物不能提交为本次结果。
+缺失/冲突指标解析后，SQL 工具不允许通过省略指标引用绕过；需要补充条件或人工审核。不声称能自动识别模型自由 SQL 中的所有错误分母，统一标记 references_validated，不能冒称业务语义已证明。
+Agent 首版使用现有固定快照关键词检索，返回逐字摘录、来源类型、定位、生效期和已发布 Wiki 导航。Wiki 读取只认快照中的发布修订；真实 Wiki 草稿和八项实际指标不会因实现/验收被批准。
+
+## 运行、上下文与失败
+
+Run 本身是持久化串行分析任务，无需再增加相同职责的 Job 队列。单 API 进程、单分析 worker、分析并发为 1；既有知识 worker 保持独立。短事务领取及转换状态，网络调用不持有写事务。
+状态为 queued → running → completed / failed / cancelled / interrupted；排队取消直接进入 cancelled。需要补充条件以 clarification 正常结束，用户回复创建新 run。重启将遗留 running 和未结束工具配对为 interrupted，queued 可继续领取，不恢复模型内部消息。
+保留原生 assistant 工具调用批次；每个 call ID 都有 tool 结果，错误和取消也配对。整批超出预算不执行，重复 call ID 拒绝。相同动作连续失败两次停止，查询超时最多修正两次，最终结构/引用最多修正两次。429/短暂 5xx 传输最多重试两次，受总 deadline 和显式取消限制。
+上下文保留原始问题、确认上文、固定快照、已选/已解析规则定义和当前产物清单。按完整 assistant/tool 组裁剪；用 UTF-8 字节作保守 token 上界，预留工具签名和输出预算，仍超限则明确失败。权威执行记录不被上下文裁剪覆盖。
+适配器只提取工具签名、参数、最终候选和白名单数字用量，丢弃 reasoning_content、工具思维元字段及工具回合附带正文，不保存或展示模型内部思维链。模型选择与参数仍来自真实原生工具调用，正式运行无 FakeLLM 配置入口。
+
+## 取消与事件
+
+模型使用异步 HTTP，取消会关闭实际请求；查询使用已有 spawn 子进程，传递线程安全取消信号，等待终止及回收后再结束运行。页面断开只关闭订阅，不发 cancel；取消通过幂等 POST 接口，终态不会回退。
+RunEvent 的 seq 在 SQLite BEGIN IMMEDIATE 事务内分配，与状态/工具审计共同提交。SSE 按数据库 seq 追读，无“历史读完后注册监听”的遗漏窗口；支持 Last-Event-ID 与 after，心跳不写库。读完已提交终态后关闭，前端按 run_id + seq 去重。event-log 提供有限 JSON 历史页，也让 EventDTO 进入生成的 OpenAPI。
+分析页恢复会话和运行，展示实际结果分页、失败/中断/取消及澄清；同一工具的开始与结束合成一张阅读卡片，原始事件按需展开。没有伪造 token 打字效果。
+
+## 验证与限制
+
+测试 FakeLLM 只在 backend/tests 和明确的隔离浏览器启动器中使用，真实执行 SQLite、工具和 DuckDB 子进程；实际工作区指标不受测试审核影响。真实模型另经 HTTP 验证，失败运行保留。
+Windows 的 uv 缓存需指向工作区 .cache/uv，Playwright 使用既有 .cache/ms-playwright；Linux/macOS 启动器与运行尚未实测。真实模型测试仅证明所记录案例，不是整体准确率、费用或模板语义评估。实际命令、数量和结果以 IMPLEMENTATION_STATUS.md 为准。

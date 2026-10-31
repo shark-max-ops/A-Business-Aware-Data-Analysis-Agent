@@ -2,3 +2,103 @@
 
 /* 完整项目名称在窄屏换行，保持导航与状态可见。 */
 .brand{min-width:0}.brand-title{max-width:360px;white-space:normal;line-height:1.25}@media(max-width:640px){.brand-title{max-width:240px;font-size:16px}}
+/* 知识编辑保持文本安全渲染，窄屏表单折行，长哈希不撑宽页面。 */
+.knowledge-search { margin-bottom: 20px; }
+.knowledge-stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.knowledge-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 16px; align-items: end; }
+.knowledge-form label, .knowledge-stack > label { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.knowledge-form .ant-select { width: 100%; }
+.knowledge-hit { padding: 16px 0; border-bottom: 1px solid #e4ebe7; overflow-wrap: anywhere; }
+.knowledge-text { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.7; max-height: 650px; overflow: auto; }
+.knowledge-search .muted, .ant-drawer-body .muted { overflow-wrap: anywhere; color: #65766e; }
+.knowledge-search .ant-space { max-width: 100%; }
+.knowledge-search .ant-space-item { max-width: 100%; }
+
+/* 阅读视图把原始 Markdown 变成表格和段落，所有内容仍由 React 转义渲染。 */
+.readable-markdown { line-height: 1.85; overflow-wrap: anywhere; color: #284237; }
+.readable-markdown p { margin: 8px 0 14px; }
+.readable-markdown h1,.readable-markdown h2,.readable-markdown h3 { margin: 20px 0 10px; }
+.readable-markdown code { background: #eef3f0; color: #335b49; padding: 2px 5px; border-radius: 4px; }
+.readable-markdown pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f4f7f5; padding: 14px; border-radius: 8px; }
+.readable-markdown ul,.readable-markdown ol { padding-left: 24px; }
+.markdown-table-scroll { width: 100%; overflow-x: auto; margin: 12px 0; }
+.readable-markdown table { width: 100%; min-width: 480px; border-collapse: collapse; font-size: 13px; }
+.readable-markdown th { text-align: left; background: #edf4ef; color: #315741; }
+.readable-markdown th,.readable-markdown td { padding: 10px 12px; border: 1px solid #dce7df; vertical-align: top; }
+.inline-citation { border: 0; border-radius: 5px; color: #216a50; background: #e7f2eb; cursor: pointer; padding: 1px 5px; vertical-align: super; font-size: 11px; }
+.search-result-area { margin-top: 20px; max-height: 620px; overflow-y: auto; padding-right: 8px; }
+.search-rank { background: #eaf2ee; border-radius: 50%; width: 24px; height: 24px; display: inline-grid; place-items: center; color: #426b56; font-size: 12px; }
+.hit-context { font-size: 12px; color: #79877f; margin: 6px 0; }
+.technical-details { margin: 12px 0; color: #667b6f; font-size: 12px; overflow-wrap: anywhere; }
+.technical-details summary,.wiki-editor > summary,.metric-editor > summary { cursor: pointer; color: #3a6c54; padding: 10px 0; }
+.technical-details pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.wiki-reading-header { display: flex; justify-content: space-between; gap: 20px; align-items: center; }
+.wiki-reading-header h2 { font-size: 22px; line-height: 1.5; }
+.wiki-reading-header p { color: #73857b; }
+.wiki-reader { max-width: 900px; margin: 0 auto; padding: 12px 0 24px; }
+.wiki-reference-list { border-top: 1px solid #e0e8e2; margin-top: 24px; padding-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+.wiki-reference-list h3 { width: 100%; }
+.wiki-editor,.metric-editor { border-top: 1px solid #e1e9e3; padding-top: 8px; }
+.wiki-editor > .knowledge-stack { margin-top: 14px; }
+.knowledge-graph-canvas { width: 100%; max-width: 100%; max-height: 440px; overflow: auto; border: 1px solid #e0e9e2; background: radial-gradient(#dfe9e3 1px, transparent 1px); background-size: 18px 18px; border-radius: 12px; overscroll-behavior: contain; }
+.knowledge-graph .muted { font-size: 12px; color: #7c8b82; }
+.graph-node { width: 206px; min-height: 80px; height: auto; padding: 12px; border: 1px solid #d9e3dd; border-left: 4px solid #d4b363; border-radius: 9px; background: white; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 2px 5px #173e2910; white-space: normal; overflow-wrap: anywhere; }
+.graph-node strong { font-size: 12px; line-height: 1.5; display: block; flex-shrink: 0; }
+.graph-node span { font-size: 10px; line-height: 1.5; color: #7a8a80; flex-shrink: 0; }
+.graph-node.official_reference { border-left-color: #3b9474; }
+.graph-wiki { border-left-color: #5d83bd; background: #f0f5fd; }
+.graph-metric { background: #faf8f1; }
+.graph-node.selected { outline: 2px solid #297455; }
+.graph-node-detail { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 12px; padding: 14px; background: #f3f7f4; border-radius: 8px; }
+.graph-node-detail span { font-size: 12px; color: #72877b; }
+.metric-summary { border: 1px solid #e1e9e3; background: #fbfdfb; border-radius: 12px; padding: 24px; }
+.metric-summary-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.metric-summary-title h2 { font-size: 24px; line-height: 1.4; }
+.metric-summary-title p { color: #7a8b80; }
+.metric-formula { display: flex; align-items: center; gap: 24px; background: #edf5ef; border-radius: 10px; padding: 24px; margin: 20px 0; }
+.metric-fraction { flex: 1; min-width: 0; text-align: center; }
+.metric-fraction > div { padding: 10px; }
+.metric-fraction > div + div { border-top: 2px solid #89ad97; }
+.metric-fraction small { display: block; color: #75877c; margin-bottom: 7px; }
+.metric-fraction strong { font-size: 17px; font-weight: 550; line-height: 1.7; overflow-wrap: anywhere; }
+.metric-unit { text-align: center; font-size: 12px; color: #778b7d; }
+.metric-unit strong { display: block; color: #315c41; font-size: 26px; margin-top: 8px; }
+.metric-explanation-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.metric-summary h3 { font-size: 14px; margin: 12px 0; }
+.metric-summary p,.metric-summary li { line-height: 1.8; }
+.metric-explanation-grid ul { padding-left: 19px; }
+.metric-sources { padding-top: 14px; border-top: 1px solid #e1e8e2; }
+.metric-sources button { margin: 4px 6px 4px 0; max-width: 100%; height: auto; white-space: normal; padding: 5px 10px; }
+@media(max-width: 740px) {
+  .wiki-reading-header,.metric-summary-title { flex-direction: column; align-items: flex-start; }
+  .metric-summary { padding: 16px; }
+  .metric-summary-title h2 { font-size: 21px; }
+  .metric-formula { padding: 14px; gap: 8px; }
+  .metric-fraction strong { font-size: 15px; }
+  .metric-explanation-grid { grid-template-columns: 1fr; gap: 0; }
+  .knowledge-stack > .ant-space .ant-select { max-width: 100%; }
+  .search-result-area { max-height: 500px; }
+}
+
+/* 阶段 3：长 SQL 和执行记录仅在局部滚动。 */
+.analysis-history .ant-btn { height: auto; white-space: normal; text-align: left; overflow-wrap: anywhere; margin: 4px 0; }
+.analysis-hint { color: #64748b; font-size: 13px; }
+.run-result, .run-timeline, .artifact-preview { min-width: 0; overflow-wrap: anywhere; }
+.run-result pre, .run-timeline pre { max-height: 320px; overflow: auto; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+.run-event { padding: 12px 0; border-bottom: 1px solid #e2e8f0; }
+.run-event p { margin: 6px 0; }
+.artifact-preview { margin: 16px 0; }
+.run-result code { font-size: 12px; }
+
+.analysis-grid { align-items: start; }
+.analysis-main { padding: 22px; }
+.analysis-main .composer { margin: 18px -22px -22px; }
+.run-event .ant-tag { margin-left: 8px; }
+.event-history { margin-top: 16px; }
+.mobile-conversation { display: none; }
+@media(max-width: 740px) {
+  .analysis-main { padding: 16px; }
+  .analysis-main .composer { margin: 16px -16px -16px; }
+  .mobile-conversation { display: flex; gap: 8px; margin-bottom: 16px; }
+  .mobile-conversation .ant-select { min-width: 0; flex: 1; }
+}

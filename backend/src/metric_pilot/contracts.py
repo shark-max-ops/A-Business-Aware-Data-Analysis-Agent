@@ -46,10 +46,10 @@ class HealthResponse(StrictDTO):
     """
 
     status: Literal["ok", "degraded"]
-    stage: Literal[1] = 1
+    stage: Literal[3] = 3
     database: Literal["ready", "migration_required", "unavailable"]
     fts5: Literal["available", "unavailable"]
-    worker: Literal["not_implemented"] = "not_implemented"
+    worker: Literal["ready", "not_ready"] = "not_ready"
     llm: Literal["configured_unverified", "not_configured"]
     embedding: Literal["configured_unverified", "not_configured"]
-    analysis: Literal["not_implemented"] = "not_implemented"
+    analysis: Literal["ready", "not_ready"] = "not_ready"

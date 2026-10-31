@@ -75,8 +75,8 @@ def test_health_without_model_key(tmp_path, monkeypatch):
         assert body["database"] == "ready"
         assert body["fts5"] == "available"
         assert body["llm"] == "not_configured"
-        assert body["worker"] == "not_implemented"
-        assert body["analysis"] == "not_implemented"
+        assert body["worker"] == "ready"
+        assert body["analysis"] == "ready"
         assert response.headers["x-request-id"]
 
 

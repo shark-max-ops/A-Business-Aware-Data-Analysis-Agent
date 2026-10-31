@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "metric-pilot"
 version = "0.1.0"
-description = "Business-aware data analysis agent — stage 0 foundation"
+description = "Business-aware data analysis agent with versioned knowledge and restricted SQL"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "fastapi>=0.115,<1",
@@ -15,10 +15,12 @@ dependencies = [
   "uvicorn>=0.32,<1",
   "duckdb>=1.4,<2",
   "sqlglot>=28,<40",
+  "httpx>=0.28,<1",
+  "python-multipart>=0.0.32",
 ]
 
 [dependency-groups]
-dev = ["pytest>=8,<10", "httpx>=0.28,<1", "ruff>=0.9,<1"]
+dev = ["pytest>=8,<10", "ruff>=0.9,<1"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["backend/src/metric_pilot"]

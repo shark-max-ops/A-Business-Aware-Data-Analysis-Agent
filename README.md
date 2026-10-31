@@ -26,7 +26,7 @@
 
 Wiki 用于理解和导航；已审核的指标定义固定计算口径。生成的 Wiki 不能自动成为正式规则。规则更新创建新版本，后续运行绑定固定知识版本，已冻结的依据不应被新规则覆盖。
 
-阶段 2 完成后，系统具备可检索的资料和计算规则；阶段 3 再接入模型驱动的工具选择、SQL 生成与修复。阶段 2 的详细契约见 [蓝图 04](参考/docs/blueprint/04-knowledge-and-metrics.md)。
+阶段 2 完成后，系统具备可检索的资料和计算规则；阶段 3 已接入模型驱动的工具选择、SQL 生成与修复。阶段 2 的详细契约见 [蓝图 04](参考/docs/blueprint/04-knowledge-and-metrics.md)。
 
 ## 各阶段如何衔接
 
@@ -34,16 +34,20 @@ Wiki 用于理解和导航；已审核的指标定义固定计算口径。生成
 | --- | --- | --- |
 | 0：工程基础 | 环境、数据库迁移、接口契约和三个页面框架 | Windows 本机验收完成 |
 | 1：数据与执行 | 真实 CSV 导入、固定快照、质量报告、安全 SQL 和查询证据 | Windows 真实数据与合成数据验收完成 |
-| 2：知识与规则 | 文档版本、检索、Wiki 与已审核指标定义 | 材料准备完成，功能尚未实施 |
-| 3：分析 Agent | 模型根据问题查规则、选工具、生成和修正 SQL，展示真实执行进度 | 尚未实施 |
+| 2：知识与规则 | 文档版本、检索、Wiki 与指标审核管理 | 功能已实现，Windows 验收见实施状态 |
+| 3：分析 Agent | 模型根据问题查规则、选工具、生成和修正 SQL，展示真实执行进度 | 已实现；Windows 验收见实施状态 |
 | 4：可追溯报告 | KPI、表格、图表和解释；点击数字查看查询与来源证据 | 尚未实施 |
 | 5：评估与交付 | 人工核对问题集、真实模型评估、失败分析和演示交付 | 尚未实施 |
 
-当前已经能用 CLI 导入和查询真实数据，并在页面查看快照、字段和质量报告。自然语言自动分析、知识检索与报告生成仍属于后续阶段，不能将设计蓝图视为已完成系统。实际验收见 [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)，实施路线见 [蓝图 07](参考/docs/blueprint/07-build-and-evaluate.md)。
+当前可以导入和查询真实数据，在页面查看快照、字段、质量报告，并管理版本化知识、Wiki 和指标。自然语言分析已接入真实模型与安全工具；完整报告仍属于阶段 4。实际验收见 [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)，实施路线见 [蓝图 07](参考/docs/blueprint/07-build-and-evaluate.md)。
 
-阶段 2 的七份材料、来源清单、实际检查结果及八个待审核指标草稿见 [知识材料准备包](knowledge_seed/README.md)。官方原件与整理后的第三方材料存放在本机 `data/`，未提交 Git；项目指标均为草稿，尚未导入或批准。代码表已核对覆盖当前数据的全部 ID，但没有改写既有数据快照。
+阶段 2 的七份材料、来源清单及八个指标草稿见 [知识材料入口](knowledge_seed/README.md)。本机已经导入真实文档修订和八个指标草稿；指标仍待用户业务审核，没有自动批准。官方原件与整理后的第三方材料存放在本机 `data/`，未提交 Git。代码表已核对覆盖当前数据的全部 ID，但没有改写既有航班快照。
 
 Python 模块路径为 `metric_pilot`，下面的安装与启动命令按这个路径执行。
+
+## 各阶段代码讲解
+
+[阶段代码导读](docs/walkthroughs/README.md) 按阶段 0—3 分别说明阶段目标、执行流程、关键代码文件、具体例子和验证边界。阶段 4、5 尚未实施，目录中明确标注；设计取舍仍保存在 `docs/decisions/`，实际验收结果见 `IMPLEMENTATION_STATUS.md`。
 
 ## 环境
 
@@ -122,7 +126,7 @@ npm.cmd run build
 
 DTO 变更后重新导出 OpenAPI 和生成前端类型，一并提交 `frontend/openapi.json` 和 `frontend/src/api/schema.d.ts`。前端另有运行时校验，错误代理响应不会被当成成功。
 
-浏览器验收需要已迁移且未配置模型的后端在 8000 运行，并已导入下面的合成 fixture（包含两个维表）：
+原有浏览器回归需要已迁移的后端在 8000 运行，并已导入下面的合成 fixture（包含两个维表）。模型标签根据真实配置检查，不会触发模型请求：
 
 ```powershell
 Set-Location frontend
@@ -142,7 +146,84 @@ Linux 对应使用 `npx playwright install chromium` 和 `npm run test:e2e`，�
 - `fixtures/`：明确标记的合成数据。
 - `参考/docs/blueprint/`：设计契约与 DB-GPT 参考快照。
 
-下一阶段按 04 / 07 实现知识、Wiki 和指标。RunContext、ToolResult、QueryArtifact 已用于查询服务；MetricDefinition、ReportDraft、Agent Runtime 和 SSE 尚未实现。
+RunContext、ToolResult、QueryArtifact 已用于查询服务，MetricDefinition 用于知识管理。Agent Runtime 与 SSE 已在阶段 3 接入；ReportDraft 和完整报告属于阶段 4。
+
+
+## 阶段 3：自然语言分析
+
+先运行 `uv run alembic upgrade head`，重启后端，再打开 http://127.0.0.1:5173/analysis 。已有 `.env` 保留，不复制覆盖；模型需要支持原生工具调用。健康检查仅检查本地配置，不发付费请求。
+
+1. 选择已登记的数据快照，输入问题，例如“查看本月数据的日期范围和记录数”。模型按问题需要查资料、看结构，再提出并执行受限 SQL。
+2. 右侧每个工具显示真实状态和结果；展开可看 SQL、参数、错误和来源，完整事件记录按需打开。查询结果来自冻结产物，可分页查看。
+3. 涉及项目指标时，只使用固定知识快照中已审核且适用于整月的定义。当前八项实际指标仍待人工审核；分析 Agent 没有审核或发布工具。未审核时返回需要补充的条件。
+4. 刷新页面或断网后会从服务端恢复运行与事件；关闭页面不会停止分析。“停止分析”通过显式接口取消实际模型请求和查询子进程。
+5. 需要补充条件时本次运行正常结束，补充回复会创建新运行。同会话、同数据快照的已完成上文可作为背景；旧查询产物不能直接成为新运行的数字依据。
+
+运行默认最多 16 轮、24 次工具调用和 180 秒，总限制与上下文/输出预算在创建时固定；SQL 的时间和行数限制也随运行固定。状态包括排队、运行、完成、失败、取消和服务中断。重启不冒称从模型调用中间恢复。
+
+阶段 3 只提交 `query_result` 或 `clarification`。结果执行成功和规则引用有效不自动证明自由 SQL 的业务语义，页面明确提示；没有生成正式报告、KPI 或因果证明。当前 Agent 使用固定快照的关键词检索；知识管理页面继续支持既有混合检索。完整报告、ValueRef 取值和数字点击取证属于阶段 4。
+
+真实模型验收（会请求本机已配置的文本模型）：
+
+```powershell
+uv run python scripts/verify_agent.py
+```
+
+验收通过真实 HTTP 创建运行，核对真实快照的行数/日期范围、未审核指标处理及利润缺数据提示。`--reuse-record` 只重新读取已有运行、事件和冻结结果核对，不再次调用模型。结果与历史副本保存在忽略的 `storage/validation/stage3-agent*.json`；失败运行也保留在数据库中。它不是问答准确率评估，不自动批准指标或发布 Wiki。
+
+隔离浏览器测试：
+
+```powershell
+$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) '.cache/ms-playwright'
+npm.cmd run test:analysis --prefix frontend
+```
+
+启动器使用独立数据库、合成数据和位于 `backend/tests/` 的 FakeLLM，仍运行真实工具与查询子进程。正式配置没有测试模型开关。测试端口为 8002 / 5175；Windows 启动命令已验证，Linux/macOS 尚未实测。实现边界见 [阶段 3 决策](docs/decisions/0004-agent-runtime.md)。
+
+## 阶段 2：使用知识管理
+
+先更新依赖与迁移，再启动服务；已有运行中的旧后端需要重启以启动知识 worker。
+
+```powershell
+uv sync --locked
+uv run alembic upgrade head
+uv run python -m metric_pilot.knowledge.seed
+```
+
+最后一条从 `knowledge_seed/manifest.json` 校验并导入本机准备的七份材料，保留旧版本并绑定八个指标草稿的真实来源。缺少官方本地文件时会拒绝，不用占位资料冒充原件。重复导入不会覆盖已经编辑的指标。
+
+打开 http://127.0.0.1:5173/knowledge ：
+
+1. 原始文档：上传 UTF-8 Markdown/TXT（最大 500 KB）、选择新建或更新，查看原文/历史/定位片段。
+2. 检索：输入“航班早到了，为什么还有负的延误分钟？”，先用关键词模式。官方 ArrDelay 解释优先展示，ArrDelayMinutes 可作对照。结果先显示最相关的五个主题和逐字短摘录，长文、更多结果按需展开；表格直接渲染。检索范围固定，资料更新后点“更新知识快照”。
+3. 向量：显式点击“构建/更新向量索引”，任务完成后切换“关键词 + 向量”；缺索引或未配置不会显示假成功。
+4. Wiki：默认查看“关系图”，点击资料、引用主题和指标节点，再打开原文或对应指标；“阅读解释”显示正文和编号引用。图包含明确标记的草稿，连线表示实际引用与来源。需要修改时再打开“编辑草稿”；也可新建人工草稿或从所选文档生成草稿。每段正文保留引用标记，核对后发布；回滚创建新草稿。
+5. 指标：先阅读公式中的分子/分母、统计范围、缺失处理、适用期和来源，再按需展开字段细节或“编辑规则”。保存仍是草稿，人工审核后才可在新知识快照中解析。
+
+embedding 与文本生成使用 `.env` 中的配置；模型请求只由明确的索引/检索/生成操作触发，健康检查不计费。API 根地址或完整 `/embeddings` 端点均可配置。Wiki 模型需要支持 JSON 输出；`WIKI_REASONING_EFFORT=none` 在本机服务实测通过，不支持该字段的服务可以留空。只保存最终候选和数值 token 用量，不记录内部思维正文。
+
+真实材料检查：
+
+```powershell
+uv run python scripts/verify_knowledge.py
+# 以下命令会请求真实 embedding；没有匹配的成功 Wiki 草稿时会排队生成。
+uv run python scripts/verify_knowledge.py --live-models
+# 回归两种“提前到达”问法；只检索，不生成 Wiki 或审核规则。
+uv run python scripts/verify_knowledge_reading.py
+# 同时检查真实 query embedding 与混合检索，会请求已配置的 embedding 服务。
+uv run python scripts/verify_knowledge_reading.py --live-embedding
+```
+
+记录分别在忽略的 `storage/validation/stage2-knowledge-local.json`、`stage2-knowledge.json` 和 `stage2-reading-feedback.json`。向量按模型/端点和文本哈希持久化，重复构建复用匹配项；Wiki 验收会复用来源一致的成功模型草稿，并明确记录是否复用。来源校验不自动证明语义正确，没有预填回答准确率或费用。
+
+知识浏览器验收使用隔离数据库，不修改实际项目指标。Windows 可在单独终端从根目录启动 `uv run python scripts/browser_knowledge_server.py`（8001），再运行：
+
+```powershell
+$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) '.cache/ms-playwright'
+npm.cmd run test:knowledge --prefix frontend
+```
+
+测试配置会在 5174 启动专用前端并代理到 8001，不请求远程模型。详细操作见 [分析使用说明](knowledge_seed/project/07-analysis-guide.md)，设计边界见 [阶段 2 决策](docs/decisions/0003-knowledge-and-metrics.md)。Linux/macOS 的浏览器命令及系统依赖仍需对应系统实测。
 
 
 ## 阶段 1：运行合成演示
@@ -188,7 +269,7 @@ uv run python -m metric_pilot.data.ingest --input ./data/T_ONTIME_REPORTING.csv 
 - 默认最多保存 1000 行、预览 20 行，结果文件最多 2 MiB；超过行数/字节预算有 truncated 标记，不能将其当作完整统计。单行过大、非有限结果或不支持的嵌套类型会失败。
 - Decimal、日期/时间和超出 JavaScript 安全范围的整数保存类型标签；小整数、浮点和 null 保留原义。结果列顺序、实际冻结行顺序和类型一并保存；没有 ORDER BY 不代表业务排名。
 - 只有成功执行才保存 QueryArtifact；失败/拒绝/超时/取消只产生审计记录。结果以 SHA-256 内容寻址，读取校验哈希和运行归属，不重新查询当前数据。
-- 可用 `GET /api/v1/runs/{run_id}/artifacts/{artifact_id}?offset=0&limit=20` 读取当前运行的有限分页，limit 不超过 100。当前还没有 Agent Run 创建/状态/SSE 接口。
+- 可用 `GET /api/v1/runs/{run_id}/artifacts/{artifact_id}?offset=0&limit=20` 读取当前运行的有限分页，limit 不超过 100。Agent Run 创建、状态、显式取消和 SSE 接口已在阶段 3 接入。
 
 来源与快照 API：`GET /api/v1/sources`、`GET /api/v1/sources/{source_id}/snapshots`、`POST /api/v1/sources/{source_id}/activate`（body 为 snapshot_id）、`GET /api/v1/sources/{source_id}/schema?snapshot_id=...`。前端类型仍由 OpenAPI 生成。
 

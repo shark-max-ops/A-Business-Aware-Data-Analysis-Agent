@@ -26,6 +26,166 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Conversations
+         * @description 作用：恢复持久会话列表
+         *     输入：请求
+         *     输出：会话列表
+         */
+        get: operations["conversations_api_v1_conversations_get"];
+        put?: never;
+        /**
+         * Create Conversation
+         * @description 作用：建立分析会话
+         *     输入：请求
+         *     输出：会话
+         */
+        post: operations["create_conversation_api_v1_conversations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Conversation
+         * @description 作用：恢复同会话所有运行
+         *     输入：会话 ID
+         *     输出：运行列表
+         */
+        get: operations["conversation_api_v1_conversations__conversation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Run
+         * @description 作用：冻结依赖后排队
+         *     输入：问题、数据快照及可选上文
+         *     输出：运行
+         */
+        post: operations["create_run_api_v1_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Run
+         * @description 作用：读取可刷新状态
+         *     输入：运行 ID
+         *     输出：运行
+         */
+        get: operations["get_run_api_v1_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Run
+         * @description 作用：持久化幂等取消再通知执行器
+         *     输入：运行 ID
+         *     输出：当前状态
+         */
+        post: operations["cancel_run_api_v1_runs__run_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Events
+         * @description 作用：按严格序号重放实际事件
+         *     输入：游标
+         *     输出：SSE
+         */
+        get: operations["events_api_v1_runs__run_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}/event-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Event Log
+         * @description 作用：提供事件契约及有限历史页
+         *     输入：运行和游标
+         *     输出：事件列表
+         */
+        get: operations["event_log_api_v1_runs__run_id__event_log_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sources": {
         parameters: {
             query?: never;
@@ -136,6 +296,558 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/knowledge/graph": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Knowledge Graph
+         * @description 作用：返回选中页面的真实引用关系，不自动发布或重生成
+         *     输入：页面标识和请求
+         *     输出：关系图
+         */
+        get: operations["knowledge_graph_api_v1_knowledge_graph_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Documents
+         * @description 作用：展示实际文档与最新处理状态
+         *     输入：请求
+         *     输出：目录
+         */
+        get: operations["list_documents_api_v1_documents_get"];
+        put?: never;
+        /**
+         * Upload Document
+         * @description 作用：接收有大小限制的 UTF-8 Markdown/TXT
+         *     输入：文件、元数据及可选旧版本
+         *     输出：实际原文和任务标识
+         */
+        post: operations["upload_document_api_v1_documents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Document History
+         * @description 作用：列出文档不可变历史
+         *     输入：文档标识和请求
+         *     输出：历史目录
+         */
+        get: operations["document_history_api_v1_documents__document_id__revisions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/revisions/{revision_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Document Revision
+         * @description 作用：读取固定原文并验证文档归属
+         *     输入：文档和修订标识
+         *     输出：原文
+         */
+        get: operations["document_revision_api_v1_documents__document_id__revisions__revision_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chunks/{chunk_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Chunk Detail
+         * @description 作用：读取真实摘录及原文坐标
+         *     输入：片段标识
+         *     输出：片段
+         */
+        get: operations["chunk_detail_api_v1_chunks__chunk_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/revisions/{revision_id}/chunks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Revision Chunks
+         * @description 作用：查看固定原文分块并提供人工引用选择
+         *     输入：文档与修订标识
+         *     输出：可定位片段列表
+         */
+        get: operations["revision_chunks_api_v1_documents__document_id__revisions__revision_id__chunks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Snapshot
+         * @description 作用：由服务端冻结可见修订集合
+         *     输入：请求
+         *     输出：知识快照
+         */
+        post: operations["create_snapshot_api_v1_knowledge_snapshots_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge/snapshots/{snapshot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Snapshot
+         * @description 作用：查看历史知识快照
+         *     输入：快照标识
+         *     输出：固定修订集合
+         */
+        get: operations["get_snapshot_api_v1_knowledge_snapshots__snapshot_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Search
+         * @description 作用：在固定范围内执行指定检索模式
+         *     输入：搜索请求
+         *     输出：真实片段与来源
+         */
+        post: operations["search_api_v1_knowledge_search_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge/reindex": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reindex
+         * @description 作用：显式为当前文档排队构建当前 embedding 模型索引
+         *     输入：请求
+         *     输出：实际任务
+         */
+        post: operations["reindex_api_v1_knowledge_reindex_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Jobs
+         * @description 作用：列出近期真实任务
+         *     输入：请求
+         *     输出：任务目录
+         */
+        get: operations["list_jobs_api_v1_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Job
+         * @description 作用：读取持久化任务状态
+         *     输入：任务标识
+         *     输出：安全状态
+         */
+        get: operations["get_job_api_v1_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{job_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Job
+         * @description 作用：仅将失败任务重新排队，保留真实错误结果
+         *     输入：失败任务标识
+         *     输出：排队状态
+         */
+        post: operations["retry_job_api_v1_jobs__job_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wiki/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Wiki
+         * @description 作用：显式排队生成草稿，不自动发布
+         *     输入：固定文档与页面基线
+         *     输出：生成任务
+         */
+        post: operations["generate_wiki_api_v1_wiki_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wiki/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Wiki
+         * @description 作用：返回目录、草稿和发布指针
+         *     输入：请求
+         *     输出：Wiki 页面目录
+         */
+        get: operations["list_wiki_api_v1_wiki_pages_get"];
+        put?: never;
+        /**
+         * Create Wiki
+         * @description 作用：无模型时也能人工建立有引用的页面草稿
+         *     输入：slug、正文与引用
+         *     输出：草稿
+         */
+        post: operations["create_wiki_api_v1_wiki_pages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wiki/pages/{page_id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Wiki History
+         * @description 作用：查看 Wiki 历史而不删除旧内容
+         *     输入：页面标识
+         *     输出：历史列表
+         */
+        get: operations["wiki_history_api_v1_wiki_pages__page_id__revisions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wiki/pages/{page_id}/revisions/{revision_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Wiki Revision
+         * @description 作用：读取归属于页面的固定修订
+         *     输入：页面和修订标识
+         *     输出：固定正文
+         */
+        get: operations["wiki_revision_api_v1_wiki_pages__page_id__revisions__revision_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wiki/pages/{page_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Edit Wiki
+         * @description 作用：追加人工编辑草稿
+         *     输入：页面和有引用的正文
+         *     输出：新草稿
+         */
+        put: operations["edit_wiki_api_v1_wiki_pages__page_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wiki/pages/{page_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish Wiki
+         * @description 作用：显式发布当前草稿为新修订
+         *     输入：版本操作
+         *     输出：发布修订
+         */
+        post: operations["publish_wiki_api_v1_wiki_pages__page_id__publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wiki/pages/{page_id}/revert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revert Wiki
+         * @description 作用：基于历史新增草稿，保留全部历史
+         *     输入：目标历史修订
+         *     输出：新草稿
+         */
+        post: operations["revert_wiki_api_v1_wiki_pages__page_id__revert_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Metrics
+         * @description 作用：列出最新定义与已审核指针
+         *     输入：请求
+         *     输出：指标目录
+         */
+        get: operations["list_metrics_api_v1_metrics_get"];
+        put?: never;
+        /**
+         * Create Metric
+         * @description 作用：创建指标草稿，不能通过参数越过审核
+         *     输入：结构化定义
+         *     输出：草稿修订
+         */
+        post: operations["create_metric_api_v1_metrics_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/metrics/{key}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Metric History
+         * @description 作用：读取固定指标历史
+         *     输入：指标键
+         *     输出：历史定义
+         */
+        get: operations["metric_history_api_v1_metrics__key__revisions_get"];
+        put?: never;
+        /**
+         * Edit Metric
+         * @description 作用：追加指标草稿并验证键归属
+         *     输入：指标键与定义
+         *     输出：新草稿
+         */
+        post: operations["edit_metric_api_v1_metrics__key__revisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/metrics/{key}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Metric
+         * @description 作用：通过独立操作审核当前指标草稿
+         *     输入：版本操作
+         *     输出：已审核修订
+         */
+        post: operations["approve_metric_api_v1_metrics__key__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/metrics/{key}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve Metric
+         * @description 作用：按知识快照和日期解析正式指标
+         *     输入：指标键、快照与日期
+         *     输出：适用定义或明确错误
+         */
+        get: operations["resolve_metric_api_v1_metrics__key__resolve_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -165,6 +877,78 @@ export interface components {
             /** Next Offset */
             next_offset: number | null;
         };
+        /** Body_upload_document_api_v1_documents_post */
+        Body_upload_document_api_v1_documents_post: {
+            /** File */
+            file: string;
+            /** Title */
+            title: string;
+            /** Metadata */
+            metadata: string;
+            /** Document Id */
+            document_id?: string | null;
+            /**
+             * Expected Version
+             * @default 0
+             */
+            expected_version: number;
+        };
+        /**
+         * ChunkDTO
+         * @description 作用：返回真实摘录及定位
+         *     输入：分块记录
+         *     输出：可核对的片段
+         */
+        ChunkDTO: {
+            /** Id */
+            id: string;
+            /** Revision Id */
+            revision_id: string;
+            /** Text */
+            text: string;
+            /** Text Hash */
+            text_hash: string;
+            /**
+             * Source Kind
+             * @enum {string}
+             */
+            source_kind: "official_reference" | "project_policy";
+            /** Locator */
+            locator: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * Citation
+         * @description 作用：绑定片段和逐字摘录
+         *     输入：片段标识、摘录及哈希
+         *     输出：引用
+         */
+        Citation: {
+            /** Chunk Id */
+            chunk_id: string;
+            /** Excerpt */
+            excerpt: string;
+            /** Text Hash */
+            text_hash: string;
+        };
+        /**
+         * Clarification
+         * @description 作用：结束需补充条件的运行
+         *     输入：问题与缺失项
+         *     输出：澄清结果
+         */
+        Clarification: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "clarification";
+            /** Question */
+            question: string;
+            /** Missing Requirements */
+            missing_requirements: string[];
+        };
         /**
          * ColumnDTO
          * @description 作用：描述结果或视图列
@@ -181,6 +965,94 @@ export interface components {
              * @default
              */
             description: string;
+        };
+        /**
+         * ConversationDTO
+         * @description 作用：描述会话
+         *     输入：服务端记录
+         *     输出：公开会话
+         */
+        ConversationDTO: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Created At */
+            created_at: string;
+        };
+        /**
+         * CreateRun
+         * @description 作用：请求分析
+         *     输入：问题与已登记快照
+         *     输出：严格请求
+         */
+        CreateRun: {
+            /** Conversation Id */
+            conversation_id: string;
+            /** Question */
+            question: string;
+            /** Snapshot Id */
+            snapshot_id: string;
+            /** Metric Revision Ids */
+            metric_revision_ids?: string[];
+            /** Context Run Ids */
+            context_run_ids?: string[];
+        };
+        /**
+         * DocumentMetadata
+         * @description 作用：记录来源权威与适用范围
+         *     输入：来源元数据
+         *     输出：文档来源契约
+         */
+        DocumentMetadata: {
+            /**
+             * Source Kind
+             * @enum {string}
+             */
+            source_kind: "official_reference" | "project_policy";
+            /** Origin Url */
+            origin_url?: string | null;
+            /** Retrieved At */
+            retrieved_at?: string | null;
+            /** Effective From */
+            effective_from?: string | null;
+            /** Effective To */
+            effective_to?: string | null;
+            /** Raw Sources */
+            raw_sources?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Notes
+             * @default
+             */
+            notes: string;
+            /**
+             * Separate Project Annotations
+             * @default false
+             */
+            separate_project_annotations: boolean;
+        };
+        /**
+         * DocumentRevisionDTO
+         * @description 作用：展示不可变原文与版本
+         *     输入：持久化记录
+         *     输出：原文修订
+         */
+        DocumentRevisionDTO: {
+            /** Id */
+            id: string;
+            /** Document Id */
+            document_id: string;
+            /** Version */
+            version: number;
+            /** Content */
+            content: string;
+            /** Content Hash */
+            content_hash: string;
+            metadata: components["schemas"]["DocumentMetadata"];
+            /** Created At */
+            created_at: string;
         };
         /**
          * ErrorDetail
@@ -210,6 +1082,109 @@ export interface components {
             error: components["schemas"]["ErrorDetail"];
         };
         /**
+         * EventDTO
+         * @description 作用：统一 SSE envelope
+         *     输入：事务分配事件
+         *     输出：可重放事件
+         */
+        EventDTO: {
+            /** Run Id */
+            run_id: string;
+            /** Seq */
+            seq: number;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "run.queued" | "run.started" | "run.progress" | "tool.started" | "tool.finished" | "run.completed" | "run.failed" | "run.cancelled" | "run.interrupted";
+            /** Created At */
+            created_at: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * GenerateWiki
+         * @description 作用：固定本次生成的来源与编辑基线
+         *     输入：文档修订和页面 slug
+         *     输出：生成请求
+         */
+        GenerateWiki: {
+            /** Slug */
+            slug: string;
+            /** Input Revision Ids */
+            input_revision_ids: string[];
+            /**
+             * Expected Version
+             * @default 0
+             */
+            expected_version: number;
+        };
+        /**
+         * GraphEdge
+         * @description 作用：表达真实引用或来源关系
+         *     输入：起点、终点及关系名
+         *     输出：图连线
+         */
+        GraphEdge: {
+            /** Source */
+            source: string;
+            /** Target */
+            target: string;
+            /** Label */
+            label: string;
+        };
+        /**
+         * GraphNode
+         * @description 作用：返回可导航的真实知识实体
+         *     输入：实体标识、友好标签和来源
+         *     输出：图节点
+         */
+        GraphNode: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "document" | "concept" | "wiki" | "metric";
+            /** Label */
+            label: string;
+            /** Source Kind */
+            source_kind: string;
+            /** Status */
+            status?: string | null;
+            /** Document Id */
+            document_id?: string | null;
+            /** Revision Id */
+            revision_id?: string | null;
+            /** Chunk Id */
+            chunk_id?: string | null;
+            /** Metric Key */
+            metric_key?: string | null;
+        };
+        /**
+         * GraphResult
+         * @description 作用：固定图所对应的 Wiki 修订和阅读边界
+         *     输入：节点、连线和范围
+         *     输出：关系图响应
+         */
+        GraphResult: {
+            /** Nodes */
+            nodes: components["schemas"]["GraphNode"][];
+            /** Edges */
+            edges: components["schemas"]["GraphEdge"][];
+            /** Page Id */
+            page_id: string;
+            /** Wiki Revision Id */
+            wiki_revision_id: string;
+            /** Scope */
+            scope: string;
+            /** Note */
+            note: string;
+        };
+        /**
          * HealthResponse
          * @description 作用：描述本地服务可用性与真实功能状态
          *     输入：元数据库、自检和集成配置状态
@@ -223,10 +1198,10 @@ export interface components {
             status: "ok" | "degraded";
             /**
              * Stage
-             * @default 1
+             * @default 3
              * @constant
              */
-            stage: 1;
+            stage: 3;
             /**
              * Database
              * @enum {string}
@@ -239,10 +1214,10 @@ export interface components {
             fts5: "available" | "unavailable";
             /**
              * Worker
-             * @default not_implemented
-             * @constant
+             * @default not_ready
+             * @enum {string}
              */
-            worker: "not_implemented";
+            worker: "ready" | "not_ready";
             /**
              * Llm
              * @enum {string}
@@ -255,10 +1230,152 @@ export interface components {
             embedding: "configured_unverified" | "not_configured";
             /**
              * Analysis
-             * @default not_implemented
-             * @constant
+             * @default not_ready
+             * @enum {string}
              */
-            analysis: "not_implemented";
+            analysis: "ready" | "not_ready";
+        };
+        /**
+         * ImportReceipt
+         * @description 作用：返回固定原文及实际处理任务
+         *     输入：导入结果
+         *     输出：上传回执
+         */
+        ImportReceipt: {
+            /** Document Id */
+            document_id: string;
+            /** Revision Id */
+            revision_id: string;
+            /** Job Id */
+            job_id: string;
+        };
+        /**
+         * ItemList
+         * @description 作用：提供知识目录列表外层
+         *     输入：目录记录
+         *     输出：统一列表
+         */
+        ItemList: {
+            /** Items */
+            items: {
+                [key: string]: unknown;
+            }[];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /**
+         * JobDTO
+         * @description 作用：显示持久化任务状态，不暴露内部输入
+         *     输入：任务记录
+         *     输出：任务状态
+         */
+        JobDTO: {
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "queued" | "running" | "succeeded" | "failed";
+            /** Stage */
+            stage: string;
+            /** Result */
+            result: {
+                [key: string]: unknown;
+            };
+            /** Error Code */
+            error_code: string | null;
+            /** Created At */
+            created_at: string;
+        };
+        /**
+         * MetricDefinition
+         * @description 作用：固定计算口径、来源与适用期
+         *     输入：蓝图指标字段
+         *     输出：结构化指标定义
+         */
+        MetricDefinition: {
+            /** Key */
+            key: string;
+            /** Version */
+            version: number;
+            /** Name */
+            name: string;
+            /**
+             * Authority
+             * @enum {string}
+             */
+            authority: "official_mapping" | "project_policy";
+            /**
+             * Review State
+             * @enum {string}
+             */
+            review_state: "draft" | "approved";
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "count" | "percent" | "minutes";
+            /** Grain */
+            grain: string;
+            /** Numerator Description */
+            numerator_description: string;
+            /** Denominator Description */
+            denominator_description: string | null;
+            /** Population Filters */
+            population_filters: string[];
+            /** Required Columns */
+            required_columns: string[];
+            /** Null Policy */
+            null_policy: string;
+            /**
+             * Effective From
+             * Format: date
+             */
+            effective_from: string;
+            /** Effective To */
+            effective_to?: string | null;
+            /** Source Revision Ids */
+            source_revision_ids: string[];
+            /** Template Key */
+            template_key?: string | null;
+        };
+        /**
+         * MetricWrite
+         * @description 作用：绑定指标写入和乐观锁
+         *     输入：定义与预期版本
+         *     输出：写入请求
+         */
+        MetricWrite: {
+            definition: components["schemas"]["MetricDefinition"];
+            /**
+             * Expected Version
+             * @default 0
+             */
+            expected_version: number;
+        };
+        /** Page[ConversationDTO] */
+        Page_ConversationDTO_: {
+            /** Items */
+            items: components["schemas"]["ConversationDTO"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** Page[EventDTO] */
+        Page_EventDTO_: {
+            /** Items */
+            items: components["schemas"]["EventDTO"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** Page[RunDTO] */
+        Page_RunDTO_: {
+            /** Items */
+            items: components["schemas"]["RunDTO"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
         };
         /** Page[SnapshotDTO] */
         Page_SnapshotDTO_: {
@@ -327,6 +1444,68 @@ export interface components {
             ordered: boolean;
         };
         /**
+         * QueryResult
+         * @description 作用：提交查询产物清单
+         *     输入：当前运行产物
+         *     输出：阶段 3 结果
+         */
+        QueryResult: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "query_result";
+            /** Artifact Ids */
+            artifact_ids: string[];
+        };
+        /**
+         * RunDTO
+         * @description 作用：恢复运行状态
+         *     输入：持久化记录
+         *     输出：前后端一致 DTO
+         */
+        RunDTO: {
+            /** Id */
+            id: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /** Question */
+            question: string;
+            /** Snapshot Id */
+            snapshot_id: string;
+            /** Knowledge Snapshot Id */
+            knowledge_snapshot_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
+            /** Budget */
+            budget: {
+                [key: string]: number;
+            };
+            /** Context Run Ids */
+            context_run_ids: string[];
+            /** Metric Revision Ids */
+            metric_revision_ids: string[];
+            /** Result */
+            result?: (components["schemas"]["QueryResult"] | components["schemas"]["Clarification"]) | null;
+            /** Error Code */
+            error_code?: string | null;
+            /** Cancel Requested */
+            cancel_requested: boolean;
+            /** Created At */
+            created_at: string;
+            /** Seq */
+            seq: number;
+            /** Model */
+            model: string;
+            /** Usage */
+            usage: {
+                [key: string]: number;
+            };
+        };
+        /**
          * SchemaDTO
          * @description 作用：返回某个固定快照的公开结构
          *     输入：快照标识与表结构
@@ -337,6 +1516,68 @@ export interface components {
             snapshot_id: string;
             /** Tables */
             tables: components["schemas"]["TableDTO"][];
+        };
+        /**
+         * SearchHit
+         * @description 作用：展示命中及真实来源
+         *     输入：片段与排序分
+         *     输出：检索结果
+         */
+        SearchHit: {
+            chunk: components["schemas"]["ChunkDTO"];
+            /** Score */
+            score: number;
+            /**
+             * Excerpt
+             * @default
+             */
+            excerpt: string;
+            /**
+             * Match Reason
+             * @default 相关资料片段
+             */
+            match_reason: string;
+        };
+        /**
+         * SearchRequest
+         * @description 作用：固定检索范围和时间
+         *     输入：问题、知识快照与日期
+         *     输出：检索请求
+         */
+        SearchRequest: {
+            /** Query */
+            query: string;
+            /** Snapshot Id */
+            snapshot_id: string;
+            /** As Of */
+            as_of?: string | null;
+            /**
+             * Mode
+             * @default text
+             * @enum {string}
+             */
+            mode: "text" | "hybrid";
+        };
+        /**
+         * SearchResult
+         * @description 作用：如实呈现检索模式与限制
+         *     输入：命中及模式
+         *     输出：检索响应
+         */
+        SearchResult: {
+            /** Items */
+            items: components["schemas"]["SearchHit"][];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "text" | "hybrid";
+            /** Warnings */
+            warnings: string[];
+            /** Wiki Items */
+            wiki_items?: {
+                [key: string]: unknown;
+            }[];
         };
         /**
          * SnapshotDTO
@@ -417,6 +1658,36 @@ export interface components {
             /** Join Keys */
             join_keys?: string[];
         };
+        /**
+         * VersionAction
+         * @description 作用：约束发布、回滚与审核目标
+         *     输入：目标修订和当前版本
+         *     输出：版本操作
+         */
+        VersionAction: {
+            /** Revision Id */
+            revision_id: string;
+            /** Expected Version */
+            expected_version: number;
+        };
+        /**
+         * WikiEdit
+         * @description 作用：创建有来源的人工 Wiki 草稿
+         *     输入：正文、引用、输入修订和版本
+         *     输出：草稿请求
+         */
+        WikiEdit: {
+            /** Title */
+            title: string;
+            /** Content */
+            content: string;
+            /** Citations */
+            citations: components["schemas"]["Citation"][];
+            /** Input Revision Ids */
+            input_revision_ids: string[];
+            /** Expected Version */
+            expected_version: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -469,6 +1740,330 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    conversations_api_v1_conversations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ConversationDTO_"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_conversation_api_v1_conversations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    conversation_api_v1_conversations__conversation_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RunDTO_"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_run_api_v1_runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRun"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_run_api_v1_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    cancel_run_api_v1_runs__run_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    events_api_v1_runs__run_id__events_get: {
+        parameters: {
+            query?: {
+                after?: number;
+            };
+            header?: {
+                "last-event-id"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    event_log_api_v1_runs__run_id__event_log_get: {
+        parameters: {
+            query?: {
+                after?: number;
+            };
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_EventDTO_"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -659,6 +2254,1174 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ArtifactPage"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    knowledge_graph_api_v1_knowledge_graph_get: {
+        parameters: {
+            query: {
+                page_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphResult"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_documents_api_v1_documents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemList"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    upload_document_api_v1_documents_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_document_api_v1_documents_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportReceipt"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    document_history_api_v1_documents__document_id__revisions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemList"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    document_revision_api_v1_documents__document_id__revisions__revision_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+                revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentRevisionDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    chunk_detail_api_v1_chunks__chunk_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chunk_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChunkDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    revision_chunks_api_v1_documents__document_id__revisions__revision_id__chunks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+                revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemList"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_snapshot_api_v1_knowledge_snapshots_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_snapshot_api_v1_knowledge_snapshots__snapshot_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                snapshot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    search_api_v1_knowledge_search_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResult"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reindex_api_v1_knowledge_reindex_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_jobs_api_v1_jobs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemList"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_job_api_v1_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    retry_job_api_v1_jobs__job_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    generate_wiki_api_v1_wiki_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateWiki"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_wiki_api_v1_wiki_pages_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemList"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_wiki_api_v1_wiki_pages_post: {
+        parameters: {
+            query: {
+                slug: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    wiki_history_api_v1_wiki_pages__page_id__revisions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                page_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemList"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    wiki_revision_api_v1_wiki_pages__page_id__revisions__revision_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                page_id: string;
+                revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    edit_wiki_api_v1_wiki_pages__page_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                page_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    publish_wiki_api_v1_wiki_pages__page_id__publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                page_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionAction"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    revert_wiki_api_v1_wiki_pages__page_id__revert_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                page_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionAction"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_metrics_api_v1_metrics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemList"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_metric_api_v1_metrics_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MetricWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    metric_history_api_v1_metrics__key__revisions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemList"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    edit_metric_api_v1_metrics__key__revisions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MetricWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    approve_metric_api_v1_metrics__key__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionAction"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    resolve_metric_api_v1_metrics__key__resolve_get: {
+        parameters: {
+            query: {
+                snapshot_id: string;
+                as_of: string;
+            };
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Unprocessable Entity */

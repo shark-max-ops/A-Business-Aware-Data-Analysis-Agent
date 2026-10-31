@@ -1,11 +1,12 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useParams } from 'react-router-dom';
-import { Alert, Button, Empty, Input, Spin, Tabs, Tag } from 'antd';
+import { Alert, Button, Empty, Spin, Tag } from 'antd';
 import { loadHealth } from './api/client';
 import type { HealthState } from './api/client';
 
 // 数据管理只在打开抽屉时加载，避免表格组件增加首屏下载量。
-const DataSourceDrawer = lazy(() => import('./components/DataSourceDrawer').then(module => ({ default: module.DataSourceDrawer })));
+const AnalysisPage = lazy(() => import('./components/AnalysisPage').then(module => ({ default: module.AnalysisPage })));
+const KnowledgePage = lazy(() => import('./components/KnowledgePage').then(module => ({ default: module.KnowledgePage })));
 
 /** 作用：展示导航和服务状态；输入：无；输出：应用页面。 */
 export function App() {
@@ -22,45 +23,24 @@ export function App() {
     <header className="topbar">
       <Link to="/analysis" className="brand"><span className="brand-mark">A</span><span className="brand-title">A Business-Aware Data Analysis Agent<small>业务口径驱动的数据分析</small></span></Link>
       <nav aria-label="主导航"><NavLink to="/knowledge">知识管理</NavLink><NavLink to="/analysis">分析</NavLink><NavLink to="/reports">报告</NavLink></nav>
-      <div className="connection"><span className={`status-dot ${state.kind === 'ready' ? 'online' : ''}`} />{state.kind === 'loading' ? '正在连接服务' : state.kind === 'error' ? '后端未连接' : state.kind === 'degraded' ? '服务需要处理' : '本地服务已连接'}<Tag>{health?.llm === 'configured_unverified' ? '模型配置待验证' : health ? '模型未配置' : '模型状态未知'}</Tag></div>
+      <div className="connection"><span className={`status-dot ${state.kind === 'ready' ? 'online' : ''}`} />{state.kind === 'loading' ? '正在连接服务' : state.kind === 'error' ? '后端未连接' : state.kind === 'degraded' ? '服务需要处理' : '本地服务已连接'}<Tag>{health?.llm === 'configured_unverified' ? '模型配置已填写' : health ? '模型未配置' : '模型状态未知'}</Tag></div>
     </header>
     <main>
-      <div className="stage-note"><span>数据接入与受限查询 · 阶段 1</span><span>知识与指标 → 受限查询 → 可追溯报告</span></div>
+      <div className="stage-note"><span>分析 Agent 与工具进度 · 阶段 3</span><span>知识与指标 → 受限查询 → 可追溯报告</span></div>
       {state.kind === 'loading' && <div role="status" className="connection-notice"><Spin size="small" /> 正在获取服务状态…</div>}
       {state.kind === 'error' && <Alert type="error" showIcon message="后端连接失败" description={state.message} action={<Button onClick={() => setAttempt(a => a + 1)}>重新连接</Button>} />}
-      {state.kind === 'degraded' && <Alert type="warning" showIcon message="服务尚未就绪" description={health?.database !== 'ready' ? '元数据库尚未就绪，请按项目说明完成数据库迁移。' : '当前 SQLite 不支持 FTS5，请检查 Python 环境。'} action={<Button onClick={() => setAttempt(a => a + 1)}>重新检查</Button>} />}
+      {state.kind === 'degraded' && <Alert type="warning" showIcon message="服务尚未就绪" description={health?.database !== 'ready' ? '元数据库尚未就绪，请按项目说明完成数据库迁移。' : health?.fts5 !== 'available' ? '当前 SQLite 不支持 FTS5，请检查 Python 环境。' : '知识处理任务未就绪，请重启后端服务。'} action={<Button onClick={() => setAttempt(a => a + 1)}>重新检查</Button>} />}
       <Routes>
         <Route path="/" element={<Navigate to="/analysis" replace />} />
-        <Route path="/analysis" element={<Analysis />} />
-        <Route path="/knowledge" element={<Knowledge />} />
+        <Route path="/analysis" element={<Suspense fallback={<p>正在加载分析工作区…</p>}><AnalysisPage /></Suspense>} />
+        <Route path="/knowledge" element={<Suspense fallback={<p role="status">正在加载知识管理…</p>}><KnowledgePage /></Suspense>} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/reports/:reportId/revisions/:revisionId" element={<ReportDetail />} />
         <Route path="*" element={<div className="empty-panel"><Empty description="页面不存在" /><Link to="/analysis">返回分析页</Link></div>} />
       </Routes>
     </main>
-    <footer><span>单用户 · 本地工作区</span><span>数据快照可查看；模型分析与报告将在后续阶段开放。</span></footer>
+    <footer><span>单用户 · 本地工作区</span><span>自然语言分析已接入；完整可追溯报告将在阶段 4 开放。</span></footer>
   </div>;
-}
-
-/** 作用：展示分析入口和数据源抽屉；输入：无；输出：分析页面壳。 */
-function Analysis() {
-  const [open, setOpen] = useState(false);
-  return <><div className="page-heading"><div><p className="eyebrow">ANALYSIS WORKSPACE</p><h1>从业务问题开始分析</h1><p>先明确指标口径，再用真实查询建立证据。</p></div><Button onClick={() => setOpen(true)}>查看数据源</Button></div>
-    <div className="analysis-grid">
-      <aside className="panel"><h2>分析会话</h2><div className="aside-empty">会话功能尚未开放</div></aside>
-      <section className="panel question-panel"><div className="panel-top"><h2>分析工作区</h2><Tag>尚未开放</Tag></div><div className="analysis-empty"><span className="empty-symbol">↗</span><h3>准备好数据与规则后，即可开始</h3><p>数据导入和受限查询命令已可用。知识与指标将在阶段 2 开放，模型分析将在阶段 3 接入。</p><div className="prerequisites"><span>① 数据快照</span><span>② 已审核指标</span><span>③ 模型配置</span></div></div><div className="composer"><label htmlFor="question">分析问题</label><Input.TextArea id="question" disabled rows={2} placeholder="分析功能尚未开放" /><div className="composer-bottom"><span>当前尚不能提交分析任务</span><Button type="primary" disabled>发送问题</Button></div></div></section>
-      <aside className="panel"><h2>执行进度</h2><p className="aside-empty">分析运行后，这里会展示真实工具调用、结果与错误。</p></aside>
-    </div>
-    <Suspense fallback={<p role="status">正在加载数据源…</p>}>{open && <DataSourceDrawer open={open} onClose={() => setOpen(false)} />}</Suspense></>;
-}
-
-/** 作用：展示知识管理未开放状态；输入：无；输出：知识页面壳。 */
-function Knowledge() {
-  return <><div className="page-heading"><div><p className="eyebrow">KNOWLEDGE & METRICS</p><h1>为每个指标建立依据</h1><p>官方资料、项目规则与生成 Wiki 分别管理，保留来源和版本。</p></div></div><section className="panel knowledge-panel"><Tabs items={[
-    { key: 'documents', label: '原始文档', children: <EmptyArea text="文档导入尚未开放" note="阶段 2 将支持 Markdown / TXT 导入、版本保存和来源定位。" /> },
-    { key: 'wiki', label: 'Wiki', children: <EmptyArea text="Wiki 管理尚未开放" note="阶段 2 将支持生成草稿、人工编辑、发布和历史版本查看。" /> },
-    { key: 'metrics', label: '指标定义', children: <EmptyArea text="指标管理尚未开放" note="阶段 2 将建立公式、分母、过滤范围与适用期的结构化定义。" /> },
-  ]} /></section></>;
 }
 
 /** 作用：展示报告入口；输入：无；输出：报告页面壳。 */

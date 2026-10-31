@@ -1,6 +1,7 @@
 """应用配置；只检查本地配置完整性，不请求远程模型。"""
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,6 +25,10 @@ class Settings(BaseSettings):
     embedding_base_url: str = ""
     embedding_api_key: SecretStr = SecretStr("")
     embedding_model: str = ""
+    wiki_reasoning_effort: Literal["", "none", "low", "high", "max"] = "none"
+    agent_reasoning_effort: Literal["", "none", "low", "high", "max"] = "none"
+    run_context_tokens: int = Field(default=32000, ge=8000)
+    run_output_tokens: int = Field(default=3000, ge=512, le=16000)
     run_max_turns: int = Field(default=16, ge=1)
     run_max_tool_calls: int = Field(default=24, ge=1)
     run_timeout_seconds: int = Field(default=180, ge=1)

@@ -471,7 +471,7 @@ def test_api_real_snapshot_and_cross_source_boundary(dataset):
     config, catalog, snapshot = dataset
     source_id = snapshot.source_id
     with TestClient(create_app(config)) as client:
-        assert client.get("/api/v1/health").json()["stage"] == 1
+        assert client.get("/api/v1/health").json()["stage"] == 3
         assert client.get("/api/v1/sources").json()["items"][0]["source_kind"] == "synthetic"
         assert (
             client.get(f"/api/v1/sources/{source_id}/snapshots").json()["items"][0]["row_count"]

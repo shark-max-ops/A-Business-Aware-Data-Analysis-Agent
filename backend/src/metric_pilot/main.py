@@ -9,11 +9,18 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
+from metric_pilot.agent.api import router as agent_router
+from metric_pilot.agent.runtime import AgentWorker
+from metric_pilot.agent.store import RunStore
 from metric_pilot.contracts import ErrorDetail, ErrorResponse, HealthResponse
 from metric_pilot.data.api import router as data_router
 from metric_pilot.data.common import DataError
 from metric_pilot.data.executor import CONNECTION_CONFIG
 from metric_pilot.database import create_metadata_engine, inspect_database
+from metric_pilot.knowledge.api import router as knowledge_router
+from metric_pilot.knowledge.jobs import KnowledgeWorker
+from metric_pilot.knowledge.provider import KnowledgeProvider
+from metric_pilot.knowledge.store import KnowledgeStore
 from metric_pilot.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -38,7 +45,7 @@ def error_response(request: Request, status: int, code: str, message: str, detai
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     """
-    作用：组合配置、数据库和 API，不启动未实现的分析任务
+    作用：组合配置、数据库、知识与分析监督器和 API
     输入：settings - 可选配置覆盖值
     输出：FastAPI 应用
     """
@@ -58,9 +65,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             pass
         application.state.settings = config
         application.state.engine = create_metadata_engine(config)
+        application.state.knowledge_ready = inspect_database(application.state.engine) == (
+            "ready",
+            "available",
+        )
+        application.state.knowledge_worker = None
+        application.state.agent_worker = None
+        if application.state.knowledge_ready:
+            worker = KnowledgeWorker(
+                KnowledgeStore(application.state.engine), KnowledgeProvider(config)
+            )
+            worker.start()
+            application.state.knowledge_worker = worker
+            agent_worker = AgentWorker(RunStore(application.state.engine), config)
+            agent_worker.start()
+            application.state.agent_worker = agent_worker
         try:
             yield
         finally:
+            if application.state.agent_worker:
+                application.state.agent_worker.close()
+            if application.state.knowledge_worker:
+                application.state.knowledge_worker.close()
             application.state.engine.dispose()
 
     application = FastAPI(
@@ -127,11 +153,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         输出：健康 DTO，数据库异常时返回 503
         """
         database, fts5 = inspect_database(request.app.state.engine)
-        ready = database == "ready" and fts5 == "available"
+        worker_ready = bool(
+            request.app.state.knowledge_worker
+            and request.app.state.knowledge_worker.thread.is_alive()
+        )
+        analysis_ready = bool(
+            request.app.state.agent_worker and request.app.state.agent_worker.thread.is_alive()
+        )
+        ready = database == "ready" and fts5 == "available" and worker_ready and analysis_ready
         body = HealthResponse(
             status="ok" if ready else "degraded",
+            analysis="ready" if analysis_ready else "not_ready",
             database=database,
             fts5=fts5,
+            worker="ready" if worker_ready else "not_ready",
             llm="configured_unverified"
             if config.integration_configured("llm")
             else "not_configured",
@@ -165,7 +200,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             exc.details,
         )
 
+    application.include_router(agent_router)
     application.include_router(data_router)
+    application.include_router(knowledge_router)
     return application
 
 

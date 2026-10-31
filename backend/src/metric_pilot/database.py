@@ -7,7 +7,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from metric_pilot.settings import Settings
 
-SCHEMA_REVISION = "0002_data"
+SCHEMA_REVISION = "0004_agent"
 
 
 class Base(DeclarativeBase):
@@ -86,8 +86,18 @@ def inspect_database(engine: Engine) -> tuple[str, str]:
                     "data_snapshots",
                     "query_executions",
                     "query_artifacts",
+                    "knowledge_documents",
+                    "document_revisions",
+                    "knowledge_chunks",
+                    "knowledge_jobs",
+                    "wiki_pages",
+                    "conversations",
+                    "agent_runs",
+                    "tool_executions",
                 ):
                     connection.execute(text(f"SELECT id FROM {table} LIMIT 0"))
+                connection.execute(text("SELECT key FROM knowledge_metrics LIMIT 0"))
+                connection.execute(text("SELECT chunk_id FROM knowledge_fts LIMIT 0"))
                 database = "ready" if ready else "migration_required"
             except SQLAlchemyError:
                 database = "migration_required"
