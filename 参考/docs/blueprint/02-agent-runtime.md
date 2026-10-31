@@ -1,5 +1,73 @@
 # 02 Agent 框架设计与代码骨架
 
+## 0. 当前 Agent Harness 框架图（阶段 3 已实现）
+
+更新日期：2026-10-31。下面按当前代码与[实施记录](../../../IMPLEMENTATION_STATUS.md)整理，表示**当前可运行实现**。后文保留原设计骨架与伪代码，其中报告验证、ValueRef 等属于后续阶段，不能据此视为已经实现。
+
+这里的 **Agent Harness** 指包围模型的执行框架：准备上下文、开放有限工具、控制预算和取消、保存结果与记录。它由多个模块组合而成，没有单独名为 AgentHarness 的类，也不依赖安装整个 DB-GPT。**模型选择下一步，服务端决定是否允许执行以及如何保存证据。**
+
+### 0.1 整体组成：模型运行在什么框架中
+
+从上到下看三部分：**接入与调度 → 模型与工具循环 → 观测与记录**。中间绿色框是 AgentRuntime，绿色回线表示工具结果或安全错误反馈给 Runtime，再交由模型选择下一步。右侧的文本模型是外部服务；最下方虚线框仅表示阶段 4 的待实现能力。
+
+![当前 Agent Harness：接入与调度、模型与工具循环、观测与记录](assets/agent-harness-current.png)
+
+[打开可缩放的 SVG 矢量版](assets/agent-harness-current.svg)。图中只保留主调用和反馈方向；箭头不是因果关系，也不是每次提问都会经过的固定步骤。七个工具和代码位置见下表及 0.3。
+
+图中七个工具按职责分为三组，模型可按问题反复调用，顺序不由题目模板写死：
+
+| 职责 | 实际工具 | 服务端约束 |
+| --- | --- | --- |
+| 查知识和指标 | search_knowledge、read_wiki_page、resolve_metric | 固定知识快照；Wiki 只能读快照内已发布版本；指标必须已审核并适用于整个数据月份 |
+| 查数据结构 | list_tables、describe_table | 只暴露本次数据快照允许的表、字段、语义和少量样本 |
+| 查数据和冻结结果 | query_sql、read_artifact | SQL 经过检查后执行；产物读取校验哈希和本次运行归属，不接受任意文件路径 |
+
+当前分析工具 search_knowledge 使用关键词检索；知识管理页另有实际混合检索，不能混为同一条运行路径。实际八项项目指标仍待人工审核，生成 Wiki 尚未发布；图中的能力不代表这些内容已经获批。
+
+页面通过运行/产物 API 读取状态与冻结结果，SSE 用于更新进度，不承载全部结果表格。关闭页面仅断开订阅，后台继续运行。显式取消先保存取消标记，再通知 worker；等待模型时取消实际异步 HTTP，执行 SQL 时终止并回收查询子进程。
+
+### 0.2 一次提问怎样处理：查询、修正与结束
+
+一次 Run 就是系统处理一次提问。先沿中间往下看：**收到问题 → 整理信息 → 模型决定下一步**。需要继续查时，走左侧并把真实结果或错误带回来；准备结束时，走下方的检查，再返回查询结果或说明还缺什么。
+
+![一次提问的处理过程：继续查询、出错修正、返回结果或请求补充条件](assets/agent-run-cycle.png)
+
+[打开可缩放的 SVG 矢量版](assets/agent-run-cycle.svg)。绿色回线表示带着新发现继续处理，右侧回线表示提交的内容需要修改；两条都不是无限重试。
+
+例如，问“本月有多少条记录”，模型可以先查看字段，再提出查询；字段写错了，系统把错误交回模型，让它重新查看或修改。问“各航空公司利润是多少”，如果缺少收入与成本，就说明缺什么，而不是编出利润。系统会核对结果格式和查询依据，但这不代表业务解释已被自动证明正确。
+
+<details>
+<summary>给开发者的运行限制与实现细节</summary>
+
+默认限制为 **16 轮模型交互、24 次工具调用、180 秒运行时间**，创建时固定；一次回复可包含多个工具调用，所以轮数和工具数分别计数。相同工具及参数连续失败两次会停止；查询超时修正最多两次。已接收的工具批次在执行中遇到取消或停止条件时，仍生成配对回复，不留下孤立工具消息。
+
+clarification 是正常结束的结果，表示需要补充字段、口径或审核条件；用户补充后创建新 Run。服务重启时遗留的 running 任务标为 interrupted，不声称恢复了模型内部状态。
+
+会话短标题只用于列表展示，由正常最终回复顺带生成；无效或缺失不会破坏分析，完整问题仍保留。它不进入查询证据，也不替代分析结果。
+
+</details>
+
+### 0.3 图中的模块对应哪些代码
+
+| 图中职责 | 当前代码位置 | 核心入口 |
+| --- | --- | --- |
+| 接收问题、固定依赖、取消、SSE | [agent/api.py](../../../backend/src/metric_pilot/agent/api.py) | create_run、cancel_run、events |
+| 后台领取与执行循环 | [agent/runtime.py](../../../backend/src/metric_pilot/agent/runtime.py) | AgentWorker、AgentRuntime.run、wait_model |
+| 提示词与上下文管理 | [agent/context.py](../../../backend/src/metric_pilot/agent/context.py) | PROMPT、initial_messages、fit_context |
+| 模型通信与协议清理 | [agent/provider.py](../../../backend/src/metric_pilot/agent/provider.py) | AgentProvider.next_turn、parse |
+| 工具签名、参数与执行范围 | [agent/tools.py](../../../backend/src/metric_pilot/agent/tools.py) | SPECS、ToolRegistry.invoke |
+| 生命周期观测与持久化 | [agent/middleware.py](../../../backend/src/metric_pilot/agent/middleware.py)、[agent/store.py](../../../backend/src/metric_pilot/agent/store.py) | RuntimeObserver、RunStore |
+| SQL 检查与真实执行 | [data/query.py](../../../backend/src/metric_pilot/data/query.py)、[data/guard.py](../../../backend/src/metric_pilot/data/guard.py)、[data/executor.py](../../../backend/src/metric_pilot/data/executor.py) | QueryService、validate_sql、QueryExecutor |
+| 统一运行、结果与事件契约 | [agent/contracts.py](../../../backend/src/metric_pilot/agent/contracts.py)、[data/contracts.py](../../../backend/src/metric_pilot/data/contracts.py) | FinalCandidate、RunDTO、EventDTO、RunContext、ToolResult、QueryArtifact |
+| 可选会话短标题 | [agent/titles.py](../../../backend/src/metric_pilot/agent/titles.py) | split_title、clean_title |
+| 对话页与执行详情 | [AnalysisPage.tsx](../../../frontend/src/components/AnalysisPage.tsx)、[ExecutionTrace.tsx](../../../frontend/src/components/ExecutionTrace.tsx) | 提交、订阅、结果读取、摘要与详情抽屉 |
+
+后文的 AgentProfile、ContextBuilder、RunRepository 是设计职责名称，当前分别落在 context.py 的提示词、上下文函数和 RunStore 中，不是另外三套已实现组件。后文类型骨架与伪代码也不替代这里链接的实际实现。
+
+**当前终点是成功查询的冻结产物或结构化澄清。** 完整报告、ValueRef 服务端物化与数字点击取证仍按[蓝图 05](05-evidence-and-reports.md)留给阶段 4。结构、执行与引用校验通过不等于业务语义已自动证明，页面与本图均不展示模型内部思维链。
+
+---
+
 ## 1. 从 DB-GPT 继承什么
 
 DB-GPT 把角色、Agent、Action、Resource、上下文和展示分开。本项目保留这种职责分工，使用组合：

@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1340" viewBox="0 0 1500 1340" role="img" aria-labelledby="title description">
+<title id="title">一次提问怎样处理：查询、修正与结束</title>
+<desc id="description">收到问题后整理信息，模型决定继续查资料或查数据，系统检查后执行，把真实结果或错误交回模型。准备结束时核对查询依据或缺失条件，检查不通过则退回修改。最终展示结果或请求补充条件。取消、超时、次数用完或反复失败时停止并保存原因。</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8" fill="#64758c"/></marker><marker id="green" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#26826b"/></marker></defs>
+<style>text{font-family:"Microsoft YaHei","Segoe UI",sans-serif;fill:#25364a} .muted{fill:#607085} .label{font-size:19px;fill:#607085} .edge{fill:none;stroke:#64758c;stroke-width:2.2;stroke-linejoin:round;marker-end:url(#arrow)} .feedback{fill:none;stroke:#26826b;stroke-width:2.5;stroke-linejoin:round;marker-end:url(#green)}</style>
+<rect width="1500" height="1180" fill="#fff"/>
+
+<text x="40" y="53" font-size="38" font-weight="650" style="fill:#25364a">一次提问，系统怎样处理？</text>
+<text x="40" y="94" font-size="24" font-weight="400" style="fill:#607085">模型决定查什么；系统检查能否执行，再把真实结果交回模型。</text>
+<g data-card="收到你的问题"><rect x="500" y="140" width="500" height="90" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="518" y="172" font-size="26" font-weight="600" style="fill:#25364a">收到你的问题</text>
+<text x="518" y="201" font-size="20" font-weight="400" style="fill:#52647a">开始本次分析</text>
+</g>
+<g data-card="整理本次要用的信息"><rect x="500" y="280" width="500" height="100" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="518" y="312" font-size="26" font-weight="600" style="fill:#25364a">整理本次要用的信息</text>
+<text x="518" y="341" font-size="20" font-weight="400" style="fill:#52647a">固定数据和规则，保留已查到的信息</text>
+</g>
+<g data-card="模型决定下一步"><rect x="500" y="450" width="500" height="110" rx="13" fill="#eaf4ef" stroke="#81b8a4" stroke-width="1.6"/>
+<text x="518" y="482" font-size="26" font-weight="600" style="fill:#25364a">模型决定下一步</text>
+<text x="518" y="511" font-size="20" font-weight="400" style="fill:#52647a">还要继续查，还是可以结束？</text>
+</g>
+<path d="M750 230 V280" class="edge"/>
+<path d="M750 380 V450" class="edge"/>
+<g data-card="系统先检查，再执行"><rect x="80" y="690" width="340" height="125" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="98" y="722" font-size="26" font-weight="600" style="fill:#25364a">系统先检查，再执行</text>
+<text x="98" y="751" font-size="20" font-weight="400" style="fill:#52647a">查口径、看字段或查数据</text>
+<text x="98" y="778" font-size="20" font-weight="400" style="fill:#52647a">越权或不安全的操作会被拒绝</text>
+</g>
+<g data-card="得到真实结果或错误"><rect x="80" y="900" width="340" height="100" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="98" y="932" font-size="26" font-weight="600" style="fill:#25364a">得到真实结果或错误</text>
+<text x="98" y="961" font-size="20" font-weight="400" style="fill:#52647a">把这次发现交回模型</text>
+</g>
+<path d="M500 525 H250 V690" class="edge"/>
+<text x="270" y="555" font-size="22" font-weight="400" style="fill:#25364a">还需要查</text>
+<path d="M250 815 V900" class="edge"/>
+<text x="270" y="862" font-size="20" font-weight="400" style="fill:#607085">保存实际执行记录</text>
+<path d="M80 950 H35 V480 H500" class="feedback"/>
+<text x="55" y="445" font-size="22" font-weight="400" style="fill:#26826b">带着新结果，再决定下一步</text>
+<g data-card="系统检查准备返回的内容"><rect x="610" y="700" width="500" height="125" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="628" y="732" font-size="26" font-weight="600" style="fill:#25364a">系统检查准备返回的内容</text>
+<text x="628" y="761" font-size="20" font-weight="400" style="fill:#52647a">查询依据是否来自本次成功查询？</text>
+<text x="628" y="788" font-size="20" font-weight="400" style="fill:#52647a">是否列出了要补充的条件？</text>
+</g>
+<path d="M750 560 V700" class="edge"/>
+<text x="780" y="622" font-size="22" font-weight="400" style="fill:#25364a">准备给出结果</text>
+<text x="780" y="651" font-size="22" font-weight="400" style="fill:#25364a">或说明缺少条件</text>
+<g data-card="退回修改"><rect x="1170" y="700" width="290" height="125" rx="13" fill="#fff7e8" stroke="#dfc591" stroke-width="1.6"/>
+<text x="1188" y="732" font-size="26" font-weight="600" style="fill:#25364a">退回修改</text>
+<text x="1188" y="761" font-size="20" font-weight="400" style="fill:#52647a">格式或引用不对</text>
+<text x="1188" y="788" font-size="20" font-weight="400" style="fill:#52647a">最多再修改两次</text>
+</g>
+<path d="M1110 765 H1170" class="edge"/>
+<text x="1118" y="739" font-size="18" font-weight="400" style="fill:#9b7529">未通过</text>
+<path d="M1460 765 H1480 V410 H950 V450" class="edge"/>
+<text x="1100" y="393" font-size="22" font-weight="400" style="fill:#9b7529">指出问题，让模型修改</text>
+<g data-card="展示查询结果"><rect x="500" y="1040" width="360" height="100" rx="13" fill="#eaf4ef" stroke="#81b8a4" stroke-width="1.6"/>
+<text x="518" y="1072" font-size="26" font-weight="600" style="fill:#25364a">展示查询结果</text>
+<text x="518" y="1101" font-size="20" font-weight="400" style="fill:#52647a">展示本次已保存的查询结果</text>
+</g>
+<g data-card="请求你补充条件"><rect x="910" y="1040" width="550" height="100" rx="13" fill="#fff7e8" stroke="#dfc591" stroke-width="1.6"/>
+<text x="928" y="1072" font-size="26" font-weight="600" style="fill:#25364a">请求你补充条件</text>
+<text x="928" y="1101" font-size="20" font-weight="400" style="fill:#52647a">例如：缺少收入与成本，无法计算利润</text>
+</g>
+<path d="M860 825 V940 H680 V1040" class="edge"/>
+<path d="M860 940 H1185 V1040" class="edge"/>
+<text x="885" y="889" font-size="23" font-weight="400" style="fill:#26826b">检查通过，结束本次分析</text>
+<text x="885" y="920" font-size="20" font-weight="400" style="fill:#607085">根据实际情况返回其中一种</text>
+<rect x="40" y="1180" width="1420" height="104" rx="13" fill="#fcf2f1" stroke="#e8c8c5" stroke-width="1.5"/>
+<text x="60" y="1217" font-size="25" font-weight="600" style="fill:#a25c56">整个过程中，系统也会检查是否需要停止</text>
+<text x="60" y="1254" font-size="23" font-weight="400" style="fill:#a25c56">你点击停止、等待太久、次数用完或反复失败等情况，都会停止并保存原因；不会假装查询成功。</text>
+<text x="40" y="1318" font-size="22" font-weight="400" style="fill:#607085">需要补充条件时，本次先结束；你补充后再开始新分析。当前提供查询结果，完整报告留给下一阶段。</text>
+</svg>

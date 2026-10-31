@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1180" viewBox="0 0 1500 1180" role="img" aria-labelledby="title description">
+<title id="title">当前 Agent Harness 框架：接入、循环、证据与记录</title>
+<desc id="description">阶段三实际实现。API 固定依赖，Worker 领取运行，Runtime 组织上下文、模型和工具循环。工具访问固定知识、schema 与安全 SQL；成功查询生成冻结产物。观测、状态存储与 SSE 独立展示。报告属于阶段四。</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8" fill="#64758c"/></marker><marker id="green" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#26826b"/></marker></defs>
+<style>text{font-family:"Microsoft YaHei","Segoe UI",sans-serif;fill:#25364a} .muted{fill:#607085} .label{font-size:19px;fill:#607085} .edge{fill:none;stroke:#64758c;stroke-width:2.2;stroke-linejoin:round;marker-end:url(#arrow)} .feedback{fill:none;stroke:#26826b;stroke-width:2.5;stroke-linejoin:round;marker-end:url(#green)}</style>
+<rect width="1500" height="1180" fill="#fff"/>
+
+<text x="40" y="51" font-size="36" font-weight="650" style="fill:#25364a">Agent Harness · 当前框架</text>
+<text x="40" y="88" font-size="23" font-weight="400" style="fill:#607085">模型选择下一步；服务端控制执行、版本、预算和证据。</text>
+<rect x="1220" y="25" width="240" height="48" rx="24" fill="#e9f4ef"/>
+<text x="1245" y="57" font-size="24" font-weight="600" style="fill:#21745d">阶段 3 · 已实现</text>
+<text x="40" y="125" font-size="19" font-weight="600" style="fill:#607085">01  接入与调度</text>
+<g data-card="分析页面"><rect x="40" y="145" width="250" height="90" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="58" y="177" font-size="26" font-weight="600" style="fill:#25364a">分析页面</text>
+<text x="58" y="206" font-size="20" font-weight="400" style="fill:#52647a">提交问题 / 显式停止</text>
+</g>
+<g data-card="分析 API"><rect x="350" y="145" width="330" height="90" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="368" y="177" font-size="26" font-weight="600" style="fill:#25364a">分析 API</text>
+<text x="368" y="206" font-size="20" font-weight="400" style="fill:#52647a">固定快照、模型与预算</text>
+</g>
+<g data-card="AgentWorker"><rect x="740" y="145" width="330" height="90" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="758" y="177" font-size="26" font-weight="600" style="fill:#25364a">AgentWorker</text>
+<text x="758" y="206" font-size="20" font-weight="400" style="fill:#52647a">从 RunStore 单并发领取</text>
+</g>
+<path d="M290 190 H350" class="edge"/>
+<path d="M680 190 H740" class="edge"/>
+<text x="1095" y="184" font-size="22" font-weight="400" style="fill:#607085">queued → running</text>
+<rect x="40" y="280" width="1080" height="550" rx="18" fill="#f6f9fc" stroke="#ccd9e7" stroke-width="1.6"/>
+<path d="M905 235 V255 H560 V340" class="edge"/>
+<text x="65" y="315" font-size="22" font-weight="600" style="fill:#476487">02  Harness 运行核心</text>
+<g data-card="上下文"><rect x="80" y="340" width="240" height="125" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="98" y="372" font-size="26" font-weight="600" style="fill:#25364a">上下文</text>
+<text x="98" y="401" font-size="20" font-weight="400" style="fill:#52647a">目标、版本、产物清单</text>
+<text x="98" y="428" font-size="20" font-weight="400" style="fill:#52647a">完整消息组裁剪</text>
+<text x="98" y="456" font-size="16" font-weight="400" style="fill:#758497">context.py</text>
+</g>
+<g data-card="AgentRuntime"><rect x="400" y="340" width="320" height="125" rx="13" fill="#eaf4ef" stroke="#81b8a4" stroke-width="1.6"/>
+<text x="418" y="372" font-size="26" font-weight="600" style="fill:#25364a">AgentRuntime</text>
+<text x="418" y="401" font-size="20" font-weight="400" style="fill:#52647a">循环、预算、修复、取消</text>
+<text x="418" y="428" font-size="20" font-weight="400" style="fill:#52647a">校验最终候选与产物归属</text>
+<text x="418" y="456" font-size="16" font-weight="400" style="fill:#758497">runtime.py</text>
+</g>
+<g data-card="AgentProvider"><rect x="800" y="340" width="280" height="125" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="818" y="372" font-size="26" font-weight="600" style="fill:#25364a">AgentProvider</text>
+<text x="818" y="401" font-size="20" font-weight="400" style="fill:#52647a">原生工具调用 / 有限重试</text>
+<text x="818" y="428" font-size="20" font-weight="400" style="fill:#52647a">丢弃内部思维正文</text>
+<text x="818" y="456" font-size="16" font-weight="400" style="fill:#758497">provider.py</text>
+</g>
+<g data-card="文本模型 · 外部服务"><rect x="1180" y="340" width="280" height="125" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="1198" y="372" font-size="26" font-weight="600" style="fill:#25364a">文本模型 · 外部服务</text>
+<text x="1198" y="401" font-size="20" font-weight="400" style="fill:#52647a">选择工具或提交最终 JSON</text>
+</g>
+<path d="M320 400 H400" class="edge"/>
+<path d="M720 400 H800" class="edge" marker-start="url(#arrow)"/>
+<path d="M1080 400 H1180" class="edge" marker-start="url(#arrow)"/>
+<g data-card="ToolRegistry"><rect x="400" y="545" width="320" height="110" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="418" y="577" font-size="26" font-weight="600" style="fill:#25364a">ToolRegistry</text>
+<text x="418" y="606" font-size="20" font-weight="400" style="fill:#52647a">七个工具；参数与权限校验</text>
+<text x="418" y="646" font-size="16" font-weight="400" style="fill:#758497">tools.py</text>
+</g>
+<path d="M520 465 V545" class="edge"/>
+<text x="426" y="510" font-size="20" font-weight="400" style="fill:#25364a">工具调用</text>
+<path d="M720 597 H755 V500 H675 V465" class="feedback"/>
+<text x="780" y="530" font-size="21" font-weight="400" style="fill:#26826b">结果 / 安全错误</text>
+<text x="780" y="559" font-size="19" font-weight="400" style="fill:#26826b">反馈后继续选择</text>
+<g data-card="当前输出"><rect x="1180" y="530" width="280" height="125" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="1198" y="562" font-size="26" font-weight="600" style="fill:#25364a">当前输出</text>
+<text x="1198" y="591" font-size="20" font-weight="400" style="fill:#52647a">query_result：成功产物 ID</text>
+<text x="1198" y="618" font-size="20" font-weight="400" style="fill:#52647a">clarification：缺失条件</text>
+</g>
+<path d="M560 655 V680 H200 V705" class="edge"/>
+<path d="M560 680 V705" class="edge"/>
+<path d="M560 680 H940 V705" class="edge"/>
+<g data-card="知识与指标"><rect x="80" y="705" width="240" height="100" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="98" y="737" font-size="26" font-weight="600" style="fill:#25364a">知识与指标</text>
+<text x="98" y="766" font-size="20" font-weight="400" style="fill:#52647a">固定知识快照</text>
+<text x="98" y="796" font-size="16" font-weight="400" style="fill:#758497">检索 / Wiki / 已审核指标</text>
+</g>
+<g data-card="数据结构 · Catalog"><rect x="400" y="705" width="320" height="100" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="418" y="737" font-size="26" font-weight="600" style="fill:#25364a">数据结构 · Catalog</text>
+<text x="418" y="766" font-size="20" font-weight="400" style="fill:#52647a">固定数据快照的允许表 / 字段</text>
+</g>
+<g data-card="安全 SQL 查询"><rect x="800" y="705" width="280" height="100" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="818" y="737" font-size="26" font-weight="600" style="fill:#25364a">安全 SQL 查询</text>
+<text x="818" y="766" font-size="20" font-weight="400" style="fill:#52647a">AST → 只读子进程</text>
+<text x="818" y="796" font-size="16" font-weight="400" style="fill:#758497">QueryService / QueryExecutor</text>
+</g>
+<g data-card="QueryArtifact"><rect x="1180" y="705" width="280" height="100" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="1198" y="737" font-size="26" font-weight="600" style="fill:#25364a">QueryArtifact</text>
+<text x="1198" y="766" font-size="20" font-weight="400" style="fill:#52647a">冻结结果 / 哈希 / 来源</text>
+</g>
+<path d="M1080 755 H1180" class="edge"/>
+<text x="1092" y="735" font-size="18" font-weight="400" style="fill:#26826b">成功</text>
+<text x="40" y="869" font-size="22" font-weight="600" style="fill:#476487">03  贯穿运行的观测与记录（不参与模型决策）</text>
+<g data-card="RuntimeObserver"><rect x="40" y="890" width="330" height="100" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="58" y="922" font-size="26" font-weight="600" style="fill:#25364a">RuntimeObserver</text>
+<text x="58" y="951" font-size="20" font-weight="400" style="fill:#52647a">模型请求 / 工具开始与结束</text>
+</g>
+<g data-card="RunStore · SQLite"><rect x="410" y="890" width="330" height="100" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="428" y="922" font-size="26" font-weight="600" style="fill:#25364a">RunStore · SQLite</text>
+<text x="428" y="951" font-size="20" font-weight="400" style="fill:#52647a">运行状态 / 审计 / seq 事件</text>
+</g>
+<g data-card="SSE 事件接口"><rect x="780" y="890" width="270" height="100" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="798" y="922" font-size="26" font-weight="600" style="fill:#25364a">SSE 事件接口</text>
+<text x="798" y="951" font-size="20" font-weight="400" style="fill:#52647a">按 seq 追读与重放</text>
+</g>
+<g data-card="页面进度与详情"><rect x="1090" y="890" width="370" height="100" rx="13" fill="#fff" stroke="#d5dfe8" stroke-width="1.6"/>
+<text x="1108" y="922" font-size="26" font-weight="600" style="fill:#25364a">页面进度与详情</text>
+<text x="1108" y="951" font-size="20" font-weight="400" style="fill:#52647a">真实记录；结果表格另从 API 读取</text>
+</g>
+<path d="M370 940 H410" class="edge"/>
+<path d="M740 940 H780" class="edge"/>
+<path d="M1050 940 H1090" class="edge"/>
+<text x="40" y="1030" font-size="22" font-weight="400" style="fill:#52647a">默认 16 轮 / 24 次工具 / 180 秒  ·  显式取消会终止模型请求或 SQL 子进程  ·  页面断开不取消运行</text>
+<rect x="40" y="1060" width="1420" height="76" rx="12" fill="#fafbfc" stroke="#aeb9c5" stroke-width="1.6" stroke-dasharray="7 5"/>
+<text x="60" y="1092" font-size="23" font-weight="600" style="fill:#718092">阶段 4 · 待实现</text>
+<text x="300" y="1092" font-size="23" font-weight="400" style="fill:#718092">QueryArtifact → ValueRef 服务端取值 → 报告验证、冻结与数字取证</text>
+<text x="60" y="1120" font-size="18" font-weight="400" style="fill:#718092">图中分支按问题选择；箭头表示调用、数据或反馈方向，不代表固定步骤或因果关系。</text>
+</svg>
