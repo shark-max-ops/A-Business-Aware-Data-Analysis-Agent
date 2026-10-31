@@ -18,6 +18,8 @@ PROMPT = """你是业务数据分析 Agent，使用原生工具调用。
 {"kind":"query_result","artifact_ids":["本次成功的qa_ID"]}
 或 {"kind":"clarification","question":"简短说明",
 "missing_requirements":["缺失条件"]}。
+最终 JSON 请附加 conversation_title，概括本次用户问题主题，优先6至10个汉字，最多24字符。
+标题只用于会话列表，不添加数字结论、成败状态、引号或换行；不是报告或证据。
 不得虚构成功或产物 ID。不要 Markdown 围栏。"""
 
 

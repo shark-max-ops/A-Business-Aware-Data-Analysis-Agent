@@ -56,4 +56,7 @@ class BrowserModel(FakeLLM):
         if "模拟服务失败" in question:
             raise DataError("MODEL_REQUEST_FAILED")
         await asyncio.sleep(30 if "等待取消" in question else 0.6)
-        return await super().next_turn(messages, tools)
+        turn = await super().next_turn(messages, tools)
+        if turn.get("candidate") and "保留长标题" not in question:
+            turn["candidate"]["conversation_title"] = "航班数据范围"
+        return turn

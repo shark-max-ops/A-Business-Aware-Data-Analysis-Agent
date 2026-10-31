@@ -47,7 +47,7 @@ class AgentProvider:
         body = {
             "model": self.settings.llm_model,
             "messages": messages,
-            "tools": tools,
+            **({"tools": tools} if tools else {}),
             "max_tokens": self.settings.run_output_tokens,
             "temperature": 0,
             **(

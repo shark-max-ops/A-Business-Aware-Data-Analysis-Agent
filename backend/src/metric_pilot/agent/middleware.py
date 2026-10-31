@@ -42,10 +42,12 @@ class RuntimeObserver:
         """
         self.store.tool_finish(run_id, execution, name, result, duration_ms)
 
-    def on_finish(self, run_id, status, result=None, error_code=None, usage=None):
+    def on_finish(
+        self, run_id, status, result=None, error_code=None, usage=None, conversation_title=None
+    ):
         """
         作用：持久化终态
         输入：实际结果
         输出：无
         """
-        self.store.finish(run_id, status, result, error_code, usage)
+        self.store.finish(run_id, status, result, error_code, usage, conversation_title)

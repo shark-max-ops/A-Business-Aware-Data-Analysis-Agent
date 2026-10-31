@@ -3,6 +3,7 @@ import { Alert, Button, Empty, Input, Select, Space, Table } from 'antd';
 import type { components } from '../api/schema';
 import { analysisApi, eventTypes, jsonRequest, mergeEvents, terminal } from '../api/analysis';
 import type { Conversation, Run, RunEvent } from '../api/analysis';
+import { ConversationItem } from './ConversationItem';
 import { ExecutionTrace } from './ExecutionTrace';
 
 type Source = components['schemas']['SourceDTO'];
@@ -89,6 +90,7 @@ export function AnalysisPage() {
         setEvents(current => mergeEvents(current, event));
         if (['run.completed', 'run.failed', 'run.cancelled', 'run.interrupted'].includes(event.type)) {
           stream.close(); setConnection(''); refresh();
+          void analysisApi<{ items: Conversation[] }>('/conversations').then(value => setConversations(value.items)).catch(e => setError(e.message));
         }
       } catch { setError('进度响应不符合契约，请刷新运行状态'); }
     };
@@ -121,6 +123,7 @@ export function AnalysisPage() {
       const context = runs.filter(item => item.status === 'completed' && item.snapshot_id === snapshotId).slice(-2).map(item => item.id);
       const created = await analysisApi<Run>('/runs', jsonRequest({ conversation_id: id, question: question.trim(), snapshot_id: snapshotId, context_run_ids: context }));
       setRun(created); setRuns(current => [...current, created]); setQuestion('');
+      setConversations(current => current.map(item => item.id === id ? { ...item, title: created.question.replace(/\s+/g, ' ').trim() } : item));
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -148,7 +151,7 @@ export function AnalysisPage() {
     <div className="mobile-conversation"><Select aria-label="切换分析会话" value={conversationId || undefined} placeholder="选择会话" disabled={active || busy} onChange={setConversationId} options={conversations.map(item => ({ value: item.id, label: item.title }))} /><Button disabled={active || busy} onClick={() => { void newConversation().catch(e => setError(e.message)); }}>新会话</Button></div>
     <div className="analysis-grid analysis-conversation-layout">
       <aside className="panel analysis-history"><Space direction="vertical"><h2>分析会话</h2><Button disabled={active || busy} onClick={() => { void newConversation().catch(e => setError(e.message)); }}>新会话</Button></Space>
-        {conversations.map(item => <Button block type={conversationId === item.id ? 'primary' : 'text'} disabled={active || busy} key={item.id} onClick={() => setConversationId(item.id)}>{item.title}</Button>)}
+        {conversations.map(item => <ConversationItem title={item.title} selected={conversationId === item.id} disabled={active || busy} key={item.id} onClick={() => setConversationId(item.id)} />)}
       </aside>
       <section className="panel question-panel analysis-main">
         <label htmlFor="snapshot">本次数据快照</label>

@@ -128,6 +128,10 @@ SQL 取消和超时最终进入 [QueryExecutor.execute()](../../backend/src/metr
 
 [executionPresentation.ts](../../frontend/src/components/executionPresentation.ts) 按真实事件序号和执行 ID 配对步骤，保留失败与后续成功尝试，避免把所有状态都显示为绿色完成。用时只从实际开始/结束事件计算，缺失时不编造。抽屉关闭和步骤折叠不会发出取消请求。
 
+[ConversationItem.tsx](../../frontend/src/components/ConversationItem.tsx) 将左侧会话名固定为单行，溢出时显示省略号；悬停或键盘聚焦后按实际文字宽度滚动，离开即复位。开启减少动态效果时不播放动画。
+
+[titles.py](../../backend/src/metric_pilot/agent/titles.py) 校验模型附带的可选短标题，runtime 在严格验证分析结果前先将其拆出。store 只允许最新运行更新会话名，标题不进入查询证据或分析结果；无效或缺失时继续使用原问题。完整问题不会被标题替换。已有长名可通过 [summarize_conversation_titles.py](../../scripts/summarize_conversation_titles.py) 显式补全，默认预览，`--apply` 会把原始提问发送到已配置文本模型。
+
 日期、Decimal 和大整数以原值文本显示，null 显示缺失；前端不重新计算指标。
 
 刷新或断线后可以恢复状态与事件。关闭页面只停止订阅，不自动取消运行；“停止分析”才调用幂等取消接口。

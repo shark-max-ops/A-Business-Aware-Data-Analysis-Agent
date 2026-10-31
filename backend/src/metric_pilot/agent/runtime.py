@@ -11,6 +11,7 @@ from metric_pilot.agent.context import fit_context, initial_messages
 from metric_pilot.agent.contracts import FinalCandidate
 from metric_pilot.agent.middleware import RuntimeObserver
 from metric_pilot.agent.provider import AgentProvider
+from metric_pilot.agent.titles import split_title
 from metric_pilot.agent.tools import ToolRegistry
 from metric_pilot.data.catalog import Catalog
 from metric_pilot.data.common import DataError, digest
@@ -81,15 +82,18 @@ class AgentRuntime:
                 calls = turn["calls"]
                 if not calls:
                     try:
-                        candidate = TypeAdapter(FinalCandidate).validate_python(
-                            turn.get("candidate")
-                        )
+                        payload, conversation_title = split_title(turn.get("candidate"))
+                        candidate = TypeAdapter(FinalCandidate).validate_python(payload)
                         if candidate.kind == "query_result":
                             for ident in candidate.artifact_ids:
                                 query.read_artifact(run["id"], ident, 0, 1)
                         self.check(ctx, cancel)
                         self.observer.on_finish(
-                            run["id"], "completed", candidate.model_dump(), usage=usage
+                            run["id"],
+                            "completed",
+                            candidate.model_dump(),
+                            usage=usage,
+                            conversation_title=conversation_title,
                         )
                         return
                     except (ValidationError, DataError):

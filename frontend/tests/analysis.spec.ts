@@ -1,4 +1,4 @@
-﻿import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 const rangeSql = 'SELECT COUNT(*) AS record_count, COUNT(DISTINCT flight_date) AS distinct_days, MIN(flight_date) AS min_date, MAX(flight_date) AS max_date FROM v_flights';
 
@@ -28,6 +28,7 @@ test('inline execution, actual repair, drawer, replay and mobile layout', async 
   await expect(page.getByRole('columnheader', { name: 'record_count' })).toBeVisible({ timeout: 30000 });
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await expect(toggle).toContainText('5 次工具调用');
+  await expect(page.locator('.conversation-item.selected')).toHaveText('航班数据范围');
   await expect(toggle).toContainText('1 次失败记录');
   await expect(page.getByRole('region', { name: '工具步骤' })).toHaveCount(0);
   await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/execution-desktop-collapsed.png', fullPage: true });
@@ -118,4 +119,33 @@ test('failed runtime exposes the actual error in the drawer and no query result'
   await page.getByRole('button', { name: '执行详情' }).click();
   await expect(page.getByRole('dialog').getByText('MODEL_REQUEST_FAILED', { exact: true })).toBeVisible();
   await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/execution-failed.png', fullPage: true });
+});
+
+test('conversation titles stay on one line and scroll only while hovered', async ({ page }) => {
+  await page.goto('/analysis');
+  const question = '保留长标题：请核对这份航班数据的日期范围、完整记录数和覆盖天数，确保完整问题始终保留';
+  await page.getByLabel('分析问题', { exact: true }).fill(question);
+  await page.getByRole('button', { name: '发送问题' }).click();
+  await expect(page.getByRole('columnheader', { name: 'record_count' })).toBeVisible({ timeout: 30000 });
+  const item = page.locator('.conversation-item.selected');
+  await expect(item).toHaveAttribute('aria-label', question);
+  const viewport = item.locator('.conversation-title');
+  const text = item.locator('.conversation-title-text');
+  await expect(viewport).toHaveClass(/overflowing/);
+  expect(await item.evaluate(e => e.getBoundingClientRect().height)).toBe(38);
+  expect(await viewport.evaluate(e => getComputedStyle(e).textOverflow)).toBe('ellipsis');
+  expect(await text.evaluate(e => getComputedStyle(e).transform)).toBe('none');
+  await page.screenshot({ path: '../.cache/screenshots/conversation-title-rest.png' });
+  await item.hover();
+  await expect.poll(() => text.evaluate(e => getComputedStyle(e).transform)).not.toBe('none');
+  await page.waitForTimeout(2000);
+  await page.screenshot({ path: '../.cache/screenshots/conversation-title-hover.png' });
+  await page.locator('.analysis-question').hover();
+  expect(await text.evaluate(e => getComputedStyle(e).transform)).toBe('none');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await item.hover();
+  expect(await text.evaluate(e => getComputedStyle(e).animationName)).toBe('none');
+  await page.reload();
+  await expect(item).toHaveAttribute('aria-label', question);
+  await expect(page.locator('.analysis-question')).toContainText(question);
 });

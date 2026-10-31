@@ -182,3 +182,23 @@
   .execution-chevron { transition: none; }
   .execution-spinner { animation: none; border-style: dotted; }
 }
+
+/* 会话始终单行；只有溢出且悬停或键盘聚焦时才播放滚动。 */
+.conversation-item { display: block; width: 100%; height: 38px; margin: 4px 0; padding: 0 12px; border: 0; border-radius: 9px; background: transparent; color: #45534e; font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.conversation-item:hover { background: #f2f4f1; }
+.conversation-item.selected { background: #e9efea; color: #245e4e; font-weight: 500; }
+.conversation-item:focus-visible { outline: 2px solid #397d69; outline-offset: 2px; }
+.conversation-item:disabled { cursor: default; }
+.conversation-title { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 38px; }
+.conversation-title-text { white-space: nowrap; }
+@keyframes conversation-scroll { 0%, 12% { transform: translateX(0); } 75%, 100% { transform: translateX(var(--title-travel)); } }
+.conversation-item:focus-visible .overflowing { text-overflow: clip; }
+.conversation-item:focus-visible .overflowing .conversation-title-text { display: inline-block; animation: conversation-scroll var(--title-duration) .6s linear alternate infinite; }
+@media (hover: hover) {
+  .conversation-item:hover .overflowing { text-overflow: clip; }
+  .conversation-item:hover .overflowing .conversation-title-text { display: inline-block; animation: conversation-scroll var(--title-duration) .6s linear alternate infinite; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .conversation-item:hover .overflowing, .conversation-item:focus-visible .overflowing { text-overflow: ellipsis; }
+  .conversation-item:hover .overflowing .conversation-title-text, .conversation-item:focus-visible .overflowing .conversation-title-text { display: inline; animation: none; }
+}

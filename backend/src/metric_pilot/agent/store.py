@@ -3,6 +3,7 @@
 from sqlalchemy import select
 
 from metric_pilot.agent import models as m
+from metric_pilot.agent.titles import clean_title
 from metric_pilot.data.common import DataError, new_id, utc_now
 from metric_pilot.knowledge.store import KnowledgeStore
 
@@ -147,10 +148,32 @@ class RunStore(KnowledgeStore):
             c.execute(
                 m.conversations.update()
                 .where(m.conversations.c.id == body.conversation_id)
-                .values(title=body.question[:60])
+                .values(title=" ".join(body.question.split()))
             )
             self.event(c, ident, "run.queued", {"summary": "分析已排队"})
         return self.read(ident)
+
+    def apply_title(self, connection, run, title, expected_title=None):
+        """
+        作用：只为会话最新运行保存有效标题，避免迟到结果覆盖新话题
+        输入：短事务、运行记录、模型标题和可选旧标题
+        输出：是否实际更新
+        """
+        title = clean_title(title)
+        if title is None:
+            return False
+        latest = connection.execute(
+            select(m.runs.c.id)
+            .where(m.runs.c.conversation_id == run["conversation_id"])
+            .order_by(m.runs.c.payload["created_at"].as_string().desc(), m.runs.c.id.desc())
+            .limit(1)
+        ).scalar_one()
+        if latest != run["id"]:
+            return False
+        statement = m.conversations.update().where(m.conversations.c.id == run["conversation_id"])
+        if expected_title is not None:
+            statement = statement.where(m.conversations.c.title == expected_title)
+        return connection.execute(statement.values(title=title)).rowcount == 1
 
     def claim(self):
         """
@@ -175,7 +198,9 @@ class RunStore(KnowledgeStore):
             self.event(c, row["id"], "run.started", {"summary": "开始分析"})
             return self.public({**row, "status": "running"})
 
-    def finish(self, ident, status, result=None, error_code=None, usage=None):
+    def finish(
+        self, ident, status, result=None, error_code=None, usage=None, conversation_title=None
+    ):
         """
         作用：原子保存终态与事件
         输入：终态及安全结果
@@ -197,6 +222,8 @@ class RunStore(KnowledgeStore):
             c.execute(
                 m.runs.update().where(m.runs.c.id == ident).values(status=status, payload=payload)
             )
+            if status == "completed":
+                self.apply_title(c, row, conversation_title)
             self.event(
                 c,
                 ident,

@@ -626,3 +626,125 @@ def test_provider_rejects_duplicate_ids_and_drops_thought_arguments():
     raw["choices"][0]["message"]["tool_calls"] *= 2
     with pytest.raises(DataError, match="MODEL_PROTOCOL_ERROR"):
         provider.parse(raw, 1)
+
+
+@pytest.mark.parametrize("title", ["航班数据范围", None, "超长" * 20, "标题\n换行", {"bad": True}])
+def test_title_metadata_does_not_break_analysis(agent_workspace, title):
+    """
+    作用：确认可选标题与分析结果分离且无效标题不会破坏分析
+    输入：隔离环境和有效或无效标题
+    输出：无
+    """
+    from metric_pilot.agent import models as m
+
+    run, _ = execute(
+        agent_workspace,
+        [
+            {
+                "kind": "clarification",
+                "question": "需要收入数据",
+                "missing_requirements": ["收入"],
+                "conversation_title": title,
+            }
+        ],
+    )
+    assert run["status"] == "completed"
+    assert "conversation_title" not in run["result"]
+    with agent_workspace[1].engine.connect() as connection:
+        actual = connection.execute(
+            select(m.conversations.c.title).where(m.conversations.c.id == run["conversation_id"])
+        ).scalar_one()
+    assert actual == ("航班数据范围" if title == "航班数据范围" else run["question"])
+
+
+def test_late_title_cannot_replace_newer_question(agent_workspace):
+    """
+    作用：保护新问题标题并保留完整长问题
+    输入：隔离数据库
+    输出：无
+    """
+    from metric_pilot.agent import models as m
+
+    old = new_run(agent_workspace)
+    store = agent_workspace[1]
+    question = "请核对这份数据的覆盖范围和记录数量，" * 8
+    newer = store.create(
+        CreateRun(
+            conversation_id=old["conversation_id"],
+            snapshot_id=old["snapshot_id"],
+            question=question,
+        ),
+        old["knowledge_snapshot_id"],
+        old["budget"],
+    )
+    store.finish(
+        old["id"],
+        "completed",
+        {"kind": "clarification", "question": "缺少数据", "missing_requirements": ["数据"]},
+        conversation_title="旧话题",
+    )
+    with store.write() as connection:
+        assert not store.apply_title(
+            connection,
+            store.require(connection, newer["id"]),
+            "新话题",
+            expected_title="已经改变的标题",
+        )
+        actual = connection.execute(
+            select(m.conversations.c.title).where(m.conversations.c.id == old["conversation_id"])
+        ).scalar_one()
+    assert actual == question
+
+
+@pytest.mark.parametrize("response_title", ["航空公司利润", "错误\n标题"])
+def test_existing_title_generation_uses_only_question(agent_workspace, monkeypatch, response_title):
+    """
+    作用：验证旧标题补全使用真实适配边界但不发送工具结果
+    输入：隔离环境和模拟 HTTP 响应
+    输出：无
+    """
+    from metric_pilot.agent.titles import generate_title
+
+    requests = []
+    original_client = httpx.AsyncClient
+
+    def handler(request):
+        """
+        作用：检查独立标题请求的结构并返回隔离响应
+        输入：HTTP 请求
+        输出：模拟模型响应
+        """
+        requests.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "content": json.dumps({"conversation_title": response_title}),
+                            "reasoning_content": "private",
+                        },
+                    }
+                ],
+                "usage": {"total_tokens": 20},
+            },
+        )
+
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **kwargs: original_client(**kwargs, transport=httpx.MockTransport(handler)),
+    )
+    if "\n" in response_title:
+        with pytest.raises(DataError, match="INVALID_CONVERSATION_TITLE"):
+            asyncio.run(generate_title(agent_workspace[0], "计算航空公司利润"))
+    else:
+        assert asyncio.run(generate_title(agent_workspace[0], "计算航空公司利润")) == (
+            "航空公司利润",
+            {"total_tokens": 20},
+            1,
+        )
+    assert len(requests) == 1
+    assert "tools" not in requests[0]
+    assert json.loads(requests[0]["messages"][1]["content"]) == {"question": "计算航空公司利润"}
