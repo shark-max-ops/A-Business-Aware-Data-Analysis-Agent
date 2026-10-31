@@ -32,7 +32,7 @@ flowchart TD
 
 ## 3. 建议目录
 
-以下是未来实施时的建议结构，并非现有文件清单。当前工作区包含根目录 `AGENTS.md` 和 `参考/` 资料目录；蓝图实际位于 `参考/docs/blueprint/`。其余目录、配置和状态文件需要实施时创建。
+以下是设计时的建议结构，并非现有文件清单；实际目录和实现以代码与实施记录为准。调查和用户导入为后续扩展，不能视为已实现。
 
 ```text
 metric-pilot/
@@ -96,6 +96,8 @@ metric-pilot/
 | Chunk | id, revision_id, locator, text_hash, text, embedding_model_id |
 | WikiRevision | id, page_id, version, content, citations, state, edit_source |
 | MetricRevision | id, metric_key, version, definition_json, citations, review_state |
+| Investigation（待实现） | id, goal, scope, data_snapshot_id, knowledge_snapshot_id, status, budget |
+| Finding（待实现） | id, investigation_id, claim, status, evidence_refs, limitations |
 | Run | id, conversation_id, question, snapshot_id, knowledge_snapshot_id, status, budget |
 | RunEvent | run_id, seq, type, payload, created_at |
 | ToolExecution | id, run_id, tool_call_id, name, arguments, status, error, duration_ms |
@@ -104,6 +106,8 @@ metric-pilot/
 | Job | id, kind, entity_id, state, attempt, error |
 
 `knowledge_snapshot_id` 是本次运行可见的文档/Wiki/指标修订 ID 清单。一个清单不必复制原文，但其引用的修订不可物理删除。编辑新规则不会改变已开始的运行。
+
+调查对象聚合目标、核查问题、过程、发现和证据；每次 Run 仍有独立状态与预算。新记录应可恢复，并保留发现被修正或否定的历史；具体数据库结构以实施时迁移为准。跨 Run 引用须服务端校验调查归属、快照一致、成功产物及不可变引用；在实现前沿用现有报告只引用本次 Run 成功产物的限制。
 
 ## 5. 应用边界
 
