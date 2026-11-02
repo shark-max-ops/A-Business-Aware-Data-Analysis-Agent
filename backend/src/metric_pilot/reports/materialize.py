@@ -8,7 +8,7 @@ from metric_pilot.reports.contracts import RenderedBlock, ReportDraft
 from metric_pilot.reports.values import cell, numeric, text_segments
 
 
-def artifact_ids(draft):
+def artifact_ids(draft, *, require_query=True):
     """
     作用：提取报告实际使用的查询产物
     输入：已通过结构校验的草稿
@@ -23,7 +23,7 @@ def artifact_ids(draft):
         else:
             result.update(ref.artifact_id for ref in block.values.values())
             result.update(ident for ident in block.evidence_ids if ident.startswith("qa_"))
-    if not result or len(result) > 8:
+    if (require_query and not result) or len(result) > 8:
         raise DataError("REPORT_QUERY_REQUIRED")
     return result
 
@@ -111,14 +111,14 @@ def render_blocks(draft, artifacts, sources):
     return blocks, warnings
 
 
-def materialize(draft, frozen):
+def materialize(draft, frozen, *, require_query=True):
     """
     作用：只在固定证据集合上生成可保存报告，不允许换数据或口径
     输入：严格草稿与冻结上下文
     输出：含展示值的报告准备数据
     """
     draft = ReportDraft.model_validate(draft)
-    wanted = artifact_ids(draft)
+    wanted = artifact_ids(draft, require_query=require_query)
     if not wanted <= set(frozen["artifacts"]):
         raise DataError("REPORT_ARTIFACT_NOT_ALLOWED")
     artifacts = {key: frozen["artifacts"][key] for key in wanted}
@@ -130,6 +130,9 @@ def materialize(draft, frozen):
     if not metrics <= set(frozen["metrics"]):
         raise DataError("REPORT_METRIC_NOT_ALLOWED")
     blocks, warnings = render_blocks(draft, artifacts, frozen["sources"])
+    # 探索身份由成功产物决定，模型或人工修改报告说明不能删除这条边界。
+    if any(item["artifact"].get("query_purpose") == "exploratory" for item in artifacts.values()):
+        warnings.append("包含数据探索结果，未绑定已审核项目指标；范围、计算与缺失处理见固定依据。")
     result = {
         **copy.deepcopy(frozen),
         "draft": draft.model_dump(),

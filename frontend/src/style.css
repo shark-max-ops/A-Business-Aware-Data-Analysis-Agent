@@ -313,3 +313,29 @@
 
 .report-list-card:hover .report-card-bottom strong { text-decoration:underline; }
 @media(max-width:740px) { .reports-page .page-heading { flex-direction:column; align-items:flex-start; gap:18px; } .reports-page .page-heading h1 { font-size:26px; } }
+/* 调查目标与发现保持轻量排版，长证据按需展开，窄屏不挤压正文。 */
+.investigation-controls { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+.investigation-controls .ant-select { flex: 1; min-width: 160px; }
+.investigation-panel { margin: 20px 0 28px; padding: 24px; border: 1px solid #e0e7e1; border-radius: 16px; background: #f8faf7; overflow-wrap: anywhere; }
+.investigation-title, .finding-heading, .finding-footer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.investigation-title { justify-content: space-between; }
+.investigation-panel h2 { font-size: 21px; line-height: 1.5; margin: 12px 0 8px; }
+.investigation-panel h3 { font-size: 15px; margin: 20px 0 12px; }
+.investigation-scope, .investigation-meta, .finding-footer, .investigation-footnote { color: #68756d; font-size: 13px; line-height: 1.7; }
+.investigation-meta summary { cursor: pointer; padding: 8px 0; }
+.investigation-meta code { white-space: normal; overflow-wrap: anywhere; }
+.investigation-finding { border-top: 1px solid #e2e8e1; padding: 16px 0 8px; }
+.investigation-finding p { margin: 8px 0; line-height: 1.8; }
+.finding-footer { justify-content: space-between; align-items: baseline; }
+.finding-footer > span { flex: 1; min-width: 140px; }
+.investigation-next { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.investigation-next h3 { margin-bottom: 2px; }
+.investigation-next .ant-btn { height: auto; max-width: 100%; white-space: normal; text-align: left; padding: 7px 12px; }
+.investigation-footnote { margin: 18px 0 0; font-size: 12px; }
+.investigation-form { display: grid; gap: 16px; }
+.investigation-form label { display: grid; gap: 8px; }
+.finding-evidence { overflow-wrap: anywhere; }
+.finding-evidence details { border-top: 1px solid #e7e9e6; padding: 14px 0; }
+.finding-evidence summary { cursor: pointer; }
+.finding-evidence pre { white-space: pre-wrap; word-break: break-word; line-height: 1.7; max-height: 400px; overflow: auto; }
+@media (max-width: 600px) { .investigation-panel { padding: 16px; } .investigation-panel h2 { font-size: 18px; } .investigation-controls .ant-select { flex-basis: 100%; } }

@@ -43,3 +43,34 @@ executions = sa.Table(
     sa.Column("duration_ms", sa.Integer, nullable=False),
     sa.UniqueConstraint("run_id", "tool_call_id"),
 )
+
+# 调查边界和运行关联单独保存，不改变历史运行的归属。
+investigations = sa.Table(
+    "investigations",
+    Base.metadata,
+    sa.Column("id", sa.String, primary_key=True),
+    sa.Column("conversation_id", sa.String, sa.ForeignKey(conversations.c.id), nullable=False),
+    sa.Column("payload", sa.JSON, nullable=False),
+    sa.Column("version", sa.Integer, nullable=False),
+)
+investigation_runs = sa.Table(
+    "investigation_runs",
+    Base.metadata,
+    sa.Column("run_id", sa.String, sa.ForeignKey(runs.c.id), primary_key=True),
+    sa.Column(
+        "investigation_id",
+        sa.String,
+        sa.ForeignKey(investigations.c.id),
+        nullable=False,
+        index=True,
+    ),
+)
+findings = sa.Table(
+    "investigation_findings",
+    Base.metadata,
+    sa.Column("id", sa.String, primary_key=True),
+    sa.Column("investigation_id", sa.String, sa.ForeignKey(investigations.c.id), nullable=False),
+    sa.Column("run_id", sa.String, sa.ForeignKey(runs.c.id), nullable=False),
+    sa.Column("payload", sa.JSON, nullable=False),
+    sa.Column("content_hash", sa.String, nullable=False),
+)

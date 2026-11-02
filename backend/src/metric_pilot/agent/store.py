@@ -2,7 +2,7 @@
 
 import time
 
-from sqlalchemy import select
+from sqlalchemy import literal_column, select
 
 from metric_pilot.agent import models as m
 from metric_pilot.agent.titles import clean_title
@@ -147,6 +147,10 @@ class RunStore(KnowledgeStore):
                     cancel_requested=False,
                 )
             )
+            if body.investigation_id:
+                from metric_pilot.agent.investigations import InvestigationStore
+
+                InvestigationStore(self.engine).attach(c, body, knowledge_id, budget, ident)
             c.execute(
                 m.conversations.update()
                 .where(m.conversations.c.id == body.conversation_id)
@@ -167,7 +171,8 @@ class RunStore(KnowledgeStore):
         latest = connection.execute(
             select(m.runs.c.id)
             .where(m.runs.c.conversation_id == run["conversation_id"])
-            .order_by(m.runs.c.payload["created_at"].as_string().desc(), m.runs.c.id.desc())
+            # SQLite 行插入顺序处理同一时刻创建；随机 ID 不能代表谁更新。
+            .order_by(literal_column("rowid").desc())
             .limit(1)
         ).scalar_one()
         if latest != run["id"]:
@@ -211,6 +216,7 @@ class RunStore(KnowledgeStore):
         prepared_report=None,
         deadline=None,
         cancel=None,
+        error_details=None,
     ):
         """
         作用：原子保存终态与事件
@@ -236,11 +242,17 @@ class RunStore(KnowledgeStore):
                         raise DataError("REPORT_RUN_MISMATCH")
                     result = ReportService.persist(c, prepared_report)
                     self.event(c, ident, "report.ready", result)
+            safe_details = {
+                key: value
+                for key, value in (error_details or {}).items()
+                if key in {"attempts", "status", "failure_kind"} and type(value) in {str, int}
+            }
             payload = {
                 "model": "",
                 **row["payload"],
                 "result": result,
                 "error_code": error_code,
+                "error_details": safe_details,
                 "usage": usage or {},
             }
             c.execute(
@@ -256,6 +268,7 @@ class RunStore(KnowledgeStore):
                     "result_kind": result["kind"] if result else None,
                     "result": result,
                     "error_code": error_code,
+                    "error_details": safe_details,
                 },
             )
 

@@ -9,6 +9,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from metric_pilot.agent.context import fit_context, initial_messages
 from metric_pilot.agent.contracts import FinalCandidate
+from metric_pilot.agent.investigations import InvestigationStore
 from metric_pilot.agent.middleware import RuntimeObserver
 from metric_pilot.agent.provider import AgentProvider
 from metric_pilot.agent.titles import split_title
@@ -61,6 +62,8 @@ class AgentRuntime:
         groups, used, repairs, timeout_repairs = [], 0, 0, 0
         seen, previous_failure, repeated = set(), None, 0
         usage = {}
+        closing = False
+        last_phase = "investigate"
         try:
             previous = [
                 {
@@ -70,13 +73,75 @@ class AgentRuntime:
                 for ident in run["context_run_ids"]
             ]
             header = initial_messages(run, registry, previous)
-            tool_bytes = len(json.dumps(registry.schemas(), ensure_ascii=False).encode("utf-8"))
-            available = budget["context_tokens"] - budget["output_tokens"] - tool_bytes - 1024
             for index in range(budget["max_turns"]):
                 self.check(ctx, cancel)
-                messages = fit_context(header, groups, registry, available)
+                allowed = set(registry.specs())
+                if run.get("investigation_id"):
+                    remaining = budget["max_tool_calls"] - used
+                    turns_left = budget["max_turns"] - index
+                    reserve = min(5, max(1, budget["max_turns"] // 3))
+                    closing = (
+                        closing
+                        or turns_left <= reserve
+                        or remaining <= 4
+                        or (
+                            ctx.deadline_monotonic - time.monotonic() <= 30
+                            and budget["timeout_seconds"] > 30
+                        )
+                    )
+                    phase = "investigate"
+                    if closing:
+                        phase = (
+                            "finalize"
+                            if turns_left <= min(2, reserve) or remaining == 0
+                            else "prepare"
+                        )
+                        allowed &= (
+                            {"read_artifact", "record_finding"} if phase == "prepare" else set()
+                        )
+                    registry.progress = {
+                        "remaining_turns": turns_left,
+                        "remaining_tool_calls": remaining,
+                        "phase": phase,
+                        "successful_queries": len(registry.query_summaries),
+                        "recorded_findings": registry.recorded_count,
+                        "instruction": (
+                            "现在只提交最终报告或如实说明缺少的关键条件，不再调用工具。"
+                            "报告只用已有成功产物与 ValueRef；未完成核查写入限制，不编造结论。"
+                            if phase == "finalize"
+                            else "收尾准备：不得新增查询或检索。读取已有证据，"
+                            "尽快 record_finding 保存本轮发现或限制，再提交简洁报告。"
+                            if phase == "prepare"
+                            else "已有成功核查但尚无记录时，"
+                            "先 record_finding 保存观察或限制，再继续核查。"
+                            if registry.query_summaries and not registry.recorded_count
+                            else "按已有结果选择有价值的核查；不要重复已完成的结构与范围查询。"
+                        ),
+                    }
+                    if phase != last_phase:
+                        self.store.emit(
+                            run["id"],
+                            "run.progress",
+                            {
+                                "phase": phase,
+                                "summary": "正在整理已有发现与报告"
+                                if phase == "prepare"
+                                else "正在生成最终结果，不再新增查询",
+                            },
+                        )
+                        last_phase = phase
+                schemas = [s for s in registry.schemas() if s["function"]["name"] in allowed]
+                # 按本轮实际开放的工具签名预留空间，总上下文预算保持不变。
+                tool_bytes = len(json.dumps(schemas, ensure_ascii=False).encode("utf-8"))
+                available = budget["context_tokens"] - budget["output_tokens"] - tool_bytes - 1024
+                turn_header = (
+                    header + [{"role": "system", "content": registry.progress["instruction"]}]
+                    if run.get("investigation_id") and closing
+                    else header
+                )
+                messages = fit_context(turn_header, groups, registry, available)
                 self.observer.before_model(run["id"], index + 1)
-                turn = await self.wait_model(messages, registry.schemas(), ctx, cancel)
+                turn = await self.wait_model(messages, schemas, ctx, cancel)
                 for key, value in turn["usage"].items():
                     usage[key] = usage.get(key, 0) + value
                 usage["model_requests"] = usage.get("model_requests", 0) + turn["attempts"]
@@ -90,6 +155,12 @@ class AgentRuntime:
                                 query.read_artifact(run["id"], ident, 0, 1)
                         prepared = None
                         if candidate.kind == "report":
+                            if run.get("investigation_id"):
+                                findings = InvestigationStore(self.store.engine).read(
+                                    run["investigation_id"]
+                                )["findings"]
+                                if not any(entry["run_id"] == run["id"] for entry in findings):
+                                    raise DataError("INVESTIGATION_RECORD_REQUIRED")
                             self.store.emit(
                                 run["id"], "run.progress", {"summary": "正在核对报告数字与依据"}
                             )
@@ -140,7 +211,9 @@ class AgentRuntime:
                                             "error_code": code,
                                             "details": details,
                                             "instruction": (
-                                                "按报告契约修正；只引用本次成功产物。"
+                                                "按报告契约修正；仅引用本次或服务端允许的同调查成功产物。"
+                                                "INVESTIGATION_RECORD_REQUIRED 时"
+                                                "先核查并 record_finding。"
                                                 "截断需重新聚合查询。"
                                             ),
                                         },
@@ -163,6 +236,7 @@ class AgentRuntime:
                 )
                 group = [turn["assistant"]]
                 stop_code = None
+                pending_clarification = None
                 for call in calls:
                     execution = self.observer.before_tool(run["id"], call)
                     began = time.monotonic()
@@ -170,7 +244,20 @@ class AgentRuntime:
                         self.check(ctx, cancel)
                         if stop_code:
                             raise DataError(stop_code)
-                        result = await asyncio.to_thread(registry.invoke, call)
+                        if pending_clarification:
+                            result = ToolResult(
+                                ok=False,
+                                summary="需先补充已审核口径，本批后续工具未执行",
+                                error_code="METRIC_REVIEW_OR_CLARIFICATION_REQUIRED",
+                            )
+                        elif call.name in registry.specs() and call.name not in allowed:
+                            result = ToolResult(
+                                ok=False,
+                                summary="已进入收尾，该工具未执行；请使用已有证据完成结果",
+                                error_code="TOOL_NOT_AVAILABLE_DURING_WRAP_UP",
+                            )
+                        else:
+                            result = await asyncio.to_thread(registry.invoke, call)
                     except DataError as exc:
                         result = ToolResult(
                             ok=False, summary="工具未执行：" + exc.code, error_code=exc.code
@@ -200,11 +287,28 @@ class AgentRuntime:
                         }
                     )
                     signature = digest({"name": call.name, "arguments": call.arguments})
-                    if not result.ok:
+                    if not result.ok and not pending_clarification:
                         repeated = repeated + 1 if signature == previous_failure else 1
                         previous_failure = signature
                         if repeated >= 2:
-                            stop_code = "REPEATED_TOOL_FAILURE"
+                            if (
+                                result.error_code == "METRIC_REVIEW_OR_CLARIFICATION_REQUIRED"
+                                and registry.blocked_metrics
+                            ):
+                                # 先给模型一次选择独立探索的机会；重复原查询仍以澄清结束。
+                                pending_clarification = {
+                                    "kind": "clarification",
+                                    "question": "相关项目指标缺少已审核、日期适用的口径，"
+                                    "重复查询已停止。正式指标需先人工审核，"
+                                    "再显式建立使用新知识版本的调查或分支；"
+                                    "原始数据探索可另行说明统计范围与缺失处理后进行。",
+                                    "missing_requirements": [
+                                        f"需要人工审核且日期适用的项目指标：{key}"
+                                        for key in sorted(registry.blocked_metrics)
+                                    ],
+                                }
+                            else:
+                                stop_code = "REPEATED_TOOL_FAILURE"
                         if result.error_code == "QUERY_TIMEOUT":
                             timeout_repairs += 1
                             if timeout_repairs > 2:
@@ -214,6 +318,12 @@ class AgentRuntime:
                 groups.append(group)
                 if stop_code:
                     raise DataError(stop_code)
+                if pending_clarification:
+                    self.check(ctx, cancel)
+                    self.observer.on_finish(
+                        run["id"], "completed", pending_clarification, usage=usage
+                    )
+                    return
             raise DataError("TURN_BUDGET_EXCEEDED")
         except DataError as exc:
             if exc.details.get("attempts"):
@@ -222,6 +332,7 @@ class AgentRuntime:
                 run["id"],
                 "cancelled" if exc.code == "RUN_CANCELLED" else "failed",
                 error_code=exc.code,
+                error_details=exc.details,
                 usage=usage,
             )
         except Exception:
@@ -246,6 +357,8 @@ class AgentRuntime:
         输入：模型请求及运行限制
         输出：模型回合
         """
+        if hasattr(self.provider, "current_attempts"):
+            self.provider.current_attempts = 0
         task = asyncio.create_task(self.provider.next_turn(messages, tools))
         try:
             while not task.done():
@@ -253,6 +366,10 @@ class AgentRuntime:
                 await asyncio.wait({task}, timeout=0.05)
             self.check(ctx, cancel)
             return await task
+        except DataError as error:
+            if error.code in {"RUN_TIMEOUT", "RUN_CANCELLED"}:
+                error.details["attempts"] = getattr(self.provider, "current_attempts", 0)
+            raise
         finally:
             if not task.done():
                 task.cancel()

@@ -304,6 +304,45 @@ def test_missing_metric_cannot_bypass_with_free_sql(agent_workspace):
     assert not any(e["payload"].get("artifact_ids") for e in events)
 
 
+@pytest.mark.parametrize("batched", [True, False])
+def test_metric_gate_finishes_clarification_without_repeated_failure(agent_workspace, batched):
+    """
+    作用：审核阻断后配对所有调用并以澄清结束，不执行查询或生成报告
+    输入：单次或同批重复 SQL 的隔离场景
+    输出：无
+    """
+    query = ("query_sql", {"sql": "SELECT COUNT(*) AS count FROM v_flights"})
+    steps = [
+        calls(("resolve_metric", {"metric_key": "unapproved_metric"})),
+        calls(query, query, ("list_tables", {})) if batched else calls(query),
+        *([] if batched else [calls(query)]),
+    ]
+    run, model = execute(agent_workspace, steps)
+    assert run["status"] == "completed" and run["error_code"] is None
+    assert run["result"]["kind"] == "clarification"
+    assert "unapproved_metric" in str(run["result"]["missing_requirements"])
+    assert "新知识版本" in run["result"]["question"]
+    assert len(model.messages) == (2 if batched else 3)
+    events = agent_workspace[1].events_after(run["id"], 0)
+    started = [e["payload"]["tool_execution_id"] for e in events if e["type"] == "tool.started"]
+    ended = [e["payload"]["tool_execution_id"] for e in events if e["type"] == "tool.finished"]
+    assert started == ended
+    assert events[-1]["type"] == "run.completed"
+    assert not any(e["type"] == "report.ready" or e["payload"].get("artifact_ids") for e in events)
+    from metric_pilot.data.models import QueryExecution
+    from sqlalchemy import func
+
+    with agent_workspace[1].engine.connect() as c:
+        assert (
+            c.execute(
+                select(func.count())
+                .select_from(QueryExecution)
+                .where(QueryExecution.run_id == run["id"])
+            ).scalar_one()
+            == 0
+        )
+
+
 @pytest.mark.parametrize("cancelled", [False, True])
 def test_actual_async_model_request_is_stopped(agent_workspace, cancelled):
     """
@@ -658,7 +697,7 @@ def test_title_metadata_does_not_break_analysis(agent_workspace, title):
     assert actual == ("航班数据范围" if title == "航班数据范围" else run["question"])
 
 
-def test_late_title_cannot_replace_newer_question(agent_workspace):
+def test_late_title_cannot_replace_newer_question(agent_workspace, monkeypatch):
     """
     作用：保护新问题标题并保留完整长问题
     输入：隔离数据库
@@ -666,6 +705,7 @@ def test_late_title_cannot_replace_newer_question(agent_workspace):
     """
     from metric_pilot.agent import models as m
 
+    monkeypatch.setattr("metric_pilot.agent.store.utc_now", lambda: "2026-01-01T00:00:00+00:00")
     old = new_run(agent_workspace)
     store = agent_workspace[1]
     question = "请核对这份数据的覆盖范围和记录数量，" * 8

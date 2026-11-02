@@ -32,7 +32,7 @@ flowchart TD
 
 ## 3. 建议目录
 
-以下是设计时的建议结构，并非现有文件清单；实际目录和实现以代码与实施记录为准。调查和用户导入为后续扩展，不能视为已实现。
+以下是设计时的建议结构，并非现有文件清单；实际目录和实现以代码与实施记录为准。调查已由 agent/investigations.py 等模块实现；通用用户导入仍属后续工作。
 
 ```text
 metric-pilot/
@@ -96,8 +96,8 @@ metric-pilot/
 | Chunk | id, revision_id, locator, text_hash, text, embedding_model_id |
 | WikiRevision | id, page_id, version, content, citations, state, edit_source |
 | MetricRevision | id, metric_key, version, definition_json, citations, review_state |
-| Investigation（待实现） | id, goal, scope, data_snapshot_id, knowledge_snapshot_id, status, budget |
-| Finding（待实现） | id, investigation_id, claim, status, evidence_refs, limitations |
+| Investigation | id, conversation_id, goal, scope, snapshot_id, knowledge_snapshot_id, parent_id, version, limits, allocated |
+| Finding | id, investigation_id, run_id, kind, check, text, value_refs, supersedes, questions, content_hash |
 | Run | id, conversation_id, question, snapshot_id, knowledge_snapshot_id, status, budget |
 | RunEvent | run_id, seq, type, payload, created_at |
 | ToolExecution | id, run_id, tool_call_id, name, arguments, status, error, duration_ms |
@@ -107,7 +107,7 @@ metric-pilot/
 
 `knowledge_snapshot_id` 是本次运行可见的文档/Wiki/指标修订 ID 清单。一个清单不必复制原文，但其引用的修订不可物理删除。编辑新规则不会改变已开始的运行。
 
-调查对象聚合目标、核查问题、过程、发现和证据；每次 Run 仍有独立状态与预算。新记录应可恢复，并保留发现被修正或否定的历史；具体数据库结构以实施时迁移为准。跨 Run 引用须服务端校验调查归属、快照一致、成功产物及不可变引用；在实现前沿用现有报告只引用本次 Run 成功产物的限制。
+调查聚合目标、核查问题、过程、发现和证据；每次 Run 仍有独立状态与预算。0006_investigations 迁移保存调查、运行关联与不可变发现；修正追加 supersedes，不覆盖历史。跨 Run 引用由服务端核对同调查、同会话、相同数据和知识版本、旧运行 completed、成功产物和哈希。未关联调查的普通运行保留只引用本次成功产物的限制；结构与语义验证边界见实施记录。
 
 ## 5. 应用边界
 

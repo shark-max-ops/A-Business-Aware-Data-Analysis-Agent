@@ -2,6 +2,7 @@
 
 from sqlalchemy import select
 
+from metric_pilot.agent.investigations import read_evidence_artifact
 from metric_pilot.data.common import DataError, new_id, utc_now
 from metric_pilot.knowledge.store import KnowledgeStore
 from metric_pilot.reports import models as m
@@ -26,7 +27,7 @@ class ReportService(KnowledgeStore):
         super().__init__(query.catalog.engine)
         self.query = query
 
-    def prepare(self, run, draft):
+    def prepare(self, run, draft, *, require_query=True):
         """
         作用：读取本次成功产物并冻结所有报告依据
         输入：运行与模型草稿
@@ -34,10 +35,10 @@ class ReportService(KnowledgeStore):
         """
         draft = ReportDraft.model_validate(draft)
         artifacts = {}
-        for ident in artifact_ids(draft):
+        for ident in artifact_ids(draft, require_query=require_query):
             offset, rows = 0, []
             while True:
-                page = self.query.read_artifact(run["id"], ident, offset, 100)
+                page = read_evidence_artifact(self.query, run, ident, offset, 100)
                 artifact = page["artifact"]
                 if artifact["snapshot_id"] != run["snapshot_id"]:
                     raise DataError("REPORT_SNAPSHOT_MISMATCH")
@@ -66,6 +67,7 @@ class ReportService(KnowledgeStore):
                 "metrics": metrics,
                 "artifacts": artifacts,
             },
+            require_query=require_query,
         )
 
     @staticmethod

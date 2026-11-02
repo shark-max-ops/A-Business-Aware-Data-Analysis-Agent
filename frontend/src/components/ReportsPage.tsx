@@ -22,6 +22,7 @@ export function ReportContent({ report, compact = false }: { report: Report; com
   const kpis = report.blocks.filter(block => block.type === 'kpi');
   const content = report.blocks.filter(block => block.type !== 'kpi');
   return <div className={compact ? 'report-content report-preview' : 'report-content'}>
+    {compact && report.limitations.some(note => note.startsWith('包含数据探索结果')) && <p className="report-note">数据探索 · 未绑定已审核项目指标，统计范围见结果依据。</p>}
     {kpis.length > 0 && <div className="report-kpi-grid">{(compact ? kpis.slice(0, 3) : kpis).map(block => <ReportBlockView key={block.id} block={block} inspect={setSelection} />)}</div>}
     {(compact ? content.filter(block => block.type === 'text').slice(0, 1) : content).map(block => <ReportBlockView key={block.id} block={block} inspect={setSelection} />)}
     {!compact && <section className="report-limitations"><h2>范围与限制</h2><ul>{report.limitations.map((note, index) => <li key={index}>{note}</li>)}</ul></section>}
@@ -42,7 +43,7 @@ export function ReportPreview({ reportId, revisionId }: { reportId: string; revi
   }, [reportId, revisionId]);
   if (error) return <Alert type="error" message="报告读取失败" description={error} />;
   if (!report) return <Spin tip="正在读取报告"><div className="evidence-loading" /></Spin>;
-  return <section className="analysis-report-preview"><div className="report-preview-heading"><div><p className="eyebrow">报告已保存</p><h2>{report.title}</h2></div><Link className="report-open-link" to={`/reports/${report.report_id}/revisions/${report.revision_id}`}>打开完整报告 ↗</Link></div><ReportContent report={report} compact /><p className="report-note">数字取自本次成功查询，点击可查看依据。</p></section>;
+  return <section className="analysis-report-preview"><div className="report-preview-heading"><div><p className="eyebrow">报告已保存</p><h2>{report.title}</h2></div><Link className="report-open-link" to={`/reports/${report.report_id}/revisions/${report.revision_id}`}>打开完整报告 ↗</Link></div><ReportContent report={report} compact /><p className="report-note">数字取自获授权的成功查询，点击可查看固定依据。</p></section>;
 }
 
 /** 作用：分页展示真实已保存报告；输入：无；输出：报告列表。 */
@@ -124,6 +125,7 @@ export function ReportDetailPage() {
   if (!report) return <div className="report-loading"><Spin /> 正在打开报告…</div>;
   const base = `/api/v1/reports/${report.report_id}/revisions/${report.revision_id}`;
   const latest = Math.max(...history.map(item => item.version), report.version);
+  const newest = history.find(item => item.version === latest);
   // 阅读区使用已知字段的中文称谓；原始范围与版本仍保存在报告和依据中。
   const scopeText = report.scope.replaceAll(report.data_snapshot.id, '（已固定）')
     .replace(/v_flights\s*表/g, '航班运行表').replace(/\bv_flights\b/g, '航班运行表')
@@ -132,6 +134,7 @@ export function ReportDetailPage() {
   return <div className="report-reader">
     {historyError && <Alert type="error" message="更早版本读取失败" description={historyError} />}
     <div className="report-toolbar"><Link to="/reports">← 所有报告</Link><div className="report-actions"><Select aria-label="报告版本" dropdownRender={menu => <>{menu}{historyCursor && <Button type="text" block loading={historyBusy} onMouseDown={event => event.preventDefault()} onClick={() => { void olderVersions(); }}>加载更早版本</Button>}</>} value={report.revision_id} options={history.map(item => ({ value: item.revision_id, label: `版本 ${item.version}${item.version === latest ? ' · 最新' : ''}` }))} onChange={id => navigate(`/reports/${report.report_id}/revisions/${id}`)} /><a href={base + '/export?format=markdown'}>导出 Markdown</a><a href={base + '/export?format=json'}>导出 JSON</a><Button disabled={report.version < latest} onClick={() => { setTitle(report.title); setScope(report.scope); setLimitations((report.draft.limitations ?? []).join('\n')); setEditError(''); setEditing(true); }}>修改说明</Button></div></div>
+    {newest && report.version < latest && <p className="report-note" role="status">当前为历史版本。<Link to={`/reports/${report.report_id}/revisions/${newest.revision_id}`}>查看最新版本 {latest} ↗</Link></p>}
     <article className="report-sheet"><header className="report-header"><div className="report-meta"><span>{report.data_snapshot.period}</span><span>{report.data_snapshot.manifest?.source_kind === 'synthetic' ? '合成测试数据' : '固定数据版本'}</span><span>版本 {report.version}</span></div><h1>{report.title}</h1><p className="report-scope">{scopeText}</p><p className="report-origin">分析问题：{report.question}</p><div className="report-stamp"><Tag color="green">数字与引用已核对</Tag><span>{new Date(report.created_at).toLocaleString('zh-CN', { hour12: false })}</span></div></header>
       <ReportContent report={report} />
     </article>

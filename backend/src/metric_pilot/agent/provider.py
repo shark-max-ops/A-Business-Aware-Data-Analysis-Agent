@@ -33,6 +33,7 @@ class AgentProvider:
         输出：无
         """
         self.settings = settings
+        self.current_attempts = 0
 
     async def next_turn(self, messages, tools):
         """
@@ -57,31 +58,67 @@ class AgentProvider:
             ),
         }
         headers = {"Authorization": "Bearer " + self.settings.llm_api_key.get_secret_value()}
-        attempt = 0
+        self.current_attempts = 0
         try:
             async with httpx.AsyncClient(
                 timeout=60, trust_env=False, follow_redirects=False
             ) as client:
                 for attempt in range(3):
-                    async with client.stream("POST", url, json=body, headers=headers) as response:
-                        if response.status_code in {429, 500, 502, 503, 504} and attempt < 2:
+                    self.current_attempts = attempt + 1
+                    try:
+                        async with client.stream(
+                            "POST", url, json=body, headers=headers
+                        ) as response:
+                            if response.status_code in {429, 500, 502, 503, 504} and attempt < 2:
+                                retry_http = True
+                            else:
+                                retry_http = False
+                                if response.status_code != 200:
+                                    raise DataError(
+                                        "MODEL_HTTP_ERROR", {"status": response.status_code}
+                                    )
+                                parts, size = [], 0
+                                async for part in response.aiter_bytes():
+                                    size += len(part)
+                                    if size > 2 * 1024 * 1024:
+                                        raise DataError("MODEL_RESPONSE_TOO_LARGE")
+                                    parts.append(part)
+                        if retry_http:
+                            # 退出响应上下文后退避，不保持失败连接或重跑工具。
                             await asyncio.sleep(0.5 * 2**attempt)
                             continue
-                        if response.status_code != 200:
-                            raise DataError("MODEL_HTTP_ERROR", {"status": response.status_code})
-                        parts, size = [], 0
-                        async for part in response.aiter_bytes():
-                            size += len(part)
-                            if size > 2 * 1024 * 1024:
-                                raise DataError("MODEL_RESPONSE_TOO_LARGE")
-                            parts.append(part)
-                        raw = json.loads(b"".join(parts), parse_constant=reject_json_constant)
+                        try:
+                            raw = json.loads(b"".join(parts), parse_constant=reject_json_constant)
+                        except (ValueError, UnicodeError):
+                            raise DataError(
+                                "MODEL_RESPONSE_INVALID", {"failure_kind": "invalid_json"}
+                            ) from None
                         return self.parse(raw, attempt + 1)
+                    except (
+                        httpx.TimeoutException,
+                        httpx.NetworkError,
+                        httpx.RemoteProtocolError,
+                    ) as error:
+                        if attempt < 2:
+                            await asyncio.sleep(0.5 * 2**attempt)
+                            continue
+                        kind = (
+                            "timeout"
+                            if isinstance(error, httpx.TimeoutException)
+                            else "connection"
+                            if isinstance(error, httpx.ConnectError)
+                            else "connection_interrupted"
+                        )
+                        # 只保留分类和次数，异常正文可能带 URL 或其他敏感信息。
+                        raise DataError("MODEL_REQUEST_FAILED", {"failure_kind": kind}) from None
         except DataError as exc:
-            exc.details["attempts"] = attempt + 1
+            exc.details["attempts"] = self.current_attempts
             raise
         except (httpx.HTTPError, ValueError, UnicodeError):
-            raise DataError("MODEL_REQUEST_FAILED", {"attempts": attempt + 1}) from None
+            raise DataError(
+                "MODEL_REQUEST_FAILED",
+                {"attempts": self.current_attempts, "failure_kind": "request_error"},
+            ) from None
 
     def parse(self, raw, attempts):
         """

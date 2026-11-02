@@ -193,11 +193,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "ARTIFACT_FILE_UNAVAILABLE",
         }
         status = 404 if missing else 503 if unavailable else 409
+        investigation_messages = {
+            "INVESTIGATION_BUSY": "当前调查仍有运行，请等待完成或显式停止",
+            "INVESTIGATION_VERSION_CONFLICT": "调查进展已更新，请刷新后继续",
+            "INVESTIGATION_BOUNDARY_MISMATCH": "数据或知识版本与调查不一致，请显式新建调查或分支",
+            "INVESTIGATION_BUDGET_EXCEEDED": "调查累计额度不足，历史发现与报告仍可查看",
+        }
         return error_response(
             request,
             status,
             exc.code,
-            "资源不存在" if missing else "数据服务尚未就绪" if unavailable else "数据操作无法完成",
+            investigation_messages.get(
+                exc.code,
+                "资源不存在"
+                if missing
+                else "数据服务尚未就绪"
+                if unavailable
+                else "数据操作无法完成",
+            ),
             exc.details,
         )
 

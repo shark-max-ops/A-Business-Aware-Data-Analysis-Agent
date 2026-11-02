@@ -1,10 +1,14 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Alert, Button, Empty, Input, Select, Space, Table } from 'antd';
+import { Alert, Button, Empty, Input, Modal, Select, Space, Table } from 'antd';
 import type { components } from '../api/schema';
 import { analysisApi, eventTypes, jsonRequest, mergeEvents, terminal } from '../api/analysis';
 import type { Conversation, Run, RunEvent } from '../api/analysis';
 import { ConversationItem } from './ConversationItem';
 import { ExecutionTrace } from './ExecutionTrace';
+import { ExplorationNote } from './ExplorationNote';
+import { runFailureDescription } from './executionPresentation';
+import { InvestigationPanel } from './InvestigationPanel';
+import type { Investigation } from './InvestigationPanel';
 
 type Source = components['schemas']['SourceDTO'];
 type Snapshot = components['schemas']['SnapshotDTO'];
@@ -38,7 +42,26 @@ export function AnalysisPage() {
   const [drawer, setDrawer] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [investigations, setInvestigations] = useState<Investigation[]>([]);
+  const [investigation, setInvestigation] = useState<Investigation | null>(null);
+  const [creatingInvestigation, setCreatingInvestigation] = useState(false);
+  const [goal, setGoal] = useState('');
+  const [scope, setScope] = useState('');
+  const [branch, setBranch] = useState(false);
   const active = !!run && !terminal(run.status);
+  const investigationActive = !!investigation?.active_run_id;
+
+  // 从服务端恢复调查；工具进度到达时同步已落盘的发现，页面断开不影响运行。
+  useEffect(() => {
+    if (!conversationId) { setInvestigations([]); setInvestigation(null); return; }
+    let alive = true;
+    void analysisApi<{ items: Investigation[] }>(`/investigations?conversation_id=${conversationId}`).then(result => {
+      if (!alive) return;
+      setInvestigations(result.items);
+      setInvestigation(current => result.items.find(item => item.id === (run?.investigation_id || current?.id)) ?? result.items.at(-1) ?? null);
+    }).catch(e => { if (alive) setError(e.message); });
+    return () => { alive = false; };
+  }, [conversationId, run?.id, run?.status, events.length]);
 
   useEffect(() => {
     let alive = true;
@@ -113,6 +136,7 @@ export function AnalysisPage() {
   async function newConversation() {
     const created = await analysisApi<Conversation>('/conversations', { method: 'POST' });
     setConversations(current => [created, ...current]); setConversationId(created.id);
+    setInvestigation(null); setInvestigations([]);
     return created.id;
   }
 
@@ -121,10 +145,25 @@ export function AnalysisPage() {
     setBusy(true); setError('');
     try {
       const id = conversationId || await newConversation();
-      const context = runs.filter(item => item.status === 'completed' && item.snapshot_id === snapshotId).slice(-2).map(item => item.id);
-      const created = await analysisApi<Run>('/runs', jsonRequest({ conversation_id: id, question: question.trim(), snapshot_id: snapshotId, context_run_ids: context }));
+      let current = investigation;
+      if (!current) {
+        current = await analysisApi<Investigation>('/investigations', jsonRequest({ conversation_id: id, goal: question.trim().slice(0, 1200), scope: '在所选固定数据与知识版本内核查用户目标；重要歧义需澄清', snapshot_id: snapshotId }));
+        setInvestigation(current); setInvestigations(items => [...items, current!]);
+      }
+      const created = await analysisApi<Run>('/runs', jsonRequest({ conversation_id: id, question: question.trim(), snapshot_id: current.snapshot_id, investigation_id: current.id, expected_investigation_version: current.version }));
       setRun(created); setRuns(current => [...current, created]); setQuestion('');
       setConversations(current => current.map(item => item.id === id ? { ...item, title: created.question.replace(/\s+/g, ' ').trim() } : item));
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  /** 作用：显式创建调查或版本分支；输入：目标、范围与所选快照；输出：固定调查。 */
+  async function createInvestigation() {
+    setBusy(true); setError('');
+    try {
+      const id = conversationId || await newConversation();
+      const created = await analysisApi<Investigation>('/investigations', jsonRequest({ conversation_id: id, goal: goal.trim(), scope: scope.trim(), snapshot_id: snapshotId, parent_id: branch ? investigation?.id : undefined }));
+      setInvestigations(items => [...items, created]); setInvestigation(created); setRun(null); setEvents([]); setCreatingInvestigation(false); setQuestion('');
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -145,7 +184,7 @@ export function AnalysisPage() {
   }
 
   return <>
-    <div className="page-heading"><div><p className="eyebrow">ANALYSIS WORKSPACE</p><h1>从业务问题开始分析</h1><p>查阅依据、执行安全查询，生成数字可核对的中文报告。</p></div><Button onClick={() => setDrawer(true)}>查看数据源</Button></div>
+    <div className="page-heading"><div><p className="eyebrow">ANALYSIS WORKSPACE</p><h1>围绕业务问题持续调查</h1><p>根据实际证据继续核查，保留发现、反证和数字可核对的中文报告。</p></div><Button onClick={() => setDrawer(true)}>查看数据源</Button></div>
     {error && <Alert type="error" showIcon message={error} action={<Button onClick={() => setAttempt(a => a + 1)}>重新连接</Button>} />}
     {!configured && <Alert type="warning" message="模型未配置或分析服务尚未就绪" description="请检查本机模型配置和后端状态。健康检查不会请求模型。" />}
     {!snapshots.length && <Alert type="info" message="暂无可分析的数据，请先导入数据快照" />}
@@ -156,23 +195,26 @@ export function AnalysisPage() {
       </aside>
       <section className="panel question-panel analysis-main">
         <label htmlFor="snapshot">本次数据快照</label>
-        <Select id="snapshot" aria-label="本次数据快照" value={snapshotId || undefined} disabled={active || busy} style={{ width: '100%' }} onChange={setSnapshotId} options={snapshots.map(item => ({ value: item.id, label: `${item.manifest?.source ?? '航班数据'} · ${item.period} · ${item.row_count.toLocaleString()} 条${item.manifest?.source_kind === 'synthetic' ? '（合成）' : ''}` }))} />
-        <p className="analysis-hint">涉及项目指标时需要人工审核的规则；草稿不会自动生效。切换快照会建立新的分析上下文。</p>
+        <Select id="snapshot" aria-label="本次数据快照" value={investigation?.snapshot_id || snapshotId || undefined} disabled={active || busy || !!investigation} style={{ width: '100%' }} onChange={setSnapshotId} options={snapshots.map(item => ({ value: item.id, label: `${item.manifest?.source ?? '航班数据'} · ${item.period} · ${item.row_count.toLocaleString()} 条${item.manifest?.source_kind === 'synthetic' ? '（合成）' : ''}` }))} />
+        <p className="analysis-hint">项目指标需人工审核。调查固定数据与知识版本；更换版本或范围时请显式新建调查或分支。</p>
+        <div className="investigation-controls"><Select aria-label="切换调查" value={investigation?.id} placeholder="首次提问将建立调查" disabled={active || busy || investigationActive} onChange={id => { const selected = investigations.find(item => item.id === id)!; setInvestigation(selected); setSnapshotId(selected.snapshot_id); setRun(runs.filter(item => item.investigation_id === id).at(-1) ?? null); setEvents([]); }} options={investigations.map(item => ({ value: item.id, label: item.goal }))} /><Button disabled={active || busy || investigationActive} onClick={() => { setGoal(''); setScope(''); setBranch(false); setCreatingInvestigation(true); }}>新调查</Button>{investigation && <Button disabled={active || busy || investigationActive} onClick={() => { setGoal(investigation.goal); setScope(investigation.scope); setSnapshotId(investigation.snapshot_id); setBranch(true); setCreatingInvestigation(true); }}>新建分支</Button>}</div>
+        {investigation && <InvestigationPanel investigation={investigation} disabled={active || busy || investigationActive} onFollowUp={setQuestion} onError={setError} />}
         {runs.length > 0 && <Select aria-label="历史分析运行" value={run?.id} disabled={active || busy} style={{ width: '100%' }} onChange={id => setRun(runs.find(item => item.id === id) ?? null)} options={runs.map(item => ({ value: item.id, label: `${item.question} · ${statusText[item.status]}` }))} />}
         {!run && <Empty description="输入问题后，模型会查阅依据并调用实际工具" />}
         {run && <div className="run-result">
           <div className="analysis-question"><span>你的问题</span><h3>{run.question}</h3></div>
           <ExecutionTrace run={run} events={events} connection={connection} />
-          {run.error_code && <Alert type={run.status === 'cancelled' ? 'info' : 'error'} message={run.status === 'cancelled' ? '本次分析已取消' : run.status === 'interrupted' ? '分析因服务中断而停止' : '本次分析未完成'} description="可修改问题后重新发起，具体原因可在执行详情中查看。" />}
+          {run.error_code && <Alert type={run.status === 'cancelled' ? 'info' : 'error'} message={run.status === 'cancelled' ? '本次分析已取消' : run.status === 'interrupted' ? '分析因服务中断而停止' : '本次分析未完成'} description={runFailureDescription(run)} />}
           {run.status === 'completed' && run.result?.kind === 'report' && <Suspense fallback={<p>正在加载报告…</p>}><ReportPreview reportId={run.result.report_id} revisionId={run.result.revision_id} /></Suspense>}
           {run.result?.kind === 'clarification' && <Alert type="info" message={run.result.question} description={run.result.missing_requirements.join('；')} />}
           {run.result?.kind === 'query_result' && <p className="analysis-result-note">以下为本次冻结结果；执行与引用有效，业务语义未自动验证。</p>}
           {artifacts.filter(page => page.artifact.run_id === run.id).map(page => <div key={page.artifact.id} className="artifact-preview"><h4>查询结果 · {page.artifact.returned_rows} 行</h4>{page.artifact.truncated && <Alert type="warning" message="结果已截断，不能作为完整统计" />}<Table size="small" pagination={false} scroll={{ x: true }} rowKey="_row" dataSource={page.rows.map((row, index) => Object.fromEntries([['_row', String(index)], ...row.map((cell, col) => [String(col), cell])]))} columns={page.artifact.columns.map((column, index) => ({ title: column.name, dataIndex: String(index), render: displayCell }))} /><p>当前显示 {page.rows.length} 行，起始位置 {page.offset + (page.rows.length ? 1 : 0)}</p>{(page.offset > 0 || page.next_offset !== null) && <Space><Button size="small" disabled={page.offset === 0} onClick={() => { void artifactPage(page, Math.max(0, page.offset - 20)); }}>上一页</Button><Button size="small" disabled={page.next_offset === null} onClick={() => { if (page.next_offset !== null) void artifactPage(page, page.next_offset); }}>下一页</Button></Space>}</div>)}
         </div>}
-        <div className="composer"><label htmlFor="question">分析问题</label><Input.TextArea id="question" rows={3} maxLength={4000} value={question} onChange={e => setQuestion(e.target.value)} placeholder="例如：查看本月数据的日期范围和记录数" disabled={active || busy} /><div className="composer-bottom"><span>关闭页面后运行会继续</span><Space>{active && <Button danger onClick={() => { void cancel(); }} disabled={run?.cancel_requested}>停止分析</Button>}<Button type="primary" loading={busy} disabled={active || !configured || !snapshotId || !question.trim()} onClick={() => { void submit(); }}>发送问题</Button></Space></div></div>
+        <div className="composer"><label htmlFor="question">分析问题{investigation ? ' · 继续调查' : ''}</label><Input.TextArea aria-label="分析问题" id="question" rows={3} maxLength={4000} value={question} onChange={e => setQuestion(e.target.value)} placeholder="例如：检查本月航班记录在各日期的分布，再核查值得关注的差异" disabled={active || busy || investigationActive} /><div className="composer-bottom"><span>{investigation?.status === 'budget_exhausted' ? '累计运行额度已分配完，历史发现仍可查看' : '关闭页面后运行会继续'}</span><Space>{active && <Button danger onClick={() => { void cancel(); }} disabled={run?.cancel_requested}>停止分析</Button>}<Button type="primary" loading={busy} disabled={active || investigationActive || investigation?.status === 'budget_exhausted' || !configured || !snapshotId || !question.trim()} onClick={() => { void submit(); }}>发送问题</Button></Space></div></div>
       </section>
 
     </div>
     <Suspense fallback={<p>正在加载数据源…</p>}>{drawer && <DataSourceDrawer open={drawer} onClose={() => setDrawer(false)} />}</Suspense>
+    <Modal title={branch ? '新建调查分支' : '新建调查'} open={creatingInvestigation} onCancel={() => setCreatingInvestigation(false)} onOk={() => { void createInvestigation(); }} confirmLoading={busy} okText="固定范围并创建" okButtonProps={{ disabled: !goal.trim() || !scope.trim() || !snapshotId }}><div className="investigation-form"><label>调查目标<Input.TextArea aria-label="调查目标" value={goal} maxLength={1200} onChange={e => setGoal(e.target.value)} rows={2} /></label><label>范围与已确认条件<Input.TextArea aria-label="调查范围" value={scope} maxLength={1200} onChange={e => setScope(e.target.value)} rows={3} /></label><label>数据快照<Select aria-label="新调查数据快照" value={snapshotId} onChange={setSnapshotId} options={snapshots.map(item => ({ value: item.id, label: `${item.period} · ${item.row_count.toLocaleString()} 条` }))} /></label><p>创建时固定当前知识版本。分支记录来源调查，证据需在新调查中重新核查；不会自动继承旧结论或重置原调查额度。</p></div></Modal>
   </>;
 }

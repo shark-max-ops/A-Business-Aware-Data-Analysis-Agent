@@ -6,6 +6,7 @@ from datetime import date
 from sqlalchemy import select
 
 from metric_pilot.agent import models as am
+from metric_pilot.agent.investigations import authorized_runs
 from metric_pilot.data.common import DataError
 from metric_pilot.knowledge import models as km
 from metric_pilot.knowledge.metrics import MetricService
@@ -19,7 +20,9 @@ def freeze_sources(store, run, artifacts, period):
     输出：固定来源字典、指标字典及知识快照副本
     """
     sources, definitions, requested = {}, {}, set()
-    metric_ids = set(run["metric_revision_ids"])
+    # 仅冻结产物实际绑定的指标；运行中选过或解析过不代表探索采用了该口径。
+    metric_ids = set()
+    allowed = authorized_runs(store.engine, run)
     for item in artifacts.values():
         requested.update(item["artifact"]["knowledge_revision_ids"])
         metric_ids.update(item["artifact"]["metric_revision_ids"])
@@ -28,7 +31,7 @@ def freeze_sources(store, run, artifacts, period):
         executions = (
             connection.execute(
                 select(am.executions).where(
-                    am.executions.c.run_id == run["id"], am.executions.c.status == "succeeded"
+                    am.executions.c.run_id.in_(allowed), am.executions.c.status == "succeeded"
                 )
             )
             .mappings()

@@ -127,6 +127,18 @@ class ActivateRequest(StrictDTO):
     snapshot_id: str
 
 
+class ExplorationScope(StrictDTO):
+    """
+    作用：记录探索查询声明的范围、算法与缺失处理，不代表业务语义已审核
+    输入：模型随查询提交的简短说明
+    输出：随成功产物冻结的探索说明
+    """
+
+    population: str = Field(min_length=1, max_length=600, pattern=r"\S")
+    calculation: str = Field(min_length=1, max_length=600, pattern=r"\S")
+    missing_values: str = Field(min_length=1, max_length=600, pattern=r"\S")
+
+
 class QueryArtifact(StrictDTO):
     """
     作用：保存成功执行的不可变证据元数据
@@ -152,6 +164,9 @@ class QueryArtifact(StrictDTO):
     result_hash: str
     metric_revision_ids: list[str] = Field(default_factory=list)
     knowledge_revision_ids: list[str] = Field(default_factory=list)
+    query_purpose: Literal["legacy", "exploratory", "reviewed_metric"] = "legacy"
+    exploration_scope: ExplorationScope | None = None
+    unavailable_metric_keys: list[str] = Field(default_factory=list)
     duration_ms: int
     created_at: str
     ordered: bool

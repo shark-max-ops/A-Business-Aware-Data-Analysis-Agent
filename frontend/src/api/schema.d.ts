@@ -214,6 +214,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/investigations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Investigations
+         * @description 作用：恢复同会话的调查列表及分支
+         *     输入：会话标识
+         *     输出：调查列表
+         */
+        get: operations["list_investigations_api_v1_investigations_get"];
+        put?: never;
+        /**
+         * Create Investigation
+         * @description 作用：固定新调查或显式分支的范围、知识与累计额度
+         *     输入：调查请求
+         *     输出：调查记录
+         */
+        post: operations["create_investigation_api_v1_investigations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/investigations/{investigation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Investigation
+         * @description 作用：恢复调查和发现历史
+         *     输入：调查标识
+         *     输出：调查记录
+         */
+        get: operations["get_investigation_api_v1_investigations__investigation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/investigations/{investigation_id}/findings/{finding_id}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Finding Evidence
+         * @description 作用：读取发现固定证据而非最新值
+         *     输入：调查与发现标识
+         *     输出：证据快照
+         */
+        get: operations["finding_evidence_api_v1_investigations__investigation_id__findings__finding_id__evidence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{run_id}": {
         parameters: {
             query?: never;
@@ -1140,6 +1212,24 @@ export interface components {
             created_at: string;
         };
         /**
+         * CreateInvestigation
+         * @description 作用：请求固定调查边界或显式分支
+         *     输入：会话、目标、范围及快照
+         *     输出：严格请求
+         */
+        CreateInvestigation: {
+            /** Conversation Id */
+            conversation_id: string;
+            /** Goal */
+            goal: string;
+            /** Scope */
+            scope: string;
+            /** Snapshot Id */
+            snapshot_id: string;
+            /** Parent Id */
+            parent_id?: string | null;
+        };
+        /**
          * CreateRun
          * @description 作用：请求分析
          *     输入：问题与已登记快照
@@ -1156,6 +1246,10 @@ export interface components {
             metric_revision_ids?: string[];
             /** Context Run Ids */
             context_run_ids?: string[];
+            /** Investigation Id */
+            investigation_id?: string | null;
+            /** Expected Investigation Version */
+            expected_investigation_version?: number | null;
         };
         /**
          * DocumentMetadata
@@ -1289,6 +1383,57 @@ export interface components {
              * @constant
              */
             validation_level: "references_validated";
+        };
+        /**
+         * ExplorationScope
+         * @description 作用：记录探索查询声明的范围、算法与缺失处理，不代表业务语义已审核
+         *     输入：模型随查询提交的简短说明
+         *     输出：随成功产物冻结的探索说明
+         */
+        ExplorationScope: {
+            /** Population */
+            population: string;
+            /** Calculation */
+            calculation: string;
+            /** Missing Values */
+            missing_values: string;
+        };
+        /**
+         * FindingDTO
+         * @description 作用：展示服务端已取值的固定发现
+         *     输入：持久化发现
+         *     输出：中文内容与证据索引
+         */
+        FindingDTO: {
+            /** Id */
+            id: string;
+            /** Run Id */
+            run_id: string;
+            /** Kind */
+            kind: string;
+            /** Check */
+            check: string;
+            /** Text */
+            text: string;
+            /** Questions */
+            questions: string[];
+            /** Supersedes */
+            supersedes: string | null;
+            /** Created At */
+            created_at: string;
+            /** Artifact Ids */
+            artifact_ids: string[];
+            /** Evidence Ids */
+            evidence_ids: string[];
+            /** Value Refs */
+            value_refs: {
+                [key: string]: components["schemas"]["ValueRef"];
+            };
+            /**
+             * Source Run Status
+             * @enum {string}
+             */
+            source_run_status: "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
         };
         /**
          * FrozenSource
@@ -1471,6 +1616,51 @@ export interface components {
             job_id: string;
         };
         /**
+         * InvestigationDTO
+         * @description 作用：恢复调查、额度与发现历史
+         *     输入：服务端调查
+         *     输出：前后端统一契约
+         */
+        InvestigationDTO: {
+            /** Id */
+            id: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /** Goal */
+            goal: string;
+            /** Scope */
+            scope: string;
+            /** Snapshot Id */
+            snapshot_id: string;
+            /** Knowledge Snapshot Id */
+            knowledge_snapshot_id: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /** Created At */
+            created_at: string;
+            /** Version */
+            version: number;
+            /** Limits */
+            limits: {
+                [key: string]: number;
+            };
+            /** Allocated */
+            allocated: {
+                [key: string]: number;
+            };
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ready" | "running" | "budget_exhausted";
+            /** Active Run Id */
+            active_run_id: string | null;
+            /** Run Ids */
+            run_ids: string[];
+            /** Findings */
+            findings: components["schemas"]["FindingDTO"][];
+        };
+        /**
          * ItemList
          * @description 作用：提供知识目录列表外层
          *     输入：目录记录
@@ -1614,6 +1804,13 @@ export interface components {
             /** Next Cursor */
             next_cursor?: string | null;
         };
+        /** Page[InvestigationDTO] */
+        Page_InvestigationDTO_: {
+            /** Items */
+            items: components["schemas"]["InvestigationDTO"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
         /** Page[ReportSummary] */
         Page_ReportSummary_: {
             /** Items */
@@ -1687,6 +1884,15 @@ export interface components {
             metric_revision_ids?: string[];
             /** Knowledge Revision Ids */
             knowledge_revision_ids?: string[];
+            /**
+             * Query Purpose
+             * @default legacy
+             * @enum {string}
+             */
+            query_purpose: "legacy" | "exploratory" | "reviewed_metric";
+            exploration_scope?: components["schemas"]["ExplorationScope"] | null;
+            /** Unavailable Metric Keys */
+            unavailable_metric_keys?: string[];
             /** Duration Ms */
             duration_ms: number;
             /** Created At */
@@ -1916,6 +2122,10 @@ export interface components {
             result?: (components["schemas"]["ReportResult"] | components["schemas"]["QueryResult"] | components["schemas"]["Clarification"]) | null;
             /** Error Code */
             error_code?: string | null;
+            /** Error Details */
+            error_details?: {
+                [key: string]: string | number;
+            };
             /** Cancel Requested */
             cancel_requested: boolean;
             /** Created At */
@@ -1928,6 +2138,10 @@ export interface components {
             usage: {
                 [key: string]: number;
             };
+            /** Investigation Id */
+            investigation_id?: string | null;
+            /** Expected Investigation Version */
+            expected_investigation_version?: number | null;
         };
         /**
          * SchemaDTO
@@ -2636,6 +2850,169 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_investigations_api_v1_investigations_get: {
+        parameters: {
+            query: {
+                conversation_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_InvestigationDTO_"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_investigation_api_v1_investigations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInvestigation"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvestigationDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_investigation_api_v1_investigations__investigation_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                investigation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvestigationDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    finding_evidence_api_v1_investigations__investigation_id__findings__finding_id__evidence_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                investigation_id: string;
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Unprocessable Entity */

@@ -73,6 +73,8 @@
 
 Wiki 负责解释与导航；计算采用已审核、可版本化的 `MetricDefinition`。分析 Agent 可以提出自定义指标，但不能把它自动保存为正式规则。
 
+字段含义、质量检查与原始分布调查可以独立探索。query_sql 显式使用 purpose=exploratory，并说明 population（范围与排除）、calculation（算法与分母）、missing_values（缺失处理），不得提交正式指标修订。成功产物由服务端冻结为探索身份，报告、发现和依据继续保留“未绑定已审核项目指标”的说明。某个指标解析失败不封锁独立探索或其他已审核指标；未声明用途的旧查询不能仅删引用绕过阻断。用户明确要求正式项目指标时，探索只能交付独立核查部分并说明缺口，不能冒充正式答案。
+
 ```python
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
@@ -97,7 +99,7 @@ class MetricDefinition(BaseModel):
     template_key: str | None = None
 ```
 
-这些描述本身不应被 `eval`。常用指标由经审核的 `template_key` 对应 SQL 构建器；自由 SQL 仍允许，但需要审核、绑定所选规则，并做显式口径检查。字符串 contains 判断不是可靠语义验证；第一版口径检查覆盖选定公式/过滤的受限子集，复杂不支持的计算显示“口径未自动验证”。
+这些描述本身不应被 `eval`。经审核的 `template_key` 对应 SQL 构建器是后续设计，当前未实现自动模板语义证明。正式指标查询须绑定已解析、已审核且日期适用的修订；独立探索按上一段的用途与范围契约执行。字符串 contains 判断不是可靠语义验证；当前服务端验证执行、权限与引用，不能声称已证明自由 SQL 的公式、分母和解释完全符合业务含义。
 
 ## 6. 首批项目指标
 

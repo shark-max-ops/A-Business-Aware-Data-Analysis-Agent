@@ -1,6 +1,6 @@
 ﻿import { describe, expect, it } from 'vitest';
 import type { Run, RunEvent } from '../api/analysis';
-import { executionSteps, executionSummary, stepDescription } from './executionPresentation';
+import { executionSteps, executionSummary, runFailureDescription, stepDescription } from './executionPresentation';
 
 const run: Run = { id: 'run_test', conversation_id: 'conv_test', question: '核对范围', snapshot_id: 'snapshot_test', knowledge_snapshot_id: 'ks_test', status: 'completed', budget: {}, context_run_ids: [], metric_revision_ids: [], result: { kind: 'query_result', artifact_ids: ['qa_test'] }, error_code: null, cancel_requested: false, created_at: '2026-10-31T00:00:00Z', seq: 5, usage: {}, model: 'isolated-test' };
 /** 作用：构造明确的合成事件；输入：序号、类型和负载；输出：契约事件。 */
@@ -16,6 +16,16 @@ const history: RunEvent[] = [
 ];
 
 describe('execution presentation uses actual evidence', () => {
+  it('explains model failures without blaming successful SQL or inventing old diagnostics', () => {
+    const failed = { ...run, status: 'failed' as const, error_code: 'MODEL_REQUEST_FAILED' };
+    expect(runFailureDescription(failed)).toContain('无法确定更具体');
+    expect(runFailureDescription({ ...failed, error_details: { failure_kind: 'timeout', attempts: 3 } })).toContain('响应超时。已尝试 3 次');
+    expect(runFailureDescription({ ...failed, error_code: 'MODEL_RESPONSE_INVALID' })).toContain('无法解析');
+    expect(runFailureDescription({ ...failed, error_code: 'MODEL_HTTP_ERROR', error_details: { status: 401, attempts: 1 } })).toContain('凭据');
+    expect(runFailureDescription({ ...failed, error_code: 'TURN_BUDGET_EXCEEDED' })).toContain('不表示你的提问有误');
+    expect(runFailureDescription({ ...failed, error_code: 'TOOL_BUDGET_EXCEEDED' })).toContain('工具调用额度');
+    expect(runFailureDescription({ ...failed, error_code: 'CONTEXT_BUDGET_EXCEEDED' })).toContain('历史或工具结果');
+  });
   it('pairs replayed events by execution ID and preserves failed attempts', () => {
     const steps = executionSteps([history[4], ...history, history[2]]);
     expect(steps).toHaveLength(2);

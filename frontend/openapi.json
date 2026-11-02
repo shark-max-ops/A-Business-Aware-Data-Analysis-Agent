@@ -650,6 +650,210 @@
         }
       }
     },
+    "/api/v1/investigations": {
+      "post": {
+        "summary": "Create Investigation",
+        "description": "作用：固定新调查或显式分支的范围、知识与累计额度\n输入：调查请求\n输出：调查记录",
+        "operationId": "create_investigation_api_v1_investigations_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvestigation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      },
+      "get": {
+        "summary": "List Investigations",
+        "description": "作用：恢复同会话的调查列表及分支\n输入：会话标识\n输出：调查列表",
+        "operationId": "list_investigations_api_v1_investigations_get",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_InvestigationDTO_"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/v1/investigations/{investigation_id}": {
+      "get": {
+        "summary": "Get Investigation",
+        "description": "作用：恢复调查和发现历史\n输入：调查标识\n输出：调查记录",
+        "operationId": "get_investigation_api_v1_investigations__investigation_id__get",
+        "parameters": [
+          {
+            "name": "investigation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Investigation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/v1/investigations/{investigation_id}/findings/{finding_id}/evidence": {
+      "get": {
+        "summary": "Finding Evidence",
+        "description": "作用：读取发现固定证据而非最新值\n输入：调查与发现标识\n输出：证据快照",
+        "operationId": "finding_evidence_api_v1_investigations__investigation_id__findings__finding_id__evidence_get",
+        "parameters": [
+          {
+            "name": "investigation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Investigation Id"
+            }
+          },
+          {
+            "name": "finding_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Finding Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
     "/api/v1/runs/{run_id}": {
       "get": {
         "summary": "Get Run",
@@ -3054,6 +3258,51 @@
         "title": "ConversationDTO",
         "description": "作用：描述会话\n输入：服务端记录\n输出：公开会话"
       },
+      "CreateInvestigation": {
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "title": "Conversation Id"
+          },
+          "goal": {
+            "type": "string",
+            "maxLength": 1200,
+            "minLength": 1,
+            "title": "Goal"
+          },
+          "scope": {
+            "type": "string",
+            "maxLength": 1200,
+            "minLength": 1,
+            "title": "Scope"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "conversation_id",
+          "goal",
+          "scope",
+          "snapshot_id"
+        ],
+        "title": "CreateInvestigation",
+        "description": "作用：请求固定调查边界或显式分支\n输入：会话、目标、范围及快照\n输出：严格请求"
+      },
       "CreateRun": {
         "properties": {
           "conversation_id": {
@@ -3085,6 +3334,29 @@
             "type": "array",
             "maxItems": 4,
             "title": "Context Run Ids"
+          },
+          "investigation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Investigation Id"
+          },
+          "expected_investigation_version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Investigation Version"
           }
         },
         "additionalProperties": false,
@@ -3386,6 +3658,137 @@
         ],
         "title": "EvidenceDTO",
         "description": "作用：只从指定报告的冻结索引返回依据\n输入：报告块和受限单元格选择\n输出：原值、执行记录、固定来源与口径"
+      },
+      "ExplorationScope": {
+        "properties": {
+          "population": {
+            "type": "string",
+            "maxLength": 600,
+            "minLength": 1,
+            "pattern": "\\S",
+            "title": "Population"
+          },
+          "calculation": {
+            "type": "string",
+            "maxLength": 600,
+            "minLength": 1,
+            "pattern": "\\S",
+            "title": "Calculation"
+          },
+          "missing_values": {
+            "type": "string",
+            "maxLength": 600,
+            "minLength": 1,
+            "pattern": "\\S",
+            "title": "Missing Values"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "population",
+          "calculation",
+          "missing_values"
+        ],
+        "title": "ExplorationScope",
+        "description": "作用：记录探索查询声明的范围、算法与缺失处理，不代表业务语义已审核\n输入：模型随查询提交的简短说明\n输出：随成功产物冻结的探索说明"
+      },
+      "FindingDTO": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "check": {
+            "type": "string",
+            "title": "Check"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "supersedes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "artifact_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Artifact Ids"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Ids"
+          },
+          "value_refs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ValueRef"
+            },
+            "type": "object",
+            "title": "Value Refs"
+          },
+          "source_run_status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed",
+              "cancelled",
+              "interrupted"
+            ],
+            "title": "Source Run Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "run_id",
+          "kind",
+          "check",
+          "text",
+          "questions",
+          "supersedes",
+          "created_at",
+          "artifact_ids",
+          "evidence_ids",
+          "value_refs",
+          "source_run_status"
+        ],
+        "title": "FindingDTO",
+        "description": "作用：展示服务端已取值的固定发现\n输入：持久化发现\n输出：中文内容与证据索引"
       },
       "FrozenSource": {
         "properties": {
@@ -3749,6 +4152,122 @@
         "title": "ImportReceipt",
         "description": "作用：返回固定原文及实际处理任务\n输入：导入结果\n输出：上传回执"
       },
+      "InvestigationDTO": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "conversation_id": {
+            "type": "string",
+            "title": "Conversation Id"
+          },
+          "goal": {
+            "type": "string",
+            "title": "Goal"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "knowledge_snapshot_id": {
+            "type": "string",
+            "title": "Knowledge Snapshot Id"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "limits": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Limits"
+          },
+          "allocated": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Allocated"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "running",
+              "budget_exhausted"
+            ],
+            "title": "Status"
+          },
+          "active_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Run Id"
+          },
+          "run_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Run Ids"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/FindingDTO"
+            },
+            "type": "array",
+            "title": "Findings"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "conversation_id",
+          "goal",
+          "scope",
+          "snapshot_id",
+          "knowledge_snapshot_id",
+          "parent_id",
+          "created_at",
+          "version",
+          "limits",
+          "allocated",
+          "status",
+          "active_run_id",
+          "run_ids",
+          "findings"
+        ],
+        "title": "InvestigationDTO",
+        "description": "作用：恢复调查、额度与发现历史\n输入：服务端调查\n输出：前后端统一契约"
+      },
       "ItemList": {
         "properties": {
           "items": {
@@ -4107,6 +4626,34 @@
         ],
         "title": "Page[EventDTO]"
       },
+      "Page_InvestigationDTO_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InvestigationDTO"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "Page[InvestigationDTO]"
+      },
       "Page_ReportSummary_": {
         "properties": {
           "items": {
@@ -4311,6 +4858,33 @@
             },
             "type": "array",
             "title": "Knowledge Revision Ids"
+          },
+          "query_purpose": {
+            "type": "string",
+            "enum": [
+              "legacy",
+              "exploratory",
+              "reviewed_metric"
+            ],
+            "title": "Query Purpose",
+            "default": "legacy"
+          },
+          "exploration_scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExplorationScope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unavailable_metric_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unavailable Metric Keys"
           },
           "duration_ms": {
             "type": "integer",
@@ -4881,6 +5455,20 @@
             ],
             "title": "Error Code"
           },
+          "error_details": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Error Details"
+          },
           "cancel_requested": {
             "type": "boolean",
             "title": "Cancel Requested"
@@ -4903,6 +5491,28 @@
             },
             "type": "object",
             "title": "Usage"
+          },
+          "investigation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Investigation Id"
+          },
+          "expected_investigation_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Investigation Version"
           }
         },
         "additionalProperties": false,

@@ -8,7 +8,15 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
 from metric_pilot.agent import models as m
-from metric_pilot.agent.contracts import ConversationDTO, CreateRun, EventDTO, RunDTO
+from metric_pilot.agent.contracts import (
+    ConversationDTO,
+    CreateInvestigation,
+    CreateRun,
+    EventDTO,
+    InvestigationDTO,
+    RunDTO,
+)
+from metric_pilot.agent.investigations import InvestigationStore
 from metric_pilot.agent.store import TERMINAL, RunStore
 from metric_pilot.data.api import get_catalog
 from metric_pilot.data.common import DataError
@@ -100,7 +108,17 @@ def create_run(body: CreateRun, request: Request):
         raise DataError("MODEL_NOT_CONFIGURED")
     snapshot = get_catalog(request).snapshot(body.snapshot_id)
     knowledge = KnowledgeStore(store.engine)
-    fixed = knowledge.snapshot()
+    fixed = (
+        knowledge.snapshot()
+        if not body.investigation_id
+        else {
+            "id": InvestigationStore(store.engine).read(body.investigation_id)[
+                "knowledge_snapshot_id"
+            ]
+        }
+    )
+    with store.engine.connect() as c:
+        fixed = {"id": fixed["id"], **knowledge.get(c, km.snapshots, fixed["id"])["payload"]}
     # 用户选中的指标必须属于服务端刚冻结的已审核清单，且覆盖整月。
     if not set(body.metric_revision_ids) <= set(fixed["metric_revision_ids"]):
         raise DataError("METRIC_NOT_IN_SNAPSHOT")
@@ -131,6 +149,67 @@ def create_run(body: CreateRun, request: Request):
         },
         model=settings.llm_model,
     )
+
+
+@router.post("/investigations", response_model=InvestigationDTO, status_code=201)
+def create_investigation(body: CreateInvestigation, request: Request):
+    """
+    作用：固定新调查或显式分支的范围、知识与累计额度
+    输入：调查请求
+    输出：调查记录
+    """
+    store = store_for(request)
+    get_catalog(request).snapshot(body.snapshot_id)
+    config = request.app.state.settings
+    fixed = KnowledgeStore(store.engine).snapshot()
+    return InvestigationStore(store.engine).create(
+        body,
+        fixed["id"],
+        {
+            "max_turns": config.run_max_turns,
+            "max_tool_calls": config.run_max_tool_calls,
+            "timeout_seconds": config.run_timeout_seconds,
+        },
+    )
+
+
+@router.get("/investigations", response_model=Page[InvestigationDTO])
+def list_investigations(request: Request, conversation_id: str):
+    """
+    作用：恢复同会话的调查列表及分支
+    输入：会话标识
+    输出：调查列表
+    """
+    store = InvestigationStore(store_for(request).engine)
+    with store.engine.connect() as c:
+        ids = list(
+            c.execute(
+                select(m.investigations.c.id).where(
+                    m.investigations.c.conversation_id == conversation_id
+                )
+            ).scalars()
+        )
+    return {"items": sorted([store.read(ident) for ident in ids], key=lambda p: p["created_at"])}
+
+
+@router.get("/investigations/{investigation_id}", response_model=InvestigationDTO)
+def get_investigation(investigation_id: str, request: Request):
+    """
+    作用：恢复调查和发现历史
+    输入：调查标识
+    输出：调查记录
+    """
+    return InvestigationStore(store_for(request).engine).read(investigation_id)
+
+
+@router.get("/investigations/{investigation_id}/findings/{finding_id}/evidence")
+def finding_evidence(investigation_id: str, finding_id: str, request: Request):
+    """
+    作用：读取发现固定证据而非最新值
+    输入：调查与发现标识
+    输出：证据快照
+    """
+    return InvestigationStore(store_for(request).engine).evidence(investigation_id, finding_id)
 
 
 @router.get("/runs/{run_id}", response_model=RunDTO)

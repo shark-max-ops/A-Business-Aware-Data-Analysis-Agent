@@ -17,7 +17,7 @@ from metric_pilot.data.catalog import Catalog
 from metric_pilot.data.common import DataError, canonical_bytes, new_id, utc_now
 from metric_pilot.data.contracts import QueryArtifact, RunContext, ToolResult
 from metric_pilot.data.executor import QueryExecutor
-from metric_pilot.data.guard import GUARD_VERSION, validate_sql
+from metric_pilot.data.guard import FUNCTIONS, GUARD_VERSION, validate_sql
 from metric_pilot.data.models import ArtifactRecord, QueryExecution
 from metric_pilot.database import create_metadata_engine
 from metric_pilot.settings import Settings
@@ -49,6 +49,9 @@ class QueryService:
         *,
         metric_revision_ids=(),
         knowledge_revision_ids=(),
+        query_purpose="legacy",
+        exploration_scope=None,
+        unavailable_metric_keys=(),
     ) -> ToolResult:
         """
         作用：审计每次尝试，仅为成功执行产生不可变产物
@@ -56,6 +59,7 @@ class QueryService:
         输出：统一工具结果
         """
         execution_id, began = new_id("exec"), time.monotonic()
+        error_details = {}
         self.catalog.snapshot(ctx.snapshot_id)
         # 未通过参数校验时只保存空参数，避免非 JSON 值破坏失败审计。
         with Session(self.catalog.engine) as session, session.begin():
@@ -129,6 +133,9 @@ class QueryService:
                 ordered=guarded.ordered,
                 metric_revision_ids=list(metric_revision_ids),
                 knowledge_revision_ids=list(knowledge_revision_ids),
+                query_purpose=query_purpose,
+                exploration_scope=exploration_scope,
+                unavailable_metric_keys=list(unavailable_metric_keys),
             )
             if cancel is not None and cancel.is_set():
                 raise DataError("QUERY_CANCELLED")
@@ -156,6 +163,14 @@ class QueryService:
             )
         except DataError as exc:
             code = exc.code
+            if code == "FUNCTION_NOT_ALLOWED":
+                # 仅反馈模型自己提交的函数名与服务端允许列表，不返回连接或异常正文。
+                error_details = {
+                    "function": str(exc.details.get("function", ""))[:80],
+                    "allowed_functions": sorted(FUNCTIONS),
+                    "instruction": "该函数未开放，不要原样重试。可选统计无法执行时，"
+                    "保留已有成功核查，在报告说明该项限制；不要因此丢弃已有证据。",
+                }
         except Exception:
             code = "QUERY_INTERNAL_ERROR"
         with Session(self.catalog.engine) as session, session.begin():
@@ -167,7 +182,10 @@ class QueryService:
             ok=False,
             summary="查询未成功，未生成证据产物",
             error_code=code,
-            data={"execution_id": execution_id},
+            data={
+                "execution_id": execution_id,
+                **({"error_details": error_details} if error_details else {}),
+            },
         )
 
     def read_artifact(self, run_id: str, artifact_id: str, offset=0, limit=20) -> dict:

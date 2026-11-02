@@ -13,16 +13,40 @@ export type ToolStep = {
 };
 
 export const toolLabels: Record<string, string> = {
+  read_investigation: '回顾调查记录', record_finding: '保存发现与依据',
   search_knowledge: '查阅来源资料', read_wiki_page: '阅读已发布 Wiki', resolve_metric: '核对指标口径',
   list_tables: '确认可查询表', describe_table: '读取表结构', query_sql: '执行只读查询', read_artifact: '读取查询结果',
 };
 const runningLabels: Record<string, string> = {
+  read_investigation: '正在回顾调查记录', record_finding: '正在核对并保存发现',
   search_knowledge: '正在查阅来源资料', read_wiki_page: '正在阅读 Wiki', resolve_metric: '正在核对指标口径',
   list_tables: '正在确认可查询表', describe_table: '正在读取表结构', query_sql: '正在执行只读查询', read_artifact: '正在读取查询结果',
 };
 export const toolStatusLabels: Record<ToolStatus, string> = {
   running: '执行中', succeeded: '已完成', failed: '未成功', cancelled: '已取消', interrupted: '已中断', unknown: '状态未知',
 };
+
+/** 作用：解释真实模型失败并兼容缺少细分诊断的历史运行；输入：运行；输出：中文说明。 */
+export function runFailureDescription(run: Run): string {
+  if (run.error_code === 'CONTEXT_BUDGET_EXCEEDED') return '整理的历史或工具结果超过了本次上下文容量，当前运行未完成。已保存的报告与发现仍保留；这不表示你的提问有误。';
+  if (run.error_code === 'TURN_BUDGET_EXCEEDED') return '本次模型交互轮数已用完，尚未完成最终结果。已保存的查询和发现仍保留；这不表示你的提问有误。';
+  if (run.error_code === 'TOOL_BUDGET_EXCEEDED') return '本次工具调用额度已用完，尚未完成最终结果。已保存的查询和发现仍保留。';
+  const details = run.error_details ?? {};
+  const attempts = Number(details.attempts ?? 0);
+  const tried = attempts > 1 ? `已尝试 ${attempts} 次，仍未恢复。` : '';
+  if (run.error_code === 'MODEL_REQUEST_FAILED') {
+    const reason = details.failure_kind === 'timeout' ? '等待模型服务响应超时。'
+      : details.failure_kind === 'connection' ? '未能连接到模型服务。'
+      : details.failure_kind === 'connection_interrupted' ? '与模型服务的连接或响应读取中断。'
+      : '模型请求未完成，现有记录无法确定更具体的连接或响应原因。';
+    return `${reason}${tried}已保存的查询与阶段性发现仍保留，本轮尚未生成完整报告。`;
+  }
+  if (run.error_code === 'MODEL_RESPONSE_INVALID' || run.error_code === 'MODEL_PROTOCOL_ERROR') return '模型服务返回了无法解析或不符合协议的响应，本轮尚未完成。请查看执行详情后重新发起。';
+  if (run.error_code === 'MODEL_HTTP_ERROR') return [401, 403].includes(Number(details.status))
+    ? '模型服务拒绝了请求，请检查本机凭据与访问权限。'
+    : `模型服务返回异常状态${details.status ? `（${details.status}）` : ''}。${tried}请稍后重新发起。`;
+  return '可修改问题后重新发起，具体原因可在执行详情中查看。';
+}
 
 /** 作用：安全读取工具对象；输入：事件中的未知数据；输出：普通对象或空对象。 */
 export function recordOf(value: unknown): Record<string, unknown> {

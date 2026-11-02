@@ -2,10 +2,11 @@
 
 from typing import Annotated, Any, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from metric_pilot.contracts import StrictDTO
-from metric_pilot.reports.contracts import ReportCandidate, ReportResult
+from metric_pilot.data.contracts import ExplorationScope
+from metric_pilot.reports.contracts import ReportCandidate, ReportResult, TextBlock, ValueRef
 
 RunStatus = Literal["queued", "running", "completed", "failed", "cancelled", "interrupted"]
 
@@ -34,6 +35,8 @@ class CreateRun(StrictDTO):
     snapshot_id: str
     metric_revision_ids: list[str] = Field(default_factory=list, max_length=16)
     context_run_ids: list[str] = Field(default_factory=list, max_length=4)
+    investigation_id: str | None = None
+    expected_investigation_version: int | None = Field(default=None, ge=1)
 
 
 class QueryResult(StrictDTO):
@@ -83,11 +86,14 @@ class RunDTO(StrictDTO):
     metric_revision_ids: list[str]
     result: StoredResult | None = None
     error_code: str | None = None
+    error_details: dict[str, str | int] = Field(default_factory=dict)
     cancel_requested: bool
     created_at: str
     seq: int
     model: str
     usage: dict[str, int]
+    investigation_id: str | None = None
+    expected_investigation_version: int | None = None
 
 
 class EventDTO(StrictDTO):
@@ -186,6 +192,24 @@ class SQLArgs(StrictDTO):
     sql: str = Field(min_length=1, max_length=20000)
     params: dict[str, Any] = Field(default_factory=dict)
     metric_revision_ids: list[str] = Field(default_factory=list, max_length=16)
+    purpose: Literal["standard", "exploratory", "reviewed_metric"] = "standard"
+    exploration_scope: ExplorationScope | None = None
+
+    @model_validator(mode="after")
+    def check_purpose(self):
+        """
+        作用：拒绝无范围探索、探索冒绑指标和未绑定版本的正式指标计算
+        输入：已通过字段校验的参数
+        输出：用途一致的参数
+        """
+        if self.purpose == "exploratory":
+            if self.exploration_scope is None or self.metric_revision_ids:
+                raise ValueError("探索需说明范围，且不能绑定正式指标")
+        elif self.exploration_scope is not None:
+            raise ValueError("探索说明仅用于探索查询")
+        if self.purpose == "reviewed_metric" and not self.metric_revision_ids:
+            raise ValueError("正式指标计算必须绑定已审核修订")
+        return self
 
 
 class ArtifactArgs(StrictDTO):
@@ -198,3 +222,89 @@ class ArtifactArgs(StrictDTO):
     artifact_id: str
     offset: int = Field(default=0, ge=0)
     limit: int = Field(default=20, ge=1, le=100)
+
+
+class CreateInvestigation(StrictDTO):
+    """
+    作用：请求固定调查边界或显式分支
+    输入：会话、目标、范围及快照
+    输出：严格请求
+    """
+
+    conversation_id: str
+    goal: str = Field(min_length=1, max_length=1200)
+    scope: str = Field(min_length=1, max_length=1200)
+    snapshot_id: str
+    parent_id: str | None = None
+
+
+class RecordFinding(StrictDTO):
+    """
+    作用：记录核查后的发现与待解决问题
+    输入：简短核查、分类、引用模板及后续问题
+    输出：待验证发现，不含模型内部思维
+    """
+
+    kind: Literal["fact", "candidate", "counterevidence", "limitation", "recommendation"]
+    check: str = Field(min_length=1, max_length=400)
+    statement: TextBlock
+    questions: list[Annotated[str, Field(min_length=1, max_length=400)]] = Field(
+        default_factory=list, max_length=6
+    )
+    supersedes: str | None = None
+
+
+class ReadInvestigation(StrictDTO):
+    """
+    作用：有限分页读取调查发现，防止历史记录挤满模型上下文
+    输入：偏移和上限
+    输出：严格分页参数
+    """
+
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=5, ge=1, le=10)
+
+
+class FindingDTO(StrictDTO):
+    """
+    作用：展示服务端已取值的固定发现
+    输入：持久化发现
+    输出：中文内容与证据索引
+    """
+
+    id: str
+    run_id: str
+    kind: str
+    check: str
+    text: str
+    questions: list[str]
+    supersedes: str | None
+    created_at: str
+    artifact_ids: list[str]
+    evidence_ids: list[str]
+    value_refs: dict[str, ValueRef]
+    source_run_status: RunStatus
+
+
+class InvestigationDTO(StrictDTO):
+    """
+    作用：恢复调查、额度与发现历史
+    输入：服务端调查
+    输出：前后端统一契约
+    """
+
+    id: str
+    conversation_id: str
+    goal: str
+    scope: str
+    snapshot_id: str
+    knowledge_snapshot_id: str
+    parent_id: str | None
+    created_at: str
+    version: int
+    limits: dict[str, int]
+    allocated: dict[str, int]
+    status: Literal["ready", "running", "budget_exhausted"]
+    active_run_id: str | None
+    run_ids: list[str]
+    findings: list[FindingDTO]

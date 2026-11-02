@@ -2,8 +2,9 @@ import { useEffect, useId, useState } from 'react';
 import { Alert, Drawer, Select } from 'antd';
 import type { Run, RunEvent } from '../api/analysis';
 import { terminal } from '../api/analysis';
-import { executionSteps, executionSummary, formatDuration, recordOf, stepDescription, toolLabels, toolStatusLabels } from './executionPresentation';
+import { executionSteps, executionSummary, formatDuration, recordOf, runFailureDescription, stepDescription, toolLabels, toolStatusLabels } from './executionPresentation';
 import type { ToolStatus, ToolStep } from './executionPresentation';
+import { ExplorationNote } from './ExplorationNote';
 
 type Tone = ToolStatus | 'success' | 'warning' | 'error' | 'neutral';
 
@@ -76,13 +77,14 @@ export function ExecutionTrace({ run, events, connection }: { run: Run; events: 
       <p className="execution-drawer-eyebrow">本次分析</p><h3 className="execution-drawer-question">{run.question}</h3>
       <div className={`execution-overview ${summary.tone}`}><StateMark tone={summary.tone} /><span>{summary.title}</span><span className="execution-meta">{summary.info}</span></div>
       <p className="execution-fixed-note">数据与知识版本已固定。以下仅展示实际操作与结果。</p>
-      {run.error_code && <Alert type={run.status === 'cancelled' ? 'info' : 'warning'} showIcon message={summary.title} description={run.error_code} />}
+      {run.error_code && <Alert type={run.status === 'cancelled' ? 'info' : 'warning'} showIcon message={summary.title} description={<><p>{runFailureDescription(run)}</p><code>{run.error_code}</code></>} />}
       {steps.length > 0 ? <>
         <label className="execution-field-label" htmlFor={`${contentId}-tool`}>工具记录</label>
         <Select id={`${contentId}-tool`} aria-label="选择工具记录" value={selected?.id} onChange={setSelectedId} style={{ width: '100%' }} options={steps.map((step, index) => ({ value: step.id, label: `${index + 1}. ${toolLabels[step.name] ?? step.name} · ${toolStatusLabels[visibleStatus(step, run)]}` }))} />
         {selected && <section className="execution-tool-detail" aria-label="所选工具详情">
           <div className="execution-tool-heading"><h4>{toolLabels[selected.name] ?? selected.name}</h4><span className={`execution-tool-status ${visibleStatus(selected, run)}`}>{toolStatusLabels[visibleStatus(selected, run)]}</span></div>
           <p className="execution-detail-description">{stepDescription(selected)}</p>
+          <ExplorationNote artifact={artifact} />
           {selected.durationMs !== null && <p className="execution-meta">工具用时 {formatDuration(selected.durationMs)} · 按服务端开始与结束事件计算</p>}
           {typeof selected.result?.error_code === 'string' && <Alert type="warning" message="本次工具未成功" description={String(selected.result.error_code)} />}
           {sql && <><h4>SQL</h4><pre className="execution-code"><code>{sql}</code></pre><h4>绑定参数</h4>{Object.keys(recordOf(params)).length ? <JsonBlock value={params} /> : <p className="execution-meta">无绑定参数</p>}</>}

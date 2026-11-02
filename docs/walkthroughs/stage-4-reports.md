@@ -2,7 +2,7 @@
 
 更新日期：2026-10-31。项目名称：**A Business-Aware Data Analysis Agent**；Python 包名：metric_pilot。
 
-本文讲解已实现的报告能力。阶段 4 后来新增了围绕业务目标持续调查的目标，该部分尚未实施，设计见[蓝图 07](../../参考/docs/blueprint/07-build-and-evaluate.md)。
+本文讲解报告能力。阶段 4 新增的持续调查也已实现并验收，参见[持续调查讲解](stage-4-investigations.md)与[蓝图 07](../../参考/docs/blueprint/07-build-and-evaluate.md)。调查报告可复用服务端授权的同调查、同版本、已完成运行产物；历史普通运行仍只允许引用本次成功产物。
 
 ## 1. 阶段目标
 

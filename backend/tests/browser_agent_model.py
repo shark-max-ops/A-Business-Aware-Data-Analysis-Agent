@@ -42,7 +42,81 @@ class BrowserModel(FakeLLM):
         输出：测试回合
         """
         question = json.loads(messages[1]["content"])["question"]
+        if "探索边界验收" in question and self.index == 0:
+            from test_exploration import exploration
+            from test_investigations import finding_call
+            from test_reports import SQL, report_candidate
+
+            self.steps = [
+                calls(("resolve_metric", {"metric_key": "missing_reviewed_metric"})),
+                calls(("query_sql", {"sql": SQL})),
+                calls(exploration()),
+                finding_call,
+                report_candidate,
+            ]
+        if "审核阻断验收" in question and self.index == 0:
+            query = ("query_sql", {"sql": "SELECT COUNT(*) FROM v_flights"})
+            self.steps = [
+                calls(("resolve_metric", {"metric_key": "missing_reviewed_metric"})),
+                calls(query, query),
+            ]
+        if "调查验收" in question and self.index == 0:
+            from test_investigations import finding_call
+            from test_reports import SQL, report_candidate
+
+            previous = json.loads(messages[1]["content"])["investigation"]["recent_findings"]
+            if previous:
+
+                def continue_with_evidence(messages):
+                    """
+                    作用：从真实分页工具响应取得引用，避免依赖上下文摘要的展示字段
+                    输入：实际工具消息
+                    输出：读取产物的测试回合
+                    """
+                    found = json.loads(messages[-1]["content"])["data"]["findings"]
+                    old = next(item for item in found if item["id"] == previous[-1]["id"])
+                    ident = old["artifact_ids"][0]
+                    statement = {
+                        "type": "text",
+                        "id": "continued",
+                        "text_template": "核查首日记录为 {{n}} 条，缺乏证据判断原因。",
+                        "values": old["value_refs"],
+                        "evidence_ids": [ident],
+                    }
+                    self.steps.extend(
+                        [
+                            calls(
+                                (
+                                    "record_finding",
+                                    {
+                                        "kind": "counterevidence",
+                                        "check": "重读固定结果并核对解释边界",
+                                        "statement": statement,
+                                        "supersedes": old["id"],
+                                        "questions": ["补充其他解释所需资料"],
+                                    },
+                                )
+                            ),
+                            {
+                                "kind": "report",
+                                "report": {
+                                    "schema_version": "1",
+                                    "title": "调查继续核查",
+                                    "scope": "合成数据",
+                                    "metric_revision_ids": [],
+                                    "blocks": [statement],
+                                    "limitations": ["不能证明因果"],
+                                },
+                            },
+                        ]
+                    )
+                    return calls(("read_artifact", {"artifact_id": ident}))
+
+                self.steps = [calls(("read_investigation", {})), continue_with_evidence]
+            else:
+                self.steps = [calls(("query_sql", {"sql": SQL})), finding_call, report_candidate]
         if "报告验收" in question and self.index == 0:
+            from test_investigations import finding_call
             from test_reports import SQL, report_candidate
 
             def report_with_bar(messages):
@@ -61,6 +135,7 @@ class BrowserModel(FakeLLM):
                 calls(("search_knowledge", {"query": "ArrDelay"}), ("list_tables", {})),
                 calls(("describe_table", {"table_name": "v_flights"})),
                 calls(("query_sql", {"sql": SQL})),
+                finding_call,
                 report_with_bar,
             ]
         if "需要补充条件" in question:
