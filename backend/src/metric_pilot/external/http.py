@@ -13,7 +13,7 @@ import httpcore
 import httpx
 
 from metric_pilot.data.common import DataError, canonical_bytes, new_id, utc_now
-from metric_pilot.external.registry import validate_url
+from metric_pilot.external.registry import PUBLIC_SOURCE_HOSTS, validate_url
 
 
 class PublicNetworkBackend(httpcore.AnyIOBackend):
@@ -38,7 +38,7 @@ class PublicNetworkBackend(httpcore.AnyIOBackend):
         输入：主机、端口及连接预算。
         输出：实际公网连接。
         """
-        if host not in {"aviationweather.gov", "www.ncei.noaa.gov"} or port != 443:
+        if host not in PUBLIC_SOURCE_HOSTS or port != 443:
             raise DataError("EXTERNAL_ADDRESS_REJECTED")
         if self.dns_mode == "cloudflare":
             # 显式选项仅向固定公网 IP 发域名；TLS 校验证书，不使用代理或重定向。
@@ -167,7 +167,7 @@ class SourceHTTP:
                         "GET",
                         query_url,
                         headers={
-                            "User-Agent": "BusinessAwareAnalysis-weather/0.1",
+                            "User-Agent": "BusinessAwareAnalysis-external/0.1",
                             "Accept-Encoding": "identity",
                             "Accept": "*/*",
                         },

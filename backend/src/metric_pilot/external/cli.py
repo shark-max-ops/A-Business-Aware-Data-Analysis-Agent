@@ -169,7 +169,7 @@ def readable_weather(result, storage, row_limit):
             "出处与完整记录：",
             f"数据接口：{result['fetches'][0]['url']}" if result["fetches"] else "无抓取来源",
             f"完整结果：{storage / 'external' / 'weather' / (result['id'] + '.json')}",
-        f"原件与请求条件：{storage / 'external' / 'fetches'}（完整结果中可查对应文件）",
+            f"原件与请求条件：{storage / 'external' / 'fetches'}（完整结果中可查对应文件）",
             "以上为独立天气查询，尚未接入分析对话和报告；天气观测不能单独证明航班异常原因。",
         ]
     )

@@ -244,7 +244,8 @@ async def parse_ghcnh(raw, fetch_id, station, start_utc, end_utc, fields):
                     ),
                     measurement_policy=(
                         "降水仅纳入空码、2（微量）、4（累计结束）；其他测量标记保留但不计覆盖"
-                        if field == "precipitation" else "保留原始测量码"
+                        if field == "precipitation"
+                        else "保留原始测量码"
                     ),
                 )
             result.append(

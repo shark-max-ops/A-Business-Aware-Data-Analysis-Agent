@@ -9,6 +9,8 @@ from metric_pilot.data.common import DataError
 
 NCEI_ROOT = "https://www.ncei.noaa.gov/oa/global-historical-climatology-network"
 AWC_ROOT = "https://aviationweather.gov/api/data"
+FAA_ROOT = "https://www.fly.faa.gov/adv"
+PUBLIC_SOURCE_HOSTS = frozenset({"aviationweather.gov", "www.ncei.noaa.gov", "www.fly.faa.gov"})
 SOURCE_POLICIES = {
     "awc_metar": {
         "enabled": True,
@@ -38,6 +40,25 @@ SOURCE_POLICIES = {
         "local_limit": "单查询最多两个年度文件、每份最多 64 MiB、间隔至少 2 秒",
         "attribution": "Menne et al. (2023), GHCNh, doi:10.25921/jp3d-3v19；标注站点/日期/获取时间",
         "sent": "已登记站点编号与年度文件路径",
+    },
+    "faa_atcscc": {
+        "enabled": True,
+        "operator": "FAA Air Traffic Control System Command Center",
+        "terms": [
+            "https://www.faa.gov/web_policies/disclaimer",
+            "https://www.fly.faa.gov/adv/advAdvisoryForm",
+            "https://www.faa.gov/air_traffic/publications/atpubs/aim_html/chap5_section_1.html",
+        ],
+        "checked_on": "2026-11-03",
+        "authentication": "公开查询入口，匿名只读",
+        "fee": "不购买数据服务；仅公开清单与正文",
+        "provider_limit": "未公布该网页入口数字配额或稳定 API 承诺",
+        "local_limit": "每次最多三天/三次清单或一次正文；间隔至少两秒、不自动重试",
+        "attribution": "FAA ATCSCC 公告原文；保留编号、日期与出处；项目标签不冒充官方解释",
+        "use_scope": "仅本机低频查阅、留存与引用；不作公开镜像或批量再分发授权",
+        "restriction": "拒绝登录/封锁/跳转和脚本挑战；不抓加拿大公告、图片或第三方链接",
+        "licensing_boundary": "未取得通用自动抓取许可证；公开查阅不等于无限抓取/再分发",
+        "sent": "UTC 日期与 ATCSCC/All 固定条件；正文仅清单登记的日期和编号",
     },
 }
 
@@ -133,12 +154,16 @@ def validate_url(url: str) -> str:
     import re
 
     part = urlsplit(url)
-    allowed = (part.hostname == "aviationweather.gov" and part.path == "/api/data/metar") or (
-        part.hostname == "www.ncei.noaa.gov"
-        and re.fullmatch(
-            r"/oa/global-historical-climatology-network/hourly/access/by-year/"
-            r"20\d{2}/psv/GHCNh_USW\d{8}_20\d{2}\.psv",
-            part.path,
+    allowed = (
+        (part.hostname == "www.fly.faa.gov" and part.path in ("/adv/adv_list", "/adv/adv_otherdis"))
+        or (part.hostname == "aviationweather.gov" and part.path == "/api/data/metar")
+        or (
+            part.hostname == "www.ncei.noaa.gov"
+            and re.fullmatch(
+                r"/oa/global-historical-climatology-network/hourly/access/by-year/"
+                r"20\d{2}/psv/GHCNh_USW\d{8}_20\d{2}\.psv",
+                part.path,
+            )
         )
     )
     if (

@@ -11,7 +11,7 @@
 | 2：知识与指标 | [文档版本、检索、Wiki 与指标审核](stage-2-knowledge-and-metrics.md) | 已实施；实际指标与 Wiki 的人工审核边界仍保留 |
 | 3：分析 Agent | [模型工具调用、运行控制与事件流](stage-3-agent-runtime.md) | 已实施，完成 Windows 与真实模型案例验收 |
 | 4：调查与可追溯报告 | [报告与数字取证](stage-4-reports.md)、[持续调查与证据复用](stage-4-investigations.md) | 已完成 Windows 与真实模型调查、续查案例验收，边界见实施记录 |
-| 5：外部来源与调查工具 | [5.A 独立天气查询](stage-5a-weather.md) | 5.A 已独立验收；5.B—5.D 未实施，尚未接入 Agent 和报告 |
+| 5：外部来源与调查工具 | [5.A 独立天气查询](stage-5a-weather.md)、[5.B 公告与原文](stage-5b-advisories.md) | 5.A/5.B 已独立验收；5.C—5.D 未实施，尚未接入 Agent 和报告 |
 | 6：用户导入 | 尚未建立实施导读 | 尚未实施 |
 | 7：评估与交付 | 尚未建立实施导读 | 尚未实施，不预填准确率或费用 |
 
