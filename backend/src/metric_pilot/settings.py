@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     run_timeout_seconds: int = Field(default=180, ge=1)
     sql_timeout_seconds: int = Field(default=10, ge=1)
     sql_max_rows: int = Field(default=1000, ge=1)
+    external_dns_mode: Literal["system", "cloudflare"] = "system"
+    external_max_requests: int = Field(default=8, ge=1, le=12)
+    external_max_seconds: int = Field(default=120, ge=5, le=120)
+    external_max_bytes: int = Field(default=80 * 1024 * 1024, ge=1024, le=128 * 1024 * 1024)
 
     def integration_configured(self, prefix: str) -> bool:
         """

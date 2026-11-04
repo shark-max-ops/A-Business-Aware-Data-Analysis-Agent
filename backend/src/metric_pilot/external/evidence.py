@@ -8,6 +8,7 @@ from pathlib import Path
 
 from sqlalchemy import select
 
+from metric_pilot.agent import models as agent_models
 from metric_pilot.agent.investigations import authorized_runs
 from metric_pilot.agent.store import RunStore
 from metric_pilot.data.common import DataError, canonical_bytes, digest, new_id, utc_now
@@ -63,7 +64,7 @@ class ExternalEvidenceService(KnowledgeStore):
             raise DataError("EXTERNAL_RUN_NOT_WRITABLE")
         return run
 
-    def read_fetch(self, record, url, params):
+    def read_fetch(self, record, url, params, *, statuses=(200, 204)):
         """
         作用：核对采集清单和原件，失败或截断不能升级为正式证据。
         输入：抓取记录和服务端预期 URL/参数。
@@ -76,7 +77,7 @@ class ExternalEvidenceService(KnowledgeStore):
             or record.get("params") != params
             or record.get("status") != "succeeded"
             or record.get("truncated")
-            or record.get("http_status") not in (200, 204)
+            or record.get("http_status") not in statuses
             or not re.fullmatch(r"[a-f0-9]{64}", record.get("sha256", ""))
         ):
             raise DataError("EXTERNAL_SOURCE_INVALID")
@@ -155,6 +156,7 @@ class ExternalEvidenceService(KnowledgeStore):
             or payload["conversation_id"] != run["conversation_id"]
         ):
             raise DataError("EXTERNAL_EVIDENCE_NOT_ALLOWED")
+        self.check_producer(run, row)
         with self.engine.connect() as c:
             owner = c.execute(
                 select(m.bindings).where(
@@ -178,6 +180,74 @@ class ExternalEvidenceService(KnowledgeStore):
                 raise DataError("EXTERNAL_SOURCE_CHANGED")
         return payload
 
+    def check_producer(self, run, row):
+        """
+        作用：Agent 天气工具失败时不把已落盘但未成功返回的资料升级为可复用证据。
+        输入：真实消费运行与已核对摘要的证据；独立 5.C 服务没有工具生产记录。
+        输出：无；失败生产者或不匹配的返回身份拒绝使用，旧报告本身不改写。
+        """
+        payload = row["payload"]
+        if payload["kind"] != "weather":
+            return
+        with self.engine.connect() as connection:
+            executions = (
+                connection.execute(
+                    select(agent_models.executions).where(
+                        agent_models.executions.c.run_id == row["owner_run_id"],
+                        agent_models.executions.c.name == "query_historical_weather",
+                    )
+                )
+                .mappings()
+                .all()
+            )
+        producer = payload.get("producer_tool_call_id")
+        if producer is not None:
+            executions = [entry for entry in executions if entry["tool_call_id"] == producer]
+            if not executions:
+                raise DataError("EXTERNAL_TOOL_NOT_SUCCEEDED")
+        else:
+            # 兼容旧记录：只对原参数明确为同一机场/当地日期窗口的工具判定，不猜相对日期。
+            document = payload["document"]
+            executions = [
+                entry
+                for entry in executions
+                if (
+                    str(entry["arguments"].get("airport", "")).upper()
+                    == document["mapping"]["airport"]
+                    and entry["arguments"].get("start") == document["local_start"]
+                    and (entry["arguments"].get("end") or entry["arguments"].get("start"))
+                    == document["local_end"]
+                    and (
+                        "fields" not in entry["arguments"]
+                        or (
+                            isinstance(entry["arguments"]["fields"], list)
+                            and all(
+                                isinstance(field, str) for field in entry["arguments"]["fields"]
+                            )
+                            and set(entry["arguments"]["fields"]) == set(document["coverage"])
+                        )
+                    )
+                )
+            ]
+            if not executions:
+                return
+        for entry in executions:
+            result = entry["result"]
+            if (
+                entry["status"] == "succeeded"
+                and result.get("ok")
+                and result.get("data", {}).get("evidence_id") == payload["id"]
+            ):
+                return
+            if (
+                entry["status"] == "running"
+                and row["owner_run_id"] == run["id"]
+                and run["status"] == "running"
+            ):
+                # 仅同一正在运行的生产调用可读取刚登记的元数据；结束后必须核对真实成功返回。
+                return
+        raise DataError("EXTERNAL_TOOL_NOT_SUCCEEDED")
+
     def existing(self, run, slot, capture_hash):
         """
         作用：同一运行的同一条件固定一个外部版本，重复登记幂等但不能替换。
@@ -197,13 +267,15 @@ class ExternalEvidenceService(KnowledgeStore):
             raise DataError("EXTERNAL_VERSION_MISMATCH")
         return payload
 
-    def publish(self, run, payload, snapshot=None):
+    def publish(self, run, payload, snapshot=None, *, check=None):
         """
         作用：在同一事务重新校验运行并登记证据、快照与不可替换的版本绑定。
         输入：原始运行、服务端证据和可选天气快照。
         输出：固定证据。
         """
         with self.write() as c:
+            if check is not None:
+                check()
             current = self.run(run["id"], writable=True, connection=c)
             if (current["snapshot_id"], current["knowledge_snapshot_id"]) != (
                 run["snapshot_id"],
@@ -241,6 +313,8 @@ class ExternalEvidenceService(KnowledgeStore):
                     run_id=run["id"], evidence_id=payload["id"], slot=payload["slot"]
                 )
             )
+            if check is not None:
+                check()
         return payload
 
     def base_payload(self, run, kind, slot, capture_hash, fetches):
@@ -261,13 +335,15 @@ class ExternalEvidenceService(KnowledgeStore):
             fetches=fetches,
         )
 
-    async def freeze_weather(self, run_id, weather_id):
+    async def freeze_weather(self, run_id, weather_id, *, check=None, producer_call_id=None):
         """
         作用：从真实原件复核天气，再冻结证据及允许查询的独立数据快照。
         输入：真实运行与采集结果标识，不接受模型数值或文件路径。
         输出：服务端外部证据和快照标识。
         """
         run = self.run(run_id, writable=True)
+        if check is not None:
+            check()
         if not re.fullmatch(r"weather_[a-f0-9]{32}", weather_id):
             raise DataError("EXTERNAL_SOURCE_INVALID")
         path = self.path(self.import_storage / "external" / "weather", weather_id + ".json")
@@ -279,6 +355,24 @@ class ExternalEvidenceService(KnowledgeStore):
                 raise DataError("EXTERNAL_SOURCE_INVALID")
             async with asyncio.timeout(120):
                 originals = await verify_weather(weather, self.read_fetch)
+                # 条件请求的304只核验版本，不能作为独立天气正文；同时冻结核验审计。
+                by_id = {record["id"]: record for record, _ in originals}
+                for validation in weather.get("acquisition", {}).get("revalidations", []):
+                    original = by_id.get(validation.get("validated_fetch_id"))
+                    if (
+                        not original
+                        or weather.get("source") != "ncei_ghcnh"
+                        or not isinstance(original.get("etag"), str)
+                        or validation.get("validation_only") is not True
+                        or validation.get("if_none_match") != original.get("etag")
+                    ):
+                        raise DataError("EXTERNAL_DERIVATION_MISMATCH")
+                    raw = self.read_fetch(
+                        validation, original["url"], original["params"], statuses=(304,)
+                    )
+                    if raw:
+                        raise DataError("EXTERNAL_DERIVATION_MISMATCH")
+                    originals.append((validation, raw))
         except (OSError, KeyError, TypeError, json.JSONDecodeError):
             raise DataError("EXTERNAL_SOURCE_INVALID") from None
         except DataError:
@@ -287,6 +381,8 @@ class ExternalEvidenceService(KnowledgeStore):
             raise DataError("EXTERNAL_DERIVATION_MISMATCH") from None
         except TimeoutError:
             raise DataError("EXTERNAL_TIMEOUT") from None
+        if check is not None:
+            check()
         slot = digest(
             dict(
                 kind="weather",
@@ -305,7 +401,9 @@ class ExternalEvidenceService(KnowledgeStore):
         payload = self.base_payload(run, "weather", slot, capture_hash, fetches)
         snapshot_id = new_id("xsnap")
         folder = self.path(self.root / "snapshots", snapshot_id)
-        snapshot = build_weather_database(folder, snapshot_id, payload["id"], weather)
+        snapshot = await build_weather_database(
+            folder, snapshot_id, payload["id"], weather, check=check
+        )
         payload.update(
             capture_id=weather_id,
             external_snapshot_id=snapshot_id,
@@ -318,7 +416,10 @@ class ExternalEvidenceService(KnowledgeStore):
                 utc_end_exclusive=weather["utc_end_exclusive"],
             ),
         )
-        return self.publish(run, payload, snapshot)
+        if producer_call_id is not None:
+            payload["producer_tool_call_id"] = producer_call_id
+        await asyncio.sleep(0)
+        return self.publish(run, payload, snapshot, check=check)
 
     async def freeze_advisory(self, run_id, body_ref):
         """
@@ -526,6 +627,9 @@ class ExternalEvidenceService(KnowledgeStore):
                     "published_at": payload["published_at"],
                     "effective_time": payload["effective_time"],
                     "external_snapshot_id": payload["external_snapshot_id"],
+                    "acquisition": payload["document"].get("acquisition", {})
+                    if payload["kind"] == "weather"
+                    else {},
                 },
             )
         return result

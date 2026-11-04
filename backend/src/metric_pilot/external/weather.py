@@ -47,6 +47,7 @@ class WeatherRequest(BaseModel):
         min_length=1,
         max_length=5,
     )
+    refresh: bool = False
 
 
 def local_window(request: WeatherRequest, now: datetime):
@@ -342,6 +343,7 @@ async def _query_weather(request: WeatherRequest, storage: Path, *, http=None, n
     if not SOURCE_POLICIES[source]["enabled"]:
         raise DataError("EXTERNAL_SOURCE_DISABLED")
     client = http or SourceHTTP(storage)
+    fetch_offset = len(client.records)
     observations, fetches = [], []
     if source == "awc_metar":
         # 单机场每次最多 12 小时，达到服务条数上限即拒绝，不能当成完整统计。
@@ -361,7 +363,13 @@ async def _query_weather(request: WeatherRequest, storage: Path, *, http=None, n
             url = (
                 NCEI_ROOT + f"/hourly/access/by-year/{year}/psv/GHCNh_{station.station}_{year}.psv"
             )
-            raw, record = await client.get(url, max_bytes=64 * 1024 * 1024)
+            raw, record = await client.get(
+                url,
+                max_bytes=64 * 1024 * 1024,
+                cache_max_age=21600
+                if not request.refresh and end_utc < now - timedelta(days=30)
+                else 0,
+            )
             if record["http_status"] == 204:
                 fetches.append(record)
                 continue
@@ -387,8 +395,19 @@ async def _query_weather(request: WeatherRequest, storage: Path, *, http=None, n
         observation_count=len(rows),
         observations=rows,
         fetches=fetches,
+        acquisition=dict(
+            cache_used=any(i >= fetch_offset for i in getattr(client, "cache_hits", set())),
+            force_refresh=request.refresh,
+            cache_policy="历史NCEI原件6小时内校验哈希复用；过期须官方304确认未变；近期AWC不缓存",
+            original_fetch_times=[r["fetched_at"] for r in fetches],
+            revalidations=[
+                r
+                for r in getattr(client, "revalidations", [])
+                if r.get("validated_fetch_id") in {f["id"] for f in fetches}
+            ],
+        ),
         limitations=[
-            "独立天气查询，尚未接入 Agent 或报告 ValueRef，不是已审核项目指标",
+            "独立天气采集结果；用于调查和报告须经固定证据及取值校验，不是已审核项目指标",
             "缺失不当作零；有观测不等于连续覆盖；不据此推断航班延误原因",
             "近期数据可能补报或修订；新查询另存原件，不改旧结果",
             "降水含不同累计区间和小时内重复报告；此工具不计算总降水",

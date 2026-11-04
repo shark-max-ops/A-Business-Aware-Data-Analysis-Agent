@@ -1,6 +1,6 @@
 # 阶段 5.B：查官方公告，再读固定原文
 
-这一小步新增两个独立工具：`search_official_advisories()` 查 FAA ATCSCC 公开运行通知的候选清单，`read_external_source()` 读取清单登记的正文。输入设施/机场和 UTC 签发日期，先看有哪些候选，再核对原文的机场、时间与航司限制。它们还没有向 Agent 开放，也不能直接成为报告证据；这两部分分别留给 5.D 和 5.C。
+这一小步新增两个独立工具：`search_official_advisories()` 查 FAA ATCSCC 公开运行通知的候选清单，`read_external_source()` 读取清单登记的正文。输入设施/机场和 UTC 签发日期，先看有哪些候选，再核对原文的机场、时间与航司限制。本篇只讲独立工具；正式报告与 Agent 接入分别由后续 5.C、[5.D](stage-5d-investigation-tools.md) 完成，目前已可在调查页面使用。
 
 ## 怎么试用
 

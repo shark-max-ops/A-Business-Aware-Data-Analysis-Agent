@@ -245,7 +245,16 @@ class RunStore(KnowledgeStore):
             safe_details = {
                 key: value
                 for key, value in (error_details or {}).items()
-                if key in {"attempts", "status", "failure_kind"} and type(value) in {str, int}
+                if key
+                in {
+                    "attempts",
+                    "status",
+                    "failure_kind",
+                    "budget_bytes",
+                    "fixed_bytes",
+                    "latest_group_bytes",
+                }
+                and type(value) in {str, int}
             }
             payload = {
                 "model": "",

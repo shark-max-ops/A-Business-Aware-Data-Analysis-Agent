@@ -48,6 +48,11 @@ def readable_search(result):
         f"公告查询完成：{request['airport']}，{request['start']}"
         f" 至 {request['end'] or request['start']}（UTC 签发日）",
         f"匹配 {result['total']} 条候选；本页 {len(result['items'])} 条。",
+        "部分日期未完成："
+        + "、".join(d["utc_date"] for d in result["unavailable_dates"])
+        + "（中途失败后停止；技术原因可用 --json 查看）"
+        if result.get("partial")
+        else "请求日期清单均已核对。",
         "候选尚未核实正文；无匹配不代表没有事件。",
         "",
     ]
@@ -118,7 +123,7 @@ def readable_body(result):
         lines.append(
             f"下一页（不重新联网）：read {result['body_ref']} --offset {result['next_offset']}"
         )
-    lines.append("管制取消不等于航班取消；预计影响不等于 BTS 实际统计；尚未接入调查或报告。")
+    lines.append("管制取消不等于航班取消；预计影响不等于 BTS 实际统计；引用须经过固定证据授权。")
     return "\n".join(lines)
 
 

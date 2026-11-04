@@ -1,5 +1,6 @@
 """显式工具注册；快照、日期、权限和证据归属均由服务端决定。"""
 
+import asyncio
 import calendar
 import json
 import time
@@ -9,9 +10,12 @@ from pydantic import ValidationError
 
 from metric_pilot.agent import contracts as a
 from metric_pilot.agent.context import compact_schema
+from metric_pilot.agent.external_tools import NAMES as EXTERNAL_NAMES
+from metric_pilot.agent.external_tools import ExternalTools
 from metric_pilot.agent.investigations import InvestigationStore, read_evidence_artifact
 from metric_pilot.data.common import DataError
 from metric_pilot.data.contracts import ToolResult
+from metric_pilot.external.advisories import AdvisorySearch
 from metric_pilot.knowledge import models as km
 from metric_pilot.knowledge.contracts import SearchRequest
 from metric_pilot.knowledge.metrics import MetricService
@@ -22,6 +26,18 @@ from metric_pilot.reports.contracts import ReportDraft
 from metric_pilot.reports.service import ReportService
 
 SPECS = {
+    "query_historical_weather": (
+        a.WeatherArgs,
+        "查 ATL/ORD/JFK 当地日天气，支持 yesterday；返回固定版本和schema，数字须查询取值。",
+    ),
+    "search_official_advisories": (
+        AdvisorySearch,
+        "按设施和UTC签发日查FAA候选（最多三天）；候选须读正文，不是证据。",
+    ),
+    "read_external_source": (
+        a.ExternalSourceArgs,
+        "读本轮候选或同调查授权xe_固定来源；offset/limit翻页，返回可引用evidence_id。",
+    ),
     "search_knowledge": (
         a.SearchArgs,
         "在固定知识快照中关键词检索原文与已发布 Wiki 导航；返回逐字摘录和来源",
@@ -32,11 +48,14 @@ SPECS = {
     "describe_table": (a.TableArgs, "查看允许表的字段、类型、语义、关联键和少量样本"),
     "query_sql": (
         a.SQLArgs,
-        "执行受限只读 SQL。数据探索使用 purpose=exploratory，必须给出 exploration_scope 的"
-        "population（范围和排除）、calculation（计算及分母）、missing_values（缺失处理）；"
-        "不绑定指标且始终标为未审核探索。正式指标使用 purpose=reviewed_metric，修订须先 resolve。",
+        "受限只读SQL。exploratory须给范围、计算、缺失说明，不绑指标；reviewed_metric须已解析修订。"
+        "天气填external_snapshot_id，不跨库连接。",
     ),
-    "read_artifact": (a.ArtifactArgs, "读取本次或服务端授权的同调查已完成运行的成功冻结产物"),
+    "read_artifact": (
+        a.ArtifactArgs,
+        "读取授权成功产物；小型聚合可用limit=100一次读完。"
+        "避免反复小分页；大结果需要进一步SQL聚合。",
+    ),
 }
 
 
@@ -75,6 +94,26 @@ class ToolRegistry:
         self.known_columns, self.query_summaries, self.progress = {}, [], {}
         self.source_summaries = {}
         self.recorded_count = 0
+        self.external = ExternalTools(run, ctx, query, settings, cancel)
+
+    async def invoke_async(self, call):
+        """
+        作用：外部 HTTP 保持可取消异步任务，已有本地执行器继续在线程中调度。
+        输入：实际模型调用。
+        输出：统一工具结果。
+        """
+        if call.name not in EXTERNAL_NAMES:
+            return await asyncio.to_thread(self.invoke, call)
+        try:
+            args = self.specs()[call.name][0].model_validate(call.arguments)
+        except ValidationError:
+            return ToolResult(
+                ok=False,
+                summary="外部工具参数不符合契约，请按签名修正",
+                error_code="INVALID_ARGUMENT",
+                retryable=True,
+            )
+        return await self.external.invoke(call.name, args, call_id=call.id)
 
     def schemas(self):
         """
@@ -158,6 +197,8 @@ class ToolRegistry:
                 summary=(
                     "指标尚不可用，需要补充已审核且日期适用的口径"
                     if call.name == "resolve_metric" or blocked
+                    else "发现文字与数值引用不匹配，请修正占位符。"
+                    if exc.code == "REPORT_TEMPLATE_KEYS"
                     else "工具未成功：" + exc.code
                 ),
                 data={
@@ -176,10 +217,21 @@ class ToolRegistry:
                     "exploratory 查询继续，结果不得冒充该指标；确需正式指标时再澄清。",
                 }
                 if call.name == "resolve_metric"
+                else {
+                    "error_details": exc.details,
+                    "instruction": "text_template中的{{key}}必须与values的键一致；"
+                    "数量用对应占位符和真实ValueRef，不直接写死数字，不换成无关引用。",
+                }
+                if exc.code == "REPORT_TEMPLATE_KEYS"
                 else {},
                 error_code=exc.code,
                 retryable=exc.code
-                in {"SQL_EXECUTION_FAILED", "QUERY_TIMEOUT", "INVALID_PARAMETERS"},
+                in {
+                    "SQL_EXECUTION_FAILED",
+                    "QUERY_TIMEOUT",
+                    "INVALID_PARAMETERS",
+                    "REPORT_TEMPLATE_KEYS",
+                },
             )
 
     def execute(self, name, args):
@@ -199,6 +251,8 @@ class ToolRegistry:
                 "next_offset": args.offset + args.limit
                 if args.offset + args.limit < len(ordered)
                 else None,
+                "external_sources": self.external.index(),
+                "external_checks": self.external.failed_checks(),
             }
         if name == "record_finding":
             if args.kind in {"fact", "counterevidence"} and not (
@@ -230,6 +284,7 @@ class ToolRegistry:
                 "metrics": prepared["metrics"],
                 "data_snapshot": prepared["data_snapshot"],
                 "knowledge_snapshot_id": self.run["knowledge_snapshot_id"],
+                "external_snapshots": prepared.get("external_snapshots", {}),
             }
             if self.cancel.is_set():
                 raise DataError("RUN_CANCELLED")
@@ -243,6 +298,14 @@ class ToolRegistry:
         if name == "list_tables":
             return {"tables": [t.name for t in self.schema.tables]}
         if name == "describe_table":
+            if args.external_snapshot_id:
+                snapshot, _ = self.external.service.query_target(
+                    self.ctx, args.external_snapshot_id
+                )
+                for table in snapshot["schema"]["tables"]:
+                    if table["name"] == args.table_name:
+                        return {"table": table, "external_snapshot_id": snapshot["id"]}
+                raise DataError("TABLE_NOT_ALLOWED")
             for table in self.schema.tables:
                 if table.name == args.table_name:
                     if self.run.get("investigation_id"):
@@ -320,10 +383,60 @@ class ToolRegistry:
                         return row
             raise DataError("WIKI_NOT_IN_SNAPSHOT")
         if name == "read_artifact":
-            return read_evidence_artifact(
+            page = read_evidence_artifact(
                 self.query, self.run, args.artifact_id, args.offset, args.limit
             )
+            if self.run.get("investigation_id"):
+                metadata = page["artifact"]
+                summary = dict(
+                    artifact_id=metadata["id"],
+                    run_id=metadata["run_id"],
+                    rows=metadata["returned_rows"],
+                    truncated=metadata["truncated"],
+                    query_purpose=metadata["query_purpose"],
+                    external_snapshot_id=metadata.get("external_snapshot_id"),
+                )
+                cached = dict(
+                    columns=[c["name"] for c in metadata["columns"]],
+                    rows=page["rows"] if args.offset == 0 else [],
+                    complete=False,
+                )
+                # 只合并从首行连续取得的真实页面；完整缓存不能被后续小分页覆盖。
+                previous = next(
+                    (
+                        item.get("result_preview")
+                        for item in self.query_summaries
+                        if item["artifact_id"] == metadata["id"]
+                    ),
+                    None,
+                )
+                if previous and previous["columns"] == cached["columns"]:
+                    prefix = previous["rows"]
+                    if args.offset <= len(prefix):
+                        cached["rows"] = (
+                            prefix[: args.offset]
+                            + page["rows"]
+                            + prefix[args.offset + len(page["rows"]) :]
+                        )
+                    else:
+                        cached["rows"] = prefix
+                cached["complete"] = (
+                    not metadata["truncated"] and len(cached["rows"]) == metadata["returned_rows"]
+                )
+                if len(json.dumps(cached, ensure_ascii=False).encode()) <= 4096:
+                    summary["result_preview"] = cached
+                elif previous:
+                    summary["result_preview"] = previous
+                self.query_summaries = [
+                    s for s in self.query_summaries if s["artifact_id"] != metadata["id"]
+                ]
+                self.query_summaries.append(summary)
+            return page
         if name == "query_sql":
+            if args.external_snapshot_id and (
+                args.purpose != "exploratory" or args.metric_revision_ids
+            ):
+                raise DataError("EXTERNAL_METRIC_BINDING_NOT_ALLOWED")
             exploratory = args.purpose == "exploratory"
             # 只有显式说明范围的探索可独立继续；删掉指标引用不构成用途切换。
             if self.blocked_metrics and args.purpose == "standard":
@@ -355,6 +468,7 @@ class ToolRegistry:
                 else "legacy",
                 exploration_scope=args.exploration_scope,
                 unavailable_metric_keys=sorted(self.blocked_metrics) if exploratory else (),
+                external_snapshot_id=args.external_snapshot_id,
             )
             self.artifact_ids.update(result.artifact_ids)
             if result.ok:
@@ -377,7 +491,7 @@ class ToolRegistry:
                         and len(result.data["preview"]) == metadata["returned_rows"],
                     }
                     # 只缓存小型真实结果；完整性标记防止把部分预览当完整统计。
-                    if len(json.dumps(cached, ensure_ascii=False).encode()) <= 1200:
+                    if len(json.dumps(cached, ensure_ascii=False).encode()) <= 4096:
                         summary = self.query_summaries[-1]
                         summary["result_preview"] = cached
                         if args.exploration_scope is not None:

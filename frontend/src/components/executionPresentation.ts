@@ -13,11 +13,13 @@ export type ToolStep = {
 };
 
 export const toolLabels: Record<string, string> = {
+  query_historical_weather: '核查天气观测', search_official_advisories: '查找运行公告', read_external_source: '核对外部原文',
   read_investigation: '回顾调查记录', record_finding: '保存发现与依据',
   search_knowledge: '查阅来源资料', read_wiki_page: '阅读已发布 Wiki', resolve_metric: '核对指标口径',
   list_tables: '确认可查询表', describe_table: '读取表结构', query_sql: '执行只读查询', read_artifact: '读取查询结果',
 };
 const runningLabels: Record<string, string> = {
+  query_historical_weather: '正在核查官方天气观测', search_official_advisories: '正在查找运行公告', read_external_source: '正在核对外部原文与范围',
   read_investigation: '正在回顾调查记录', record_finding: '正在核对并保存发现',
   search_knowledge: '正在查阅来源资料', read_wiki_page: '正在阅读 Wiki', resolve_metric: '正在核对指标口径',
   list_tables: '正在确认可查询表', describe_table: '正在读取表结构', query_sql: '正在执行只读查询', read_artifact: '正在读取查询结果',
@@ -96,6 +98,9 @@ export function executionSummary(run: Run, events: RunEvent[], steps: ToolStep[]
   const complete = events.some(event => event.seq >= run.seq);
   const failed = steps.filter(step => step.status === 'failed').length;
   const running = [...steps].reverse().find(step => step.status === 'running');
+  const weather = steps.filter(step => step.name === 'query_historical_weather');
+  const weatherKey = (step: ToolStep) => JSON.stringify(Object.entries(step.arguments).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => [key, key === 'fields' && Array.isArray(value) ? [...value].sort() : value]));
+  const pendingWeather = weather.some((step, index) => step.status === 'failed' && !weather.slice(index + 1).some(later => later.status === 'succeeded' && weatherKey(later) === weatherKey(step)));
   const started = events.find(event => event.type === 'run.started');
   const finished = events.find(event => ['run.completed', 'run.failed', 'run.cancelled', 'run.interrupted'].includes(event.type));
   let title: string;
@@ -105,6 +110,7 @@ export function executionSummary(run: Run, events: RunEvent[], steps: ToolStep[]
     case 'running': title = run.cancel_requested ? '正在停止分析' : running ? runningLabels[running.name] ?? '正在执行工具' : '正在处理分析请求'; tone = 'running'; break;
     case 'completed':
       title = run.result?.kind === 'clarification' ? '需要补充条件' : run.result?.kind === 'report' ? '报告已生成' : '查询已完成';
+      if (run.result?.kind === 'report' && pendingWeather) title = '报告已生成，天气核查未完成';
       tone = run.result?.kind === 'clarification' || failed ? 'warning' : 'success';
       break;
     case 'failed': title = '分析未完成'; tone = 'error'; break;
@@ -133,6 +139,8 @@ export function stepDescription(step: ToolStep): string {
     if (step.status === 'running') return '等待工具返回';
     const code = step.result?.error_code;
     const messages: Record<string, string> = {
+      EXTERNAL_TIMEOUT: '外部核查超时，本次未完成', EXTERNAL_CONNECTION_FAILED: '外部来源暂时连接失败', EXTERNAL_HTTP_ERROR: '外部来源未能读取', WEATHER_STATION_NOT_FOUND: '尚无已核对的气象站', EXTERNAL_SOURCE_NOT_GRANTED: '来源未获本轮授权', EXTERNAL_REQUEST_LIMIT: '外部请求额度已用完', EXTERNAL_BYTE_BUDGET_EXCEEDED: '外部资料读取量达到上限',
+      REPORT_TEMPLATE_KEYS: '发现文字与数值引用不匹配，需修正', EXTERNAL_TOOL_NOT_SUCCEEDED: '来源对应工具未成功，需重新核查',
       METRIC_NOT_APPLICABLE: '没有适用的已审核指标', METRIC_CONFLICT: '指标口径存在冲突',
       SQL_EXECUTION_FAILED: '查询未成功，未生成证据', INVALID_ARGUMENT: '工具参数需要修正',
       RUN_CANCELLED: '执行已取消', QUERY_CANCELLED: '查询已取消', RUN_INTERRUPTED: '服务中断',
@@ -141,6 +149,9 @@ export function stepDescription(step: ToolStep): string {
     return typeof code === 'string' && messages[code] ? messages[code] : toolStatusLabels[step.status];
   }
   const data = recordOf(step.result?.data);
+  if (step.name === 'query_historical_weather') return `${recordOf(data.mapping).airport ?? ''} · 观测与来源已固定`;
+  if (step.name === 'search_official_advisories') return `找到 ${data.total ?? 0} 条候选${data.partial ? '，部分日期未完成' : ''}，尚需核对正文`;
+  if (step.name === 'read_external_source') return data.source_kind === 'official_advisory' ? '原文已固定，保留时段及航司限制' : '固定外部版本已读取';
   if (step.name === 'list_tables' && Array.isArray(data.tables)) return `${data.tables.length} 张可查询表`;
   const table = recordOf(data.table);
   if (step.name === 'describe_table' && typeof table.name === 'string') return `${table.name}${Array.isArray(table.columns) ? ` · ${table.columns.length} 个字段` : ''}`;

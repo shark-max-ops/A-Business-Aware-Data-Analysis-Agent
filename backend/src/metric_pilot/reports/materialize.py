@@ -111,7 +111,7 @@ def render_blocks(draft, artifacts, sources):
     return blocks, warnings
 
 
-def materialize(draft, frozen, *, require_query=True):
+def materialize(draft, frozen, *, require_query=True, runtime_warnings=()):
     """
     作用：只在固定证据集合上生成可保存报告，不允许换数据或口径
     输入：严格草稿与冻结上下文
@@ -130,6 +130,7 @@ def materialize(draft, frozen, *, require_query=True):
     if not metrics <= set(frozen["metrics"]):
         raise DataError("REPORT_METRIC_NOT_ALLOWED")
     blocks, warnings = render_blocks(draft, artifacts, frozen["sources"])
+    warnings.extend(runtime_warnings)
     # 探索身份由成功产物决定，模型或人工修改报告说明不能删除这条边界。
     if any(item["artifact"].get("query_purpose") == "exploratory" for item in artifacts.values()):
         warnings.append("包含数据探索结果，未绑定已审核项目指标；范围、计算与缺失处理见固定依据。")

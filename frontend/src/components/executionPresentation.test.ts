@@ -16,6 +16,14 @@ const history: RunEvent[] = [
 ];
 
 describe('execution presentation uses actual evidence', () => {
+  it('distinguishes a saved report from an unfinished weather check', () => {
+    const events = [event(1, 'run.started', {}), event(2, 'tool.started', { tool_execution_id: 'weather', tool: 'query_historical_weather', arguments: { airport: 'ATL', start: '2026-01-24' } }), event(3, 'tool.finished', { tool_execution_id: 'weather', tool: 'query_historical_weather', status: 'failed', ok: false, error_code: 'EXTERNAL_TIMEOUT' }), event(5, 'run.completed', {})];
+    const report: Run = { ...run, result: { kind: 'report', report_id: 'synthetic', revision_id: 'synthetic' } };
+    const steps = executionSteps(events);
+    expect(executionSummary(report, events, steps).title).toBe('报告已生成，天气核查未完成');
+    expect(stepDescription(steps[0])).toContain('本次未完成');
+    expect(executionSummary(report, history, executionSteps(history)).title).toBe('报告已生成');
+  });
   it('explains model failures without blaming successful SQL or inventing old diagnostics', () => {
     const failed = { ...run, status: 'failed' as const, error_code: 'MODEL_REQUEST_FAILED' };
     expect(runFailureDescription(failed)).toContain('无法确定更具体');

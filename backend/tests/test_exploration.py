@@ -7,7 +7,12 @@ import time
 
 import pytest
 import test_agent
-from metric_pilot.agent.context import compact_group, fit_context, initial_messages
+from metric_pilot.agent.context import (
+    compact_group,
+    fit_context,
+    initial_messages,
+    model_message_bytes,
+)
 from metric_pilot.agent.contracts import SQLArgs, ToolCall
 from metric_pilot.agent.tools import ToolRegistry
 from metric_pilot.data.common import DataError
@@ -338,20 +343,20 @@ def test_wide_exploration_batch_preserves_scope_within_real_context_budget(agent
     source_result["data"]["items"][0]["excerpt"] = "合成资料摘录，用于上下文边界测试。" * 30
     stress[1]["content"] = json.dumps(source_result, ensure_ascii=False)
     full = fit_context(initial_messages(run, registry, []), [stress], registry, 100000)
-    tighter = len(json.dumps(full, ensure_ascii=False).encode()) - 200
+    tighter = model_message_bytes(full) - 200
     compact = fit_context(initial_messages(run, registry, []), [stress], registry, tighter)
-    assert len(json.dumps(compact, ensure_ascii=False).encode()) <= tighter
+    assert model_message_bytes(compact) <= tighter
     assert {m["tool_call_id"] for m in compact if m["role"] == "tool"} == {"source", "quality"}
     assert json.loads(compact[-1]["content"])["data"]["artifact"]["exploration_scope"] == scope
     cached_before = copy.deepcopy(registry.query_summaries)
-    room = len(json.dumps(full, ensure_ascii=False).encode()) - 1200
+    room = model_message_bytes(full) - 1200
     compact = fit_context(initial_messages(run, registry, []), [stress], registry, room)
     memory = next(
         json.loads(m["content"])
         for m in compact
         if m["role"] == "system" and '"recent_successful_queries"' in m["content"]
     )
-    assert len(json.dumps(compact, ensure_ascii=False).encode()) <= room
+    assert model_message_bytes(compact) <= room
     assert [item["artifact_id"] for item in memory["recent_successful_queries"]] == [
         item["artifact_id"] for item in cached_before
     ]

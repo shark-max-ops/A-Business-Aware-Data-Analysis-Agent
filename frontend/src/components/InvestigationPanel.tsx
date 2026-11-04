@@ -3,6 +3,7 @@ import { Button, Empty, Modal, Tag } from 'antd';
 import type { components } from '../api/schema';
 import { analysisApi } from '../api/analysis';
 import { ExplorationNote } from './ExplorationNote';
+import { ExternalSource, isExternalSource } from './ExternalSource';
 
 export type Investigation = components['schemas']['InvestigationDTO'];
 type Finding = components['schemas']['FindingDTO'];
@@ -53,7 +54,7 @@ export function InvestigationPanel({ investigation: inv, disabled, onFollowUp, o
       {evidence && <div className="finding-evidence"><p>{evidence.block.segments.map(s => s.text).join('')}</p>
         {evidence.block.segments.filter(s => s.value).map((s, index) => <p key={index}>引用值：{s.value!.display} · 第 {s.value!.value_ref.row + 1} 行 · {s.value!.value_ref.column}</p>)}
         {Object.entries(evidence.artifacts).map(([id, item]) => <details key={id}><summary>成功查询 · 冻结 {item.artifact.returned_rows} 行</summary><ExplorationNote artifact={item.artifact} /><pre>{item.artifact.sql}</pre><p>绑定参数：{JSON.stringify(item.artifact.parameters)}</p><code>来源运行：{item.artifact.run_id}</code></details>)}
-        {Object.entries(evidence.sources).map(([id, source]) => <details key={id}><summary>{source.title} · {source.source_kind === 'official_reference' ? '官方资料' : source.source_kind === 'project_policy' ? '项目规则' : source.source_kind === 'wiki_generated' ? '生成 Wiki' : '来源材料'}</summary><p>定位：{JSON.stringify(source.locator)}</p><pre>{source.content}</pre></details>)}
+        {Object.entries(evidence.sources).map(([id, source]) => isExternalSource(source.source_kind) ? <ExternalSource key={id} source={source} /> : <details key={id}><summary>{source.title} · {source.source_kind === 'official_reference' ? '官方资料' : source.source_kind === 'project_policy' ? '项目规则' : source.source_kind === 'wiki_generated' ? '生成 Wiki' : '来源材料'}</summary><p>定位：{JSON.stringify(source.locator)}</p><pre>{source.content}</pre></details>)}
         {!Object.keys(evidence.artifacts).length && !Object.keys(evidence.sources).length && <p>这是一项限制或建议，没有绑定数据结论。</p>}
       </div>}
     </Modal>

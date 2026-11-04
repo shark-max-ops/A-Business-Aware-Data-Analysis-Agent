@@ -23,6 +23,31 @@ DAY = date(2026, 1, 31)
 NOW = datetime(2026, 2, 3, tzinfo=UTC)
 
 
+def test_partial_date_range_preserves_verified_candidates_and_stops(tmp_path):
+    """
+    作用：后续日期失败保留已核对候选，显式标缺口且不继续请求，不冒充完整空结果。
+    输入：第一日真实格式合成清单，次日错误页。
+    输出：无。
+    """
+
+    async def run_test():
+        """作用：核对部分成功和来源回查；输入：无；输出：无。"""
+        http, pools = client(tmp_path, [listing([entry()]), b"<html>invalid synthetic page</html>"])
+        result = await search_official_advisories(
+            AdvisorySearch(airport="DFW", start=DAY, end=date(2026, 2, 2)),
+            tmp_path,
+            http=http,
+            now=NOW,
+        )
+        assert result["partial"] and result["total"] == 1 and http.requests == 2
+        assert [d["utc_date"] for d in result["unavailable_dates"]] == ["2026-02-01", "2026-02-02"]
+        assert result["unavailable_dates"][1]["error_code"] == "NOT_REQUESTED_AFTER_FAILURE"
+        candidate, _ = AdvisoryStore(tmp_path).candidate(result["items"][0]["source_ref"])
+        assert candidate["utc_date"] == "2026-01-31" and all(pool.closed for pool in pools)
+
+    asyncio.run(run_test())
+
+
 def entry(number=1, facility="DFW/ZFW", title="CDM GROUND STOP"):
     """
     作用：创建明确合成的公告元数据。

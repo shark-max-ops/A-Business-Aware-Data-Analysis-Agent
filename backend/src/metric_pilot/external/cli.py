@@ -196,6 +196,9 @@ def main():
     parser.add_argument("--start", help="机场当地日期 YYYY-MM-DD 或 yesterday")
     parser.add_argument("--end", help="机场当地结束日期，含当天，最多 3 天")
     parser.add_argument("--fields", nargs="+", default=["temperature", "wind_speed", "visibility"])
+    parser.add_argument(
+        "--refresh", action="store_true", help="明确要求重新获取；独立CLI默认已不使用历史缓存"
+    )
     args = parser.parse_args()
     if not 1 <= args.rows <= 20000:
         parser.error("--rows 必须在 1～20000 之间")
@@ -217,6 +220,7 @@ def main():
                 start=args.start or "",
                 end=args.end,
                 fields=args.fields,
+                refresh=args.refresh,
             )
             storage = Settings().storage_dir
             http = SourceHTTP(storage, dns_mode="cloudflare" if args.public_dns else "system")

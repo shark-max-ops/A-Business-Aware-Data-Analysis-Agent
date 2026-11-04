@@ -20,6 +20,7 @@ if __name__ == "__main__":
     sys.path.insert(0, str(root / "backend" / "tests"))
     import metric_pilot.agent.runtime as runtime
     from browser_agent_model import BrowserModel
+    from browser_external_sources import install
     from test_knowledge import add_document
 
     directory = root / ".cache" / "browser-analysis" / uuid4().hex
@@ -41,6 +42,7 @@ if __name__ == "__main__":
     engine = create_metadata_engine(config)
     Catalog(engine, directory).activate(snapshot.source_id, snapshot.id)
     add_document(KnowledgeStore(engine))
+    install(directory)
     engine.dispose()
     runtime.AgentProvider = BrowserModel
     uvicorn.run(create_app(config), host="127.0.0.1", port=8002)

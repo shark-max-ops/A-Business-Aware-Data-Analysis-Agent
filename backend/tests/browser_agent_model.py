@@ -42,6 +42,39 @@ class BrowserModel(FakeLLM):
         输出：测试回合
         """
         question = json.loads(messages[1]["content"])["question"]
+        if "外部调查验收" in question and self.index == 0:
+            from test_agent_external import SCOPE, final, statement
+            from test_external_evidence import SQL
+
+            state = {}
+
+            def choose_external(messages):
+                """作用：根据实际外部版本和候选选择工具；输入：消息；输出：测试调用。"""
+                data = [json.loads(m["content"])["data"] for m in messages if m["role"] == "tool"]
+                weather = next(d for d in data if d.get("external_snapshot_id"))
+                candidates = next(d for d in data if d.get("candidate_only"))
+                return calls(
+                    ("read_external_source", dict(source_ref=candidates["items"][0]["source_ref"])),
+                    (
+                        "query_sql",
+                        dict(
+                            sql=SQL,
+                            purpose="exploratory",
+                            exploration_scope=SCOPE,
+                            external_snapshot_id=weather["external_snapshot_id"],
+                        ),
+                    ),
+                )
+
+            self.steps = [
+                calls(
+                    ("query_historical_weather", dict(airport="ATL", start="2026-11-02")),
+                    ("search_official_advisories", dict(airport="ATL", start="2026-11-02")),
+                ),
+                choose_external,
+                lambda messages: statement(messages, state),
+                lambda _: final(state),
+            ]
         if "探索边界验收" in question and self.index == 0:
             from test_exploration import exploration
             from test_investigations import finding_call
@@ -60,7 +93,7 @@ class BrowserModel(FakeLLM):
                 calls(("resolve_metric", {"metric_key": "missing_reviewed_metric"})),
                 calls(query, query),
             ]
-        if "调查验收" in question and self.index == 0:
+        if "调查验收" in question and "外部" not in question and self.index == 0:
             from test_investigations import finding_call
             from test_reports import SQL, report_candidate
 

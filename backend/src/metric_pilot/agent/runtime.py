@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import threading
 import time
 
@@ -9,6 +10,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from metric_pilot.agent.context import fit_context, initial_messages
 from metric_pilot.agent.contracts import FinalCandidate
+from metric_pilot.agent.external_tools import NAMES as EXTERNAL_NAMES
 from metric_pilot.agent.investigations import InvestigationStore
 from metric_pilot.agent.middleware import RuntimeObserver
 from metric_pilot.agent.provider import AgentProvider
@@ -93,7 +95,9 @@ class AgentRuntime:
                     if closing:
                         phase = (
                             "finalize"
-                            if turns_left <= min(2, reserve) or remaining == 0
+                            if turns_left <= min(3, reserve)
+                            or remaining == 0
+                            or (remaining <= 2 and registry.recorded_count)
                             else "prepare"
                         )
                         allowed &= (
@@ -132,7 +136,9 @@ class AgentRuntime:
                         last_phase = phase
                 schemas = [s for s in registry.schemas() if s["function"]["name"] in allowed]
                 # 按本轮实际开放的工具签名预留空间，总上下文预算保持不变。
-                tool_bytes = len(json.dumps(schemas, ensure_ascii=False).encode("utf-8"))
+                tool_bytes = len(
+                    json.dumps(schemas, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+                )
                 available = budget["context_tokens"] - budget["output_tokens"] - tool_bytes - 1024
                 turn_header = (
                     header + [{"role": "system", "content": registry.progress["instruction"]}]
@@ -147,6 +153,7 @@ class AgentRuntime:
                 usage["model_requests"] = usage.get("model_requests", 0) + turn["attempts"]
                 calls = turn["calls"]
                 if not calls:
+                    candidate = None
                     try:
                         payload, conversation_title = split_title(turn.get("candidate"))
                         candidate = TypeAdapter(FinalCandidate).validate_python(payload)
@@ -193,17 +200,49 @@ class AgentRuntime:
                             if isinstance(exc, DataError)
                             else {
                                 "fields": [
-                                    {"location": list(e["loc"]), "type": e["type"]}
+                                    {
+                                        "location": list(e["loc"][1:])
+                                        if e["loc"]
+                                        and e["loc"][0]
+                                        in {"report", "query_result", "clarification"}
+                                        else list(e["loc"]),
+                                        "type": e["type"],
+                                        "constraints": {
+                                            key: value
+                                            for key, value in e.get("ctx", {}).items()
+                                            if key in {"max_length", "min_length", "actual_length"}
+                                            and isinstance(value, (int, str))
+                                        },
+                                    }
                                     for e in exc.errors()[:12]
                                 ]
                             }
                         )
                         repairs += 1
+                        self.store.emit(
+                            run["id"],
+                            "run.progress",
+                            dict(
+                                phase="report_repair",
+                                summary="正在修正报告结构或引用",
+                                error_code=code,
+                                fields=details.get("fields", []),
+                            ),
+                        )
                         if repairs > 2:
                             raise DataError("FINAL_CANDIDATE_INVALID") from None
                         groups.append(
                             [
-                                {"role": "assistant", "content": "最终候选待修正"},
+                                {
+                                    "role": "assistant",
+                                    "content": json.dumps(
+                                        candidate.model_dump(exclude_defaults=True),
+                                        ensure_ascii=False,
+                                        separators=(",", ":"),
+                                    )
+                                    if candidate is not None
+                                    else "最终候选结构无效，请按契约重建。",
+                                },
                                 {
                                     "role": "user",
                                     "content": json.dumps(
@@ -212,6 +251,10 @@ class AgentRuntime:
                                             "details": details,
                                             "instruction": (
                                                 "按报告契约修正；仅引用本次或服务端允许的同调查成功产物。"
+                                                "只输出JSON对象，不加Markdown围栏；外层kind=report与report，"
+                                                "report直接包含schema_version、title、scope、blocks等草稿字段。"
+                                                "保留已核对的内容和引用含义，只修正所报错误；"
+                                                "原文文字直接写模板，不得替换为无关查询数字。"
                                                 "INVESTIGATION_RECORD_REQUIRED 时"
                                                 "先核查并 record_finding。"
                                                 "截断需重新聚合查询。"
@@ -257,7 +300,7 @@ class AgentRuntime:
                                 error_code="TOOL_NOT_AVAILABLE_DURING_WRAP_UP",
                             )
                         else:
-                            result = await asyncio.to_thread(registry.invoke, call)
+                            result = await registry.invoke_async(call)
                     except DataError as exc:
                         result = ToolResult(
                             ok=False, summary="工具未执行：" + exc.code, error_code=exc.code
@@ -271,6 +314,8 @@ class AgentRuntime:
                     if cancel.is_set():
                         result = ToolResult(ok=False, summary="已取消", error_code="RUN_CANCELLED")
                         stop_code = "RUN_CANCELLED"
+                    if call.name in EXTERNAL_NAMES:
+                        result.data["source_requests"] = registry.external.last_fetches
                     self.observer.after_tool(
                         run["id"],
                         execution,
@@ -307,7 +352,7 @@ class AgentRuntime:
                                         for key in sorted(registry.blocked_metrics)
                                     ],
                                 }
-                            else:
+                            elif call.name not in EXTERNAL_NAMES:
                                 stop_code = "REPEATED_TOOL_FAILURE"
                         if result.error_code == "QUERY_TIMEOUT":
                             timeout_repairs += 1
@@ -336,6 +381,7 @@ class AgentRuntime:
                 usage=usage,
             )
         except Exception:
+            logging.getLogger(__name__).exception("Agent runtime failed: %s", run["id"])
             self.observer.on_finish(
                 run["id"], "failed", error_code="RUN_INTERNAL_ERROR", usage=usage
             )

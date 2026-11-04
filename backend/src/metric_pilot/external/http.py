@@ -4,8 +4,10 @@ import asyncio
 import hashlib
 import ipaddress
 import json
+import re
 import socket
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -13,7 +15,7 @@ import httpcore
 import httpx
 
 from metric_pilot.data.common import DataError, canonical_bytes, new_id, utc_now
-from metric_pilot.external.registry import PUBLIC_SOURCE_HOSTS, validate_url
+from metric_pilot.external.registry import NCEI_ROOT, PUBLIC_SOURCE_HOSTS, validate_url
 
 
 class PublicNetworkBackend(httpcore.AnyIOBackend):
@@ -103,7 +105,15 @@ class SourceHTTP:
     """
 
     def __init__(
-        self, storage: Path, *, timeout=120, max_requests=8, pool_factory=None, dns_mode="system"
+        self,
+        storage: Path,
+        *,
+        timeout=120,
+        max_requests=8,
+        pool_factory=None,
+        dns_mode="system",
+        max_total_bytes=None,
+        historical_cache=False,
     ):
         """
         作用：初始化单次工具查询的网络预算。
@@ -120,6 +130,10 @@ class SourceHTTP:
         self.dns_mode = dns_mode
         self.dns_audit = []
         self.bytes_received = 0
+        self.max_total_bytes = max_total_bytes
+        self.historical_cache = historical_cache
+        self.cache_hits = set()
+        self.revalidations = []
         self.pool_factory = pool_factory or (
             lambda: httpcore.AsyncConnectionPool(
                 network_backend=PublicNetworkBackend(dns_mode, self.dns_audit),
@@ -129,13 +143,100 @@ class SourceHTTP:
             )
         )
 
-    async def get(self, url: str, params: dict | None = None, *, max_bytes=2_000_000):
+    def cached(self, url, params, max_bytes, max_age, *, conditional=False):
+        """
+        作用：核对历史原件；过期时只提供条件请求候选，不直接授权复用。
+        输入：固定来源条件、上限、缓存期限及是否寻找过期验证候选。
+        输出：短期复用结果或待官方核验的原件；保留原获取时间。
+        """
+        if (
+            not self.historical_cache
+            or not max_age
+            or not url.startswith(NCEI_ROOT + "/hourly/access/by-year/")
+        ):
+            return None
+        paths = sorted(
+            self.root.glob("fetch_*.json"), key=lambda p: p.stat().st_mtime, reverse=True
+        )[:500]
+        for path in paths:
+            try:
+                if path.stat().st_size > 65536:
+                    continue
+                record = json.loads(path.read_bytes())
+                if (
+                    record.get("url") != url
+                    or record.get("params") != (params or {})
+                    or record.get("status") != "succeeded"
+                    or record.get("truncated")
+                    or record.get("http_status") != 200
+                    or not re.fullmatch(r"fetch_[a-f0-9]{32}", record.get("id", ""))
+                ):
+                    continue
+                fetched = datetime.fromisoformat(record["fetched_at"])
+                if fetched.tzinfo is None:
+                    continue
+                age = (datetime.now(UTC) - fetched).total_seconds()
+                if age < 0:
+                    continue
+                if conditional:
+                    if age <= min(max_age, 21600) or not isinstance(record.get("etag"), str):
+                        continue
+                    if len(record["etag"]) > 512 or not re.fullmatch(
+                        r'(?:W/)?"[^"\r\n]*"', record["etag"]
+                    ):
+                        continue
+                elif age > min(max_age, 21600):
+                    continue
+                raw_path = self.root / (record["id"] + ".raw")
+                if (
+                    not raw_path.resolve().is_relative_to(self.root.resolve())
+                    or raw_path.stat().st_size > max_bytes
+                ):
+                    continue
+                raw = raw_path.read_bytes()
+                if (
+                    len(raw) != record["bytes"]
+                    or hashlib.sha256(raw).hexdigest() != record["sha256"]
+                ):
+                    continue
+                return (raw, record) if conditional else self.reuse(raw, record)
+            except DataError:
+                raise
+            except (OSError, ValueError, KeyError, TypeError):
+                continue
+        return None
+
+    def reuse(self, raw, record):
+        """
+        作用：经校验的原件复用仍计入字节预算，保留真实原获取时间。
+        输入：完整原件与原记录。
+        输出：原件及记录。
+        """
+        if (
+            self.max_total_bytes is not None
+            and self.bytes_received + len(raw) > self.max_total_bytes
+        ):
+            raise DataError("EXTERNAL_BYTE_BUDGET_EXCEEDED")
+        self.bytes_received += len(raw)
+        self.cache_hits.add(len(self.records))
+        self.records.append(record)
+        return raw, record
+
+    async def get(
+        self, url: str, params: dict | None = None, *, max_bytes=2_000_000, cache_max_age=0
+    ):
         """
         作用：流式读取单个白名单响应，取消/超时退出连接上下文并留失败记录。
         输入：固定来源 URL、服务端参数及保存字节上限。
         输出：完整字节与清单；任何截断均抛错。
         """
         validate_url(url)
+        if self.timeout - (time.monotonic() - self.started) <= 0:
+            raise DataError("EXTERNAL_TIMEOUT")
+        cached = self.cached(url, params, max_bytes, cache_max_age)
+        if cached is not None:
+            return cached
+        candidate = self.cached(url, params, max_bytes, cache_max_age, conditional=True)
         if self.requests >= self.max_requests:
             raise DataError("EXTERNAL_REQUEST_LIMIT")
         self.requests += 1
@@ -170,6 +271,7 @@ class SourceHTTP:
                             "User-Agent": "BusinessAwareAnalysis-external/0.1",
                             "Accept-Encoding": "identity",
                             "Accept": "*/*",
+                            **({"If-None-Match": candidate[1]["etag"]} if candidate else {}),
                         },
                         extensions={"timeout": dict(connect=15, read=25, write=10, pool=5)},
                     ) as response:
@@ -183,6 +285,18 @@ class SourceHTTP:
                             last_modified=headers.get("last-modified"),
                             retry_after=headers.get("retry-after"),
                         )
+                        if response.status == 304 and candidate:
+                            # 304只是版本核验，不冒充本次重新下载原件。
+                            reused = self.reuse(*candidate)
+                            record.update(
+                                status="succeeded",
+                                truncated=False,
+                                validation_only=True,
+                                validated_fetch_id=candidate[1]["id"],
+                                if_none_match=candidate[1]["etag"],
+                            )
+                            self.revalidations.append(record)
+                            return reused
                         if 300 <= response.status < 400:
                             raise DataError("EXTERNAL_REDIRECT_REJECTED")
                         if response.status not in (200, 204):
@@ -192,6 +306,11 @@ class SourceHTTP:
                             raise DataError("EXTERNAL_ENCODING_REJECTED")
                         async for chunk in response.aiter_stream():
                             self.bytes_received += len(chunk)
+                            if (
+                                self.max_total_bytes is not None
+                                and self.bytes_received > self.max_total_bytes
+                            ):
+                                raise DataError("EXTERNAL_BYTE_BUDGET_EXCEEDED")
                             available = max_bytes - len(body)
                             body.extend(chunk[:available])
                             if len(chunk) > available:

@@ -6,6 +6,7 @@ from pydantic import Field, model_validator
 
 from metric_pilot.contracts import StrictDTO
 from metric_pilot.data.contracts import ExplorationScope
+from metric_pilot.external.weather import WeatherRequest
 from metric_pilot.reports.contracts import ReportCandidate, ReportResult, TextBlock, ValueRef
 
 RunStatus = Literal["queued", "running", "completed", "failed", "cancelled", "interrupted"]
@@ -180,6 +181,7 @@ class TableArgs(StrictDTO):
     """
 
     table_name: str
+    external_snapshot_id: str | None = None
 
 
 class SQLArgs(StrictDTO):
@@ -194,6 +196,7 @@ class SQLArgs(StrictDTO):
     metric_revision_ids: list[str] = Field(default_factory=list, max_length=16)
     purpose: Literal["standard", "exploratory", "reviewed_metric"] = "standard"
     exploration_scope: ExplorationScope | None = None
+    external_snapshot_id: str | None = None
 
     @model_validator(mode="after")
     def check_purpose(self):
@@ -222,6 +225,34 @@ class ArtifactArgs(StrictDTO):
     artifact_id: str
     offset: int = Field(default=0, ge=0)
     limit: int = Field(default=20, ge=1, le=100)
+
+
+class ExternalSourceArgs(StrictDTO):
+    """
+    作用：读取本轮候选或授权固定外部来源，拒绝任意 URL。
+    输入：服务端标识与有限原文分页。
+    输出：严格工具参数。
+    """
+
+    source_ref: str = Field(min_length=1, max_length=100)
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=30, ge=1, le=50)
+
+
+class WeatherArgs(WeatherRequest):
+    """
+    作用：向模型明确开放字段枚举，避免猜测天气字段名称。
+    输入：已限定的机场、日期和字段。
+    输出：与独立天气接口一致的严格参数。
+    """
+
+    fields: list[
+        Literal["temperature", "wind_speed", "visibility", "precipitation", "snow_depth"]
+    ] = Field(
+        default_factory=lambda: ["temperature", "wind_speed", "visibility"],
+        min_length=1,
+        max_length=5,
+    )
 
 
 class CreateInvestigation(StrictDTO):

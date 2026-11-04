@@ -210,14 +210,28 @@ async def search_official_advisories(
     client = http or SourceHTTP(storage, max_requests=3)
     identifier = new_id("advsearch")
     items, fetches, counts = [], [], []
+    incomplete = []
     try:
         async with asyncio.timeout(120):
             for delta in range((end - request.start).days + 1):
                 day = request.start + timedelta(days=delta)
-                raw, fetch = await client.get(FAA_ROOT + "/adv_list", list_params(day))
-                if fetch["http_status"] != 200:
-                    raise DataError("ADVISORY_SOURCE_FORMAT")
-                candidates = parse_list(raw, day)
+                try:
+                    raw, fetch = await client.get(FAA_ROOT + "/adv_list", list_params(day))
+                    if fetch["http_status"] != 200:
+                        raise DataError("ADVISORY_SOURCE_FORMAT")
+                    candidates = parse_list(raw, day)
+                except DataError as exc:
+                    if not fetches:
+                        raise
+                    # 已核对日期保留；失败日期不抹成无匹配，也不继续请求绕过失败。
+                    incomplete = [
+                        dict(
+                            utc_date=(request.start + timedelta(days=d)).isoformat(),
+                            error_code=exc.code if d == delta else "NOT_REQUESTED_AFTER_FAILURE",
+                        )
+                        for d in range(delta, (end - request.start).days + 1)
+                    ]
+                    break
                 counts.append(dict(utc_date=day.isoformat(), count=len(candidates)))
                 for candidate in candidates:
                     # 只精确匹配控制设施首段，不因同日或正文可能提到机场就声称相关。
@@ -241,12 +255,14 @@ async def search_official_advisories(
                 fetches=fetches,
                 daily_list_counts=counts,
                 candidate_only=True,
+                partial=bool(incomplete),
+                unavailable_dates=incomplete,
                 limitations=[
                     "按 UTC 签发日期检索，不等于机场当地日或所有有效期重叠公告",
                     "设施首段精确匹配；全国性/航路通知未必纳入，无匹配不证明没有事件",
                     "清单仅候选，须读取原文核对机场、时段及航司范围",
                     "仅 ATCSCC 公开运行通知，不覆盖全部 NOTAM 或航司声明",
-                    "尚未接入调查、报告及 ValueRef；项目类型标签不是官方因果结论",
+                    "候选须读取正文并经过证据授权才能引用；项目类型标签不是官方因果结论",
                 ],
             )
             AdvisoryStore(storage).save(result)

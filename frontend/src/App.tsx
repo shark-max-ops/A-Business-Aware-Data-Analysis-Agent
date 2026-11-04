@@ -28,7 +28,7 @@ export function App() {
       <div className="connection"><span className={`status-dot ${state.kind === 'ready' ? 'online' : ''}`} />{state.kind === 'loading' ? '正在连接服务' : state.kind === 'error' ? '后端未连接' : state.kind === 'degraded' ? '服务需要处理' : '本地服务已连接'}<Tag>{health?.llm === 'configured_unverified' ? '模型配置已填写' : health ? '模型未配置' : '模型状态未知'}</Tag></div>
     </header>
     <main>
-      <div className="stage-note"><span>可追溯分析报告 · 阶段 4</span><span>知识与指标 → 受限查询 → 可追溯报告</span></div>
+      <div className="stage-note"><span>持续调查与外部核查</span><span>查数据与来源 → 保存发现 → 可追溯报告</span></div>
       {state.kind === 'loading' && <div role="status" className="connection-notice"><Spin size="small" /> 正在获取服务状态…</div>}
       {state.kind === 'error' && <Alert type="error" showIcon message="后端连接失败" description={state.message} action={<Button onClick={() => setAttempt(a => a + 1)}>重新连接</Button>} />}
       {state.kind === 'degraded' && <Alert type="warning" showIcon message="服务尚未就绪" description={health?.database !== 'ready' ? '元数据库尚未就绪，请按项目说明完成数据库迁移。' : health?.fts5 !== 'available' ? '当前 SQLite 不支持 FTS5，请检查 Python 环境。' : '知识处理任务未就绪，请重启后端服务。'} action={<Button onClick={() => setAttempt(a => a + 1)}>重新检查</Button>} />}

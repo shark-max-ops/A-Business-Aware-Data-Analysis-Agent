@@ -2,6 +2,42 @@ import { test, expect } from '@playwright/test';
 
 const rangeSql = 'SELECT COUNT(*) AS record_count, COUNT(DISTINCT flight_date) AS distinct_days, MIN(flight_date) AS min_date, MAX(flight_date) AS max_date FROM v_flights';
 
+test('external findings and reports show fixed weather coverage and scoped original notices on desktop and mobile', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/analysis');
+  await page.getByLabel('分析问题', { exact: true }).fill('外部调查验收：使用明确合成来源检查天气与公告依据');
+  await page.getByRole('button', { name: '发送问题' }).click();
+  await expect(page.getByRole('link', { name: '打开完整报告' })).toBeVisible({ timeout: 45000 });
+  await page.reload();
+  await expect(page.getByRole('link', { name: '打开完整报告' })).toBeVisible();
+  const panel = page.getByRole('region', { name: '当前调查' });
+  await panel.getByRole('button', { name: '查看依据' }).click();
+  const finding = page.getByRole('dialog', { name: '发现的固定依据' });
+  await finding.locator('.external-source > summary').filter({ hasText: '官方天气观测' }).click();
+  await expect(finding.locator('.external-coverage')).toContainText('2 个可用观测时刻');
+  await finding.locator('.external-source > summary').filter({ hasText: '官方运行公告' }).click();
+  await finding.getByText('阅读固定公告原文 · 带行号', { exact: true }).click();
+  await expect(finding.locator('.external-original')).toContainText('CARRIER DAL ONLY');
+  await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/stage5d-finding-desktop.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await finding.evaluate(e => e.getBoundingClientRect().width <= innerWidth)).toBe(true);
+  await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/stage5d-finding-mobile.png' });
+  await finding.getByRole('button', { name: '关闭', exact: true }).click();
+  await page.getByRole('link', { name: '打开完整报告' }).click();
+  await page.locator('.report-text button').first().click();
+  const drawer = page.getByRole('dialog', { name: '这个结果从哪里来' });
+  await expect(drawer).toContainText('本项数值来自固定天气观测');
+  await drawer.locator('.external-source > summary').filter({ hasText: '官方天气观测' }).click();
+  await expect(drawer.locator('.external-coverage')).toContainText('温度');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/stage5d-report-mobile.png' });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/stage5d-report-desktop.png' });
+  expect(await drawer.innerText()).not.toContain('�');
+  expect(errors).toEqual([]);
+});
+
 test('explicit exploration recovers from an unavailable metric and keeps its identity on mobile', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));

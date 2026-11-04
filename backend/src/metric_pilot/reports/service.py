@@ -2,13 +2,28 @@
 
 from sqlalchemy import select
 
+from metric_pilot.agent import models as agent_models
 from metric_pilot.agent.investigations import read_evidence_artifact
-from metric_pilot.data.common import DataError, new_id, utc_now
+from metric_pilot.data.common import DataError, digest, new_id, utc_now
 from metric_pilot.knowledge.store import KnowledgeStore
 from metric_pilot.reports import models as m
 from metric_pilot.reports.contracts import EvidenceDTO, ReportDraft, ReportDTO, ReportSummary
 from metric_pilot.reports.materialize import artifact_ids, content_hash, materialize
 from metric_pilot.reports.sources import freeze_sources
+
+
+def weather_scope_key(arguments):
+    """
+    作用：比较本轮天气失败与后续成功是否为同一请求，字段顺序不影响范围身份。
+    输入：服务端保存的工具参数。
+    输出：固定比较摘要，不作为业务指标。
+    """
+    args = dict(arguments)
+    if isinstance(args.get("fields"), list) and all(
+        isinstance(field, str) for field in args["fields"]
+    ):
+        args["fields"] = sorted(args["fields"])
+    return digest(args)
 
 
 class ReportService(KnowledgeStore):
@@ -34,6 +49,24 @@ class ReportService(KnowledgeStore):
         输出：尚未提交的报告准备数据
         """
         draft = ReportDraft.model_validate(draft)
+        with self.engine.connect() as connection:
+            checks = (
+                connection.execute(
+                    select(agent_models.executions).where(
+                        agent_models.executions.c.run_id == run["id"],
+                        agent_models.executions.c.name == "query_historical_weather",
+                    )
+                )
+                .mappings()
+                .all()
+            )
+        successful = {
+            weather_scope_key(row["arguments"]) for row in checks if row["status"] == "succeeded"
+        }
+        unresolved = any(
+            row["status"] == "failed" and weather_scope_key(row["arguments"]) not in successful
+            for row in checks
+        )
         artifacts = {}
         for ident in artifact_ids(draft, require_query=require_query):
             offset, rows = 0, []
@@ -88,6 +121,11 @@ class ReportService(KnowledgeStore):
                 "external_snapshots": external_snapshots,
             },
             require_query=require_query,
+            runtime_warnings=[
+                "本轮仍有天气核查未成功完成，相关请求不能视为覆盖检查通过；未查询日期不表示来源无资料。"
+            ]
+            if unresolved
+            else [],
         )
 
     @staticmethod

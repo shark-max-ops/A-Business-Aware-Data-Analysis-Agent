@@ -77,7 +77,14 @@ def cell(artifacts, ref, fmt=None, require_numeric=False):
         raise DataError("REPORT_ARTIFACT_NOT_ALLOWED")
     names = [column["name"] for column in artifact["artifact"]["columns"]]
     if ref.column not in names:
-        raise DataError("REPORT_COLUMN_NOT_FOUND", {"column": ref.column})
+        raise DataError(
+            "REPORT_COLUMN_NOT_FOUND",
+            {
+                "column": ref.column,
+                "available_columns": names[:64],
+                "artifact_id": ref.artifact_id,
+            },
+        )
     if ref.row >= len(artifact["rows"]):
         raise DataError("REPORT_ROW_OUT_OF_RANGE")
     index = names.index(ref.column)
@@ -105,7 +112,13 @@ def text_segments(block, artifacts):
     if any(token in remaining for token in ("{{", "}}", "{%", "{#")):
         raise DataError("REPORT_TEMPLATE_INVALID")
     if {match[1] for match in slots} != set(block["values"]):
-        raise DataError("REPORT_TEMPLATE_KEYS")
+        raise DataError(
+            "REPORT_TEMPLATE_KEYS",
+            {
+                "missing_refs": sorted({match[1] for match in slots} - set(block["values"])),
+                "unused_refs": sorted(set(block["values"]) - {match[1] for match in slots}),
+            },
+        )
     result, position = [], 0
     for match in slots:
         if match.start() > position:

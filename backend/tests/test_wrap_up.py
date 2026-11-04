@@ -1,6 +1,7 @@
 """调查预算内收尾：隔离模型，真实查询、发现和报告验证。"""
 
 import asyncio
+import json
 import threading
 
 import test_agent
@@ -85,6 +86,23 @@ def invalid_report(messages):
     return result
 
 
+def repair_saved_candidate(messages):
+    """
+    作用：确认修复轮能看到原候选，修正引用时无需重新编写已核对文字。
+    输入：含服务端错误及上一候选的真实上下文。
+    输出：仅修正无效引用列后的候选。
+    """
+    previous = next(
+        json.loads(m["content"])
+        for m in reversed(messages)
+        if m["role"] == "assistant" and (m.get("content") or "").startswith('{"kind":"report"')
+    )
+    assert previous["report"]["blocks"][0]["value_ref"]["column"] == "missing_column"
+    previous["report"]["blocks"][0]["value_ref"]["column"] = "record_count"
+    previous["report"]["blocks"][2]["values"]["count"]["column"] = "record_count"
+    return previous
+
+
 def test_reserves_prepare_and_final_repair_within_sixteen_turns(agent_workspace):
     """
     作用：探索、发现修正及最终报告修正都在既定轮数内完成
@@ -92,9 +110,14 @@ def test_reserves_prepare_and_final_repair_within_sixteen_turns(agent_workspace)
     输出：无
     """
     steps = [calls(("query_sql", {"sql": SQL}))] + [calls(("list_tables", {}))] * 10
-    steps += [repaired_finding, finding_call, read_existing, invalid_report, report_candidate]
+    steps += [repaired_finding, finding_call, read_existing, invalid_report, repair_saved_candidate]
     run, model, events = execute(agent_workspace, steps)
-    assert run["status"] == "completed" and run["result"]["kind"] == "report", run
+    assert run["status"] == "completed" and run["result"]["kind"] == "report", (
+        run.get("error_code"),
+        run.get("error_details"),
+        model.index,
+        model.messages[-1][-2:],
+    )
     assert model.index == 16 and run["budget"]["max_turns"] == 16
     assert model.toolsets[10] >= {"query_sql", "search_knowledge"}
     assert model.toolsets[11] == {"read_artifact", "record_finding"}
@@ -102,7 +125,10 @@ def test_reserves_prepare_and_final_repair_within_sixteen_turns(agent_workspace)
     assert [e["payload"]["phase"] for e in events if "phase" in e["payload"]] == [
         "prepare",
         "finalize",
+        "report_repair",
     ]
+    repair = next(e["payload"] for e in events if e["payload"].get("phase") == "report_repair")
+    assert repair["error_code"]
     assert events[-1]["type"] == "run.completed"
 
 
@@ -144,3 +170,19 @@ def test_tool_budget_reserves_finding_before_running_out(agent_workspace):
     assert run["status"] == "completed", run
     assert model.toolsets[1] == {"read_artifact", "record_finding"}
     assert run["budget"]["max_tool_calls"] == 24 and model.index == 3
+
+
+def test_saved_findings_force_finalization_before_last_tool_slots(agent_workspace):
+    """
+    作用：已保存发现后，最后少量工具额度必须让位于报告，不允许反复保存耗尽额度。
+    输入：同批合成查询及两次发现保存。
+    输出：预算不增加，后续工具关闭且报告完成。
+    """
+    initial = calls(("query_sql", {"sql": SQL}), *[("list_tables", {})] * 19)
+    run, model, _ = execute(
+        agent_workspace, [initial, finding_call, finding_call, report_candidate]
+    )
+    assert run["status"] == "completed", run
+    assert model.toolsets[1] == model.toolsets[2] == {"read_artifact", "record_finding"}
+    assert not model.toolsets[3]
+    assert run["budget"]["max_tool_calls"] == 24

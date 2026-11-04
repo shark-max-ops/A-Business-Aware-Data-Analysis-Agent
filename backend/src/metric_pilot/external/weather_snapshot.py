@@ -1,5 +1,6 @@
 """固定天气查询表；只暴露有明确筛选含义的观测列，不开放降水累计。"""
 
+import asyncio
 import hashlib
 from datetime import datetime
 from pathlib import Path
@@ -73,7 +74,7 @@ def weather_rows(weather, evidence_id):
     return names, rows
 
 
-def build_weather_database(folder: Path, snapshot_id, evidence_id, weather):
+async def build_weather_database(folder: Path, snapshot_id, evidence_id, weather, *, check=None):
     """
     作用：用服务端固定 DDL 建只读查询快照，模型不能控制数据库路径或结构。
     输入：受限新目录、服务端 ID 和经原件复核的天气。
@@ -83,6 +84,7 @@ def build_weather_database(folder: Path, snapshot_id, evidence_id, weather):
     names, rows = weather_rows(weather, evidence_id)
     path = folder / "analytics.duckdb"
     with duckdb.connect(str(path), config=CONNECTION_CONFIG) as connection:
+        connection.execute("BEGIN TRANSACTION")
         connection.execute("""CREATE TABLE observations (
             observed_at_utc TIMESTAMP, local_date DATE, airport VARCHAR, station VARCHAR,
             source_evidence_id VARCHAR, temperature_c DOUBLE, temperature_c_state VARCHAR,
@@ -90,14 +92,45 @@ def build_weather_database(folder: Path, snapshot_id, evidence_id, weather):
             visibility_km_exact DOUBLE, visibility_km_exact_state VARCHAR,
             visibility_km_lower_bound DOUBLE, raw_locators VARCHAR)""")
         if rows:
-            connection.executemany(
-                "INSERT INTO observations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows
+            # 固定类型结构只由服务端生成；一批 JSON 作为一个参数，避免 Python 逐单元格绑定开销。
+            types = (
+                "TIMESTAMP",
+                "DATE",
+                "VARCHAR",
+                "VARCHAR",
+                "VARCHAR",
+                "DOUBLE",
+                "VARCHAR",
+                "DOUBLE",
+                "VARCHAR",
+                "DOUBLE",
+                "VARCHAR",
+                "DOUBLE",
+                "VARCHAR",
             )
+            layout = canonical_bytes([dict(zip(names, types, strict=True))]).decode("utf-8")
+            sql = (
+                "INSERT INTO observations SELECT "
+                + ", ".join("observation." + name for name in names)
+                + " FROM UNNEST(from_json(?, ?)) AS batch(observation)"
+            )
+            for offset in range(0, len(rows), 256):
+                await asyncio.sleep(0)
+                if check is not None:
+                    check()
+                batch = canonical_bytes(
+                    [dict(zip(names, row, strict=True)) for row in rows[offset : offset + 256]]
+                ).decode("utf-8")
+                connection.execute(sql, [batch, layout])
+        await asyncio.sleep(0)
+        if check is not None:
+            check()
         connection.execute("CREATE VIEW v_weather_observations AS SELECT * FROM observations")
         columns = [
             dict(name=row[0], type=row[1], description="")
             for row in connection.execute("DESCRIBE v_weather_observations").fetchall()
         ]
+        connection.execute("COMMIT")
     schema = dict(
         snapshot_id=snapshot_id,
         tables=[
