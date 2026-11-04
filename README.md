@@ -37,7 +37,7 @@ Wiki 用于理解和导航；已审核的指标定义固定计算口径。生成
 | 2：知识与规则 | 文档版本、检索、Wiki 与指标审核管理 | 功能已实现，Windows 验收见实施状态 |
 | 3：分析 Agent | 模型根据问题查规则、选工具、生成和修正 SQL，展示真实执行进度 | 已实现；Windows 验收见实施状态 |
 | 4：调查与可追溯报告 | 根据证据持续调查；报告提供中文图表、数字取证、历史修订与导出 | 已完成 Windows、真实模型调查与续查案例验收 |
-| 5：外部来源与调查工具 | 接入历史观测、资料检索与受限原文读取，固定外部证据 | 5.A 天气、5.B 公告 CLI 已独立验收；5.C—5.D 未实施 |
+| 5：外部来源与调查工具 | 接入历史观测、资料检索与受限原文读取，固定外部证据 | 5.A/5.B 独立工具、5.C 外部证据与报告取值已验收；5.D 调查接入待实施 |
 | 6：用户导入 | 确认字段、质量与业务材料，创建快照并完成调查 | 尚未实施 |
 | 7：评估与交付 | 人工核对调查结果、对照评估、失败分析与可复现演示 | 尚未实施 |
 
@@ -55,7 +55,7 @@ Python 模块路径为 `metric_pilot`，下面的安装与启动命令按这个�
 
 ## 各阶段代码讲解
 
-[阶段代码导读](docs/walkthroughs/README.md) 按阶段说明目标、流程、关键代码和验证边界。[5.A 独立天气查询](docs/walkthroughs/stage-5a-weather.md) 与 [5.B 公告检索和原文读取](docs/walkthroughs/stage-5b-advisories.md) 可在终端试用，默认中文说明及实际结果，不需要启动前后端或模型。外部工具尚未接入分析对话和报告；5.C—5.D、阶段 6—7 未实施。设计取舍见 `docs/decisions/`，实际验收见 `IMPLEMENTATION_STATUS.md`。
+[阶段代码导读](docs/walkthroughs/README.md) 按阶段说明目标、流程、关键代码和验证边界。[5.A 独立天气查询](docs/walkthroughs/stage-5a-weather.md) 与 [5.B 公告检索和原文读取](docs/walkthroughs/stage-5b-advisories.md) 可在终端试用，默认中文说明及实际结果，不需要启动前后端或模型。[5.C 外部证据与报告取值](docs/walkthroughs/stage-5c-external-evidence.md) 已通过独立服务验收，可核对固定天气数字和公告正文。外部工具尚未接入分析对话；5.D、阶段 6—7 未实施。设计取舍见 `docs/decisions/`，实际验收见 `IMPLEMENTATION_STATUS.md`。
 
 ## 环境
 

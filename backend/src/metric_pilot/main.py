@@ -17,6 +17,7 @@ from metric_pilot.data.api import router as data_router
 from metric_pilot.data.common import DataError
 from metric_pilot.data.executor import CONNECTION_CONFIG
 from metric_pilot.database import create_metadata_engine, inspect_database
+from metric_pilot.external import models as external_models  # noqa: F401
 from metric_pilot.knowledge.api import router as knowledge_router
 from metric_pilot.knowledge.jobs import KnowledgeWorker
 from metric_pilot.knowledge.provider import KnowledgeProvider

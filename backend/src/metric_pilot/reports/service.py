@@ -55,6 +55,25 @@ class ReportService(KnowledgeStore):
             artifacts[ident] = {"artifact": artifact, "rows": rows}
         snapshot = self.query.catalog.snapshot(run["snapshot_id"]).model_dump()
         sources, metrics, knowledge = freeze_sources(self, run, artifacts, snapshot["period"])
+        external_ids = {
+            ident
+            for block in draft.blocks
+            if block.type == "text"
+            for ident in block.evidence_ids
+            if ident.startswith("xe_")
+        }
+        external_snapshots = {}
+        for item in artifacts.values():
+            external_ids.update(item["artifact"].get("external_evidence_ids", []))
+        if external_ids:
+            from metric_pilot.external.evidence import ExternalEvidenceService
+
+            external = ExternalEvidenceService(self.engine, self.query.catalog.root)
+            sources.update(external.collect(run, external_ids))
+            for item in artifacts.values():
+                if item["artifact"].get("external_snapshot_id"):
+                    metadata = external.validate_artifact(external.run(run["id"]), item["artifact"])
+                    external_snapshots[metadata["id"]] = metadata
         return materialize(
             draft,
             {
@@ -66,6 +85,7 @@ class ReportService(KnowledgeStore):
                 "sources": sources,
                 "metrics": metrics,
                 "artifacts": artifacts,
+                "external_snapshots": external_snapshots,
             },
             require_query=require_query,
         )
@@ -148,6 +168,7 @@ class ReportService(KnowledgeStore):
             content_hash=digest,
             sources=list(payload["sources"].values()),
             metrics=list(payload["metrics"].values()),
+            external_snapshots=list(payload.get("external_snapshots", {}).values()),
         )
         return ReportDTO.model_validate(result)
 
@@ -258,6 +279,7 @@ class ReportService(KnowledgeStore):
         for artifact_id in used_artifacts:
             metadata = p["artifacts"][artifact_id]["artifact"]
             source_ids.update(metadata["knowledge_revision_ids"])
+            source_ids.update(metadata.get("external_evidence_ids", []))
             metric_ids.update(metadata["metric_revision_ids"])
         for metric_id in metric_ids:
             source_ids.update(p["metrics"][metric_id]["definition"]["source_revision_ids"])
@@ -280,4 +302,12 @@ class ReportService(KnowledgeStore):
             knowledge_snapshot_id=p["knowledge_snapshot_id"],
             sources=[source for key, source in p["sources"].items() if key in source_ids],
             metrics=[metric for key, metric in p["metrics"].items() if key in metric_ids],
+            external_snapshots=[
+                snapshot
+                for key, snapshot in p.get("external_snapshots", {}).items()
+                if any(
+                    p["artifacts"][ident]["artifact"].get("external_snapshot_id") == key
+                    for ident in used_artifacts
+                )
+            ],
         )

@@ -237,6 +237,7 @@ class ReportDTO(StrictDTO):
     metrics: list[dict[str, Any]]
     draft: ReportDraft
     content_hash: str
+    external_snapshots: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class EvidenceDTO(StrictDTO):
@@ -254,6 +255,7 @@ class EvidenceDTO(StrictDTO):
     sources: list[FrozenSource]
     metrics: list[dict[str, Any]]
     validation_level: Literal["references_validated"] = "references_validated"
+    external_snapshots: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ReportRevisionWrite(StrictDTO):

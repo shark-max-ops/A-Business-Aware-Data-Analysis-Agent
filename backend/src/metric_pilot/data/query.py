@@ -15,7 +15,13 @@ from sqlalchemy.orm import Session
 
 from metric_pilot.data.catalog import Catalog
 from metric_pilot.data.common import DataError, canonical_bytes, new_id, utc_now
-from metric_pilot.data.contracts import QueryArtifact, RunContext, ToolResult
+from metric_pilot.data.contracts import (
+    ExplorationScope,
+    QueryArtifact,
+    RunContext,
+    SchemaDTO,
+    ToolResult,
+)
 from metric_pilot.data.executor import QueryExecutor
 from metric_pilot.data.guard import FUNCTIONS, GUARD_VERSION, validate_sql
 from metric_pilot.data.models import ArtifactRecord, QueryExecution
@@ -52,6 +58,7 @@ class QueryService:
         query_purpose="legacy",
         exploration_scope=None,
         unavailable_metric_keys=(),
+        external_snapshot_id=None,
     ) -> ToolResult:
         """
         作用：审计每次尝试，仅为成功执行产生不可变产物
@@ -78,14 +85,41 @@ class QueryService:
             )
         try:
             snapshot = self.catalog.snapshot(ctx.snapshot_id)
-            schema = self.catalog.schema(snapshot.source_id, snapshot.id)
+            external = None
+            external_evidence_ids = []
+            if external_snapshot_id is not None:
+                from metric_pilot.external.evidence import ExternalEvidenceService
+
+                external = ExternalEvidenceService(self.catalog.engine, self.catalog.root)
+                target, database_path = external.query_target(ctx, external_snapshot_id)
+                if metric_revision_ids:
+                    raise DataError("EXTERNAL_METRIC_BINDING_NOT_ALLOWED")
+                schema = SchemaDTO.model_validate(target["schema"])
+                external_evidence_ids = [target["evidence_id"]]
+                query_purpose = "exploratory"
+                exploration_scope = ExplorationScope(
+                    population=target["manifest"]["scope"]
+                    + "；"
+                    + target["manifest"]["airport"]
+                    + "；"
+                    + target["manifest"]["utc_start"]
+                    + " 至 "
+                    + target["manifest"]["utc_end_exclusive"],
+                    calculation="对固定天气观测执行所附 SQL；非已审核项目指标，不与主表混合连接",
+                    missing_values=target["manifest"]["quality"] + "；降水/积雪不开放累计列",
+                )
+            else:
+                schema = self.catalog.schema(snapshot.source_id, snapshot.id)
+                database_path = self.catalog.database_path(ctx.snapshot_id)
             guarded = validate_sql(
                 sql, parameters, {table.name for table in schema.tables}, self.executor.max_rows
             )
             with Session(self.catalog.engine) as session, session.begin():
-                session.get(QueryExecution, execution_id).parameters = parameters
+                execution = session.get(QueryExecution, execution_id)
+                execution.parameters = parameters
+                execution.external_snapshot_id = external_snapshot_id
             result = self.executor.execute(
-                self.catalog.database_path(ctx.snapshot_id),
+                database_path,
                 guarded,
                 parameters,
                 ctx.deadline_monotonic,
@@ -136,11 +170,15 @@ class QueryService:
                 query_purpose=query_purpose,
                 exploration_scope=exploration_scope,
                 unavailable_metric_keys=list(unavailable_metric_keys),
+                external_snapshot_id=external_snapshot_id,
+                external_evidence_ids=external_evidence_ids,
             )
             if cancel is not None and cancel.is_set():
                 raise DataError("QUERY_CANCELLED")
             if time.monotonic() >= ctx.deadline_monotonic:
                 raise DataError("QUERY_TIMEOUT")
+            if external:
+                external.query_target(ctx, external_snapshot_id)
             with Session(self.catalog.engine) as session, session.begin():
                 execution = session.get(QueryExecution, execution_id)
                 execution.status = "succeeded"
@@ -209,8 +247,18 @@ class QueryService:
                 or artifact.id != artifact_id
                 or artifact.snapshot_id != execution.snapshot_id
                 or artifact.execution_id != execution.id
+                or artifact.external_snapshot_id != execution.external_snapshot_id
             ):
                 raise DataError("ARTIFACT_NOT_FOUND")
+        if (
+            artifact.external_snapshot_id
+            or artifact.external_evidence_ids
+            or "v_weather_observations" in artifact.tables
+        ):
+            from metric_pilot.external.evidence import ExternalEvidenceService
+
+            external = ExternalEvidenceService(self.catalog.engine, self.catalog.root)
+            external.validate_artifact(external.run(run_id), artifact.model_dump())
         if not re.fullmatch(r"[0-9a-f]{64}", artifact.result_hash):
             raise DataError("ARTIFACT_HASH_MISMATCH")
         folder = (self.catalog.root / "artifacts").resolve()

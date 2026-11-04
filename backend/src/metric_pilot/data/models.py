@@ -6,6 +6,7 @@ from sqlalchemy import JSON, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from metric_pilot.database import Base
+from metric_pilot.external import models as external_models  # noqa: F401
 
 
 class DataSource(Base):
@@ -59,6 +60,9 @@ class QueryExecution(Base):
     duration_ms: Mapped[int] = mapped_column(default=0)
     sql: Mapped[str]
     parameters: Mapped[dict[str, Any]] = mapped_column(JSON)
+    external_snapshot_id: Mapped[str | None] = mapped_column(
+        ForeignKey("external_snapshots.id", name="fk_query_external_snapshot"), nullable=True
+    )
 
 
 class ArtifactRecord(Base):

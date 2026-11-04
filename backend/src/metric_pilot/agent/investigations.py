@@ -335,4 +335,15 @@ def read_evidence_artifact(query, run, ident, offset=0, limit=20):
     page = query.read_artifact(owner, ident, offset, limit)
     if page["artifact"]["snapshot_id"] != run["snapshot_id"]:
         raise DataError("REPORT_SNAPSHOT_MISMATCH")
+    if page["artifact"].get("external_snapshot_id"):
+        from metric_pilot.external.evidence import ExternalEvidenceService
+
+        external = ExternalEvidenceService(query.catalog.engine, query.catalog.root)
+        actual = external.run(run["id"])
+        if (actual["snapshot_id"], actual["knowledge_snapshot_id"]) != (
+            run["snapshot_id"],
+            run["knowledge_snapshot_id"],
+        ):
+            raise DataError("EXTERNAL_CONTEXT_MISMATCH")
+        external.validate_artifact(actual, page["artifact"])
     return page

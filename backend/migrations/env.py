@@ -4,6 +4,7 @@ from alembic import context
 from metric_pilot.agent import models as agent_models  # noqa: F401
 from metric_pilot.data import models  # noqa: F401
 from metric_pilot.database import Base, create_metadata_engine
+from metric_pilot.external import models as external_models  # noqa: F401
 from metric_pilot.knowledge import models as knowledge_models  # noqa: F401
 from metric_pilot.reports import models as report_models  # noqa: F401
 from metric_pilot.settings import Settings

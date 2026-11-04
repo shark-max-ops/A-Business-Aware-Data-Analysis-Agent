@@ -3645,6 +3645,14 @@
             "const": "references_validated",
             "title": "Validation Level",
             "default": "references_validated"
+          },
+          "external_snapshots": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "External Snapshots"
           }
         },
         "additionalProperties": false,
@@ -4897,6 +4905,24 @@
           "ordered": {
             "type": "boolean",
             "title": "Ordered"
+          },
+          "external_snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Snapshot Id"
+          },
+          "external_evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "External Evidence Ids"
           }
         },
         "additionalProperties": false,
@@ -5156,6 +5182,14 @@
           "content_hash": {
             "type": "string",
             "title": "Content Hash"
+          },
+          "external_snapshots": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "External Snapshots"
           }
         },
         "additionalProperties": false,

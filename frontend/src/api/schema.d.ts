@@ -1383,6 +1383,10 @@ export interface components {
              * @constant
              */
             validation_level: "references_validated";
+            /** External Snapshots */
+            external_snapshots?: {
+                [key: string]: unknown;
+            }[];
         };
         /**
          * ExplorationScope
@@ -1899,6 +1903,10 @@ export interface components {
             created_at: string;
             /** Ordered */
             ordered: boolean;
+            /** External Snapshot Id */
+            external_snapshot_id?: string | null;
+            /** External Evidence Ids */
+            external_evidence_ids?: string[];
         };
         /**
          * QueryResult
@@ -2010,6 +2018,10 @@ export interface components {
             draft: components["schemas"]["ReportDraft"];
             /** Content Hash */
             content_hash: string;
+            /** External Snapshots */
+            external_snapshots?: {
+                [key: string]: unknown;
+            }[];
         };
         /**
          * ReportDraft

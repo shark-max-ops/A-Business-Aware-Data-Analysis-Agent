@@ -45,6 +45,14 @@ ReportRevision
 
 ## 3. 数字引用与报告块
 
+### 5.C 已实现的外部证据边界
+
+`QueryArtifact` 新增可空 `external_snapshot_id` 与默认空 `external_evidence_ids`。`snapshot_id` 仍指运行主数据，不改成天气快照。服务端从 `external_run_bindings` 查本轮授权的天气版本，通过独立 schema/数据库执行安全 SQL；只有成功产物可供 ValueRef。天气归类为未审核探索，不绑定项目指标；缺失、同刻冲突和界限值分别处理，降水/积雪不开放累计列。
+
+`external_evidence` 固定真实原件、哈希、请求、时间与定位；公告候选不能成为正文依据。报告准备时验证证据和外部快照，再将实际引用的来源和快照冻结到报告；`ReportDTO` / `EvidenceDTO.external_snapshots` 返回所用外部版本。旧报告缺少这些字段仍兼容读取，不回填或改写哈希。数字校验不自动证明天气与异常的因果关系。
+
+同调查已完成旧运行复用仍须符合主数据、知识和会话边界，并核对外部版本；本轮一旦选定同条件新版本，不混用旧版产物。查询旧天气版本前须显式绑定，报告读取旧成功产物沿用原授权。失败/取消/中断运行不能跨运行引用。当前为服务层验收，Agent、发现和页面接入留到 5.D；细节见 [决策 0008](../../../docs/decisions/0008-external-evidence.md)。
+
 KPI 和结构化数值由服务端按 ValueRef 取值，模型只提供标签与布局。单元格引用默认零基行号。
 
 ```python

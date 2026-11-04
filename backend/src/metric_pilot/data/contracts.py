@@ -170,6 +170,8 @@ class QueryArtifact(StrictDTO):
     duration_ms: int
     created_at: str
     ordered: bool
+    external_snapshot_id: str | None = None
+    external_evidence_ids: list[str] = Field(default_factory=list)
 
 
 class ArtifactPage(StrictDTO):

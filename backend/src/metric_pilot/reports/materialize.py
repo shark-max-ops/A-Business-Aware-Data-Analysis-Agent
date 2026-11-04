@@ -133,6 +133,13 @@ def materialize(draft, frozen, *, require_query=True):
     # 探索身份由成功产物决定，模型或人工修改报告说明不能删除这条边界。
     if any(item["artifact"].get("query_purpose") == "exploratory" for item in artifacts.values()):
         warnings.append("包含数据探索结果，未绑定已审核项目指标；范围、计算与缺失处理见固定依据。")
+    if any(
+        source.get("source_kind") in {"official_advisory", "official_weather_observations"}
+        for source in frozen["sources"].values()
+    ):
+        warnings.append(
+            "外部观测与公告是固定来源证据，不单独证明航班异常原因；有效期及航司限制见原文。"
+        )
     result = {
         **copy.deepcopy(frozen),
         "draft": draft.model_dump(),

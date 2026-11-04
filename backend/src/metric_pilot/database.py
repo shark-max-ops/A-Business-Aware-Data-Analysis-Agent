@@ -7,7 +7,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from metric_pilot.settings import Settings
 
-SCHEMA_REVISION = "0006_investigations"
+SCHEMA_REVISION = "0007_external_evidence"
 
 
 class Base(DeclarativeBase):
@@ -98,8 +98,11 @@ def inspect_database(engine: Engine) -> tuple[str, str]:
                     "report_revisions",
                     "investigations",
                     "investigation_findings",
+                    "external_evidence",
+                    "external_snapshots",
                 ):
                     connection.execute(text(f"SELECT id FROM {table} LIMIT 0"))
+                connection.execute(text("SELECT run_id FROM external_run_bindings LIMIT 0"))
                 connection.execute(text("SELECT key FROM knowledge_metrics LIMIT 0"))
                 connection.execute(text("SELECT chunk_id FROM knowledge_fts LIMIT 0"))
                 database = "ready" if ready else "migration_required"
