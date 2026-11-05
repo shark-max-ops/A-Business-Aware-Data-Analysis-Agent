@@ -113,7 +113,7 @@
 
 ## 阶段 2 实际实现与验收（2026-10-30）
 
-入口：http://127.0.0.1:5173/knowledge 。实现依据为蓝图 04 / 06 / 07；设计参考与限制记录在 `docs/decisions/0003-knowledge-and-metrics.md`。
+入口：http://127.0.0.1:5173/knowledge 。实现依据为蓝图 04 / 06 / 07；设计参考与限制记录在 `参考/docs/blueprint/04-knowledge-and-metrics.md#decision-0003`。
 
 实际实现：
 
@@ -197,7 +197,7 @@
 
 ## 阶段 3 实际实现与验收（2026-10-30）
 
-入口：http://127.0.0.1:5173/analysis 。设计边界见 `docs/decisions/0004-agent-runtime.md`。项目正式名称与内部 `metric_pilot` 包名保持不变。
+入口：http://127.0.0.1:5173/analysis 。设计边界见 `参考/docs/blueprint/02-agent-runtime.md#decision-0004`。项目正式名称与内部 `metric_pilot` 包名保持不变。
 
 实际实现：
 
@@ -415,7 +415,7 @@ Windows 浏览器测试启动的隔离服务在自动清理阶段未退出，本
 - 跨运行证据由服务端核对同调查、同会话、相同数据与知识版本、旧运行 completed，再复用成功执行、产物元数据和结果哈希校验。跨调查、失败旧运行、错版本、截断或无效引用仍拒绝；历史 query_result 保持本次运行限制。
 - 分析页新增调查选择、新调查/显式分支、发现与反证、历史修正、依据、后续问题入口；继续使用原有取消、SSE 重放及报告。失败前保存的发现标记来源运行状态，不直接授权用于后续报告。
 - 真实模型暴露准备动作与读取结果反复循环，已精简重复报告契约和工具上下文，固定保留实际字段、最近查询摘要、剩余预算；不再静默丢弃最新整批工具结果。完整审计仍保留。
-- 新增 docs/decisions/0006-continuous-investigations.md、docs/walkthroughs/stage-4-investigations.md 和 scripts/verify_investigations.py；API 类型重新生成。
+- 新增 参考/docs/blueprint/02-agent-runtime.md#decision-0006、docs/walkthroughs/stage-4-investigations.md 和 scripts/verify_investigations.py；API 类型重新生成。
 
 已执行检查：
 
@@ -522,7 +522,7 @@ Windows 浏览器测试通过 PLAYWRIGHT_EXTERNAL_SERVER=1 使用已显式启动
 - 真实试跑暴露了上下文重复开销：工具签名去除展示标题而保留全部约束；固定上下文保留少量真实来源摘录、小型结果缓存及 complete 标记，减少裁剪后的重复检索/读取；与问题完全相同的目标不重复全文。空间紧张先缩短摘录和预览，再让可选缓存副本让位，保留最新工具组、范围与产物定位；不扩大 32000 上下文预算或 24 次工具上限。
 - 可选分位数查询使用未开放 ROW_NUMBER 时，反馈具体函数名、允许列表及中文修正建议；不开放新函数，不回传连接或原始异常，不把失败变成证据。已有成功统计仍可用于报告，不能原样重试可选失败。
 
-本地验证：完整后端 195 passed；最后上下文调整后，相关后端 53 passed，压力断言定向 1 passed。前端 18 passed，分析页浏览器 9 passed，TypeScript/Vite 构建、Ruff、Alembic check 与 diff 空白检查通过。浏览器访问隔离的实际前后端和 SQLite/DuckDB/FakeLLM，新增探索恢复、发现引用及桌面/390px 手机依据检查；两张探索截图已亲自查看，无中文乱码、裁切或页面运行错误。回归中另发现同时间戳创建运行时随机 ID 不能代表先后，会导致旧结果覆盖新标题；已按 SQLite 插入顺序保护最新运行，测试固定相同时间戳验证。原有包体积及 TestClient 弃用提示仍在。设计决策见 docs/decisions/0007-exploration-and-reviewed-metrics.md，代码讲解及相关蓝图已更新。
+本地验证：完整后端 195 passed；最后上下文调整后，相关后端 53 passed，压力断言定向 1 passed。前端 18 passed，分析页浏览器 9 passed，TypeScript/Vite 构建、Ruff、Alembic check 与 diff 空白检查通过。浏览器访问隔离的实际前后端和 SQLite/DuckDB/FakeLLM，新增探索恢复、发现引用及桌面/390px 手机依据检查；两张探索截图已亲自查看，无中文乱码、裁切或页面运行错误。回归中另发现同时间戳创建运行时随机 ID 不能代表先后，会导致旧结果覆盖新标题；已按 SQLite 插入顺序保护最新运行，测试固定相同时间戳验证。原有包体积及 TestClient 弃用提示仍在。设计决策见 参考/docs/blueprint/04-knowledge-and-metrics.md#decision-0007，代码讲解及相关蓝图已更新。
 
 真实验收通过已授权的 api.deepseek.com / deepseek-flash 执行用户原题，未预置 SQL。所有失败保留：原调查 inv_ebe3ed9430fc4fb48f96d8b8c93d1fa0 的连接失败 run_5e7e7239259043b39255e72f80e45980、上下文失败 run_da48f71a16eb45d892e4f2750916c8c5 和 run_333a3ed203644cd693d8537b544b55f4 计入实际累计额度，现已分配 4/4，未重置或扩容。后两次已实际成功执行显式探索，证明审核阻断路径可修正，但未完成报告，不计整题通过。
 
@@ -687,7 +687,7 @@ FAA 实际入口为 https://www.fly.faa.gov/adv/adv_list，以 GET 参数 date=2
 
 `QueryArtifact.snapshot_id` 仍是运行主数据快照；新增 `external_snapshot_id` / `external_evidence_ids` 单独记录天气版本，不放宽主快照检查、不把天气注册为可切换主数据源，也不自动跨库连接。一个运行的同来源条件固定一个版本，重复同采集登记幂等，新采集不能覆盖本轮版本；新运行可显式选择新版本。跨运行保留阶段 4 同调查、会话、主数据/知识版本、已完成旧运行的权限，失败/取消/中断来源不能复用。查询旧天气版本前须显式绑定；本轮选定新版本后不能混用旧版产物。
 
-ReportService 从成功查询产物供 ValueRef 取值，并冻结实际使用的天气快照、公告/天气原文与定位，`ReportDTO`、`EvidenceDTO.external_snapshots` 和 OpenAPI/前端生成类型已同步。旧报告不回填字段、重算数字或访问最新外部内容；外部来源强制追加不能单独证明航班原因的限制。细节见 `docs/decisions/0008-external-evidence.md` 和 `docs/walkthroughs/stage-5c-external-evidence.md`。独立试用脚本 `scripts/verify_external_evidence.py` 接受已有天气、固定正文和主快照 ID，新建隔离目录执行真实服务，默认中文摘要，不输出整份 JSON 或密钥。
+ReportService 从成功查询产物供 ValueRef 取值，并冻结实际使用的天气快照、公告/天气原文与定位，`ReportDTO`、`EvidenceDTO.external_snapshots` 和 OpenAPI/前端生成类型已同步。旧报告不回填字段、重算数字或访问最新外部内容；外部来源强制追加不能单独证明航班原因的限制。细节见 `参考/docs/blueprint/05-evidence-and-reports.md#decision-0008` 和 `docs/walkthroughs/stage-5c-external-evidence.md`。独立试用脚本 `scripts/verify_external_evidence.py` 接受已有天气、固定正文和主快照 ID，新建隔离目录执行真实服务，默认中文摘要，不输出整份 JSON 或密钥。
 
 实际检查：
 
@@ -780,3 +780,13 @@ ReportService 从成功查询产物供 ValueRef 取值，并冻结实际使用�
 正式后端已重启加载最终修复，前端保留。首次尚无完整历史原件、来源已更新或用户强制重下载时仍须读取全年文件，网络慢时可超时，失败真实展示；304不解决这些情况，不宣称所有历史下载均可稳定完成。原任务的天气失败点已定向修复并通过真实联网验证，其余历史报告与失败记录保留。无新依赖、迁移、指标批准、Wiki 发布或 Git 提交/推送。
 
 最后补查304已确认但复用字节预算不足的分支：仍记录 failed，不提前登记成功，连接实际关闭。包含这项新增回归的缓存/冻结专项最终 **30 passed**；没有把该项加进此前全库数字或声称最终全库全绿。最终 Ruff 与相关格式检查通过。
+
+### 文档归并与本地清理（2026-11-05）
+
+按用户要求，将原 `docs/decisions` 的九份设计取舍按主题并入蓝图 01—05，保留各阶段的历史背景、实施边界及后续修正。蓝图 README 增加统一索引，根 README、代码导读及实施记录中的旧路径同步指向对应章节与稳定锚点；原独立决策目录已删除。逐份对照 Git 中的原文，九份正文全部保留，仅调整标题层级；14 处 Markdown 跳转及目标锚点检查通过。
+
+删除 `.cache`、`.pytest_cache`、`.ruff_cache`、Python 字节码目录、`.venv`、`frontend/node_modules`、`frontend/dist`、`frontend/test-results` 和 TypeScript 增量构建记录。删除内容可由锁文件、构建或检查命令重新生成；历史截图与临时诊断记录已随缓存清除，前文相关路径仅保留当时检查的历史描述，不再表示文件当前仍存在。清理后本机须先重新安装依赖，浏览器测试须重新安装 Chromium；README 已说明恢复入口。
+
+天气修复验收的六个隔离数据库此前位于缓存目录，现迁入忽略的 `storage/validation/weather-repair-history/`，逐文件 SHA-256 校验一致；同目录 `relocations.json` 保存原路径、新路径及哈希。历史验收 JSON 保持原样，其中的旧缓存路径按该清单定位。真实原始数据、知识材料、主元数据库、数据快照、冻结外部来源、查询产物、旧报告和成功/失败验收记录保留；清理过程对主元数据库、天气修复验收 JSON 及 176 份冻结产物共 178 个文件进行前后哈希核对，一致。
+
+清理前基础后端测试 **5 passed**，保留现有 TestClient 弃用提示；文档合并完整性、跳转和差异空白检查通过。此次未修改业务代码，未运行全库、前端或真实数据/模型重验，未将旧验收结果写成本轮重测通过。阶段 6、7 仍未实施；当前入口仍为阶段 5 用户试用。

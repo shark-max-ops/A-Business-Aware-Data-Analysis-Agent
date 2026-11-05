@@ -156,3 +156,19 @@ uv run uvicorn metric_pilot.main:app --host 127.0.0.1 --port 8000
 ## 7. 扩展边界
 
 只为确实存在的变化定义协议：LLMClient、Tool、Retriever、QueryExecutor、ArtifactStore。先实现一个 adapter，不创建全能插件容器。业务表只有 DuckDB；SQLite 是应用元数据，不算第二种对外分析数据源。
+
+---
+
+<a id="decision-0001"></a>
+
+## 实施设计取舍 0001：阶段 0：工程边界与设计来源
+
+本节保留实施时的阶段边界及后续补充；当前完成状态以根目录 IMPLEMENTATION_STATUS.md 末尾为准。
+
+依据蓝图 01、06、07 建立工程。
+
+1. Python 3.12、FastAPI、Pydantic、SQLAlchemy、Alembic 和 SQLite；前端为 React、TypeScript、Vite、Ant Design。数据导入、模型与报告在后续阶段实现。
+2. DTO 由后端 OpenAPI 生成前端声明，页面明确处理加载、正常、降级和失败。
+3. 健康检查只检测本地依赖，配置完整性不等于远程连通性；worker 未实现就返回未实现。
+4. 参考蓝图中 DB-GPT 的职责分离方向，本阶段未复制或执行快照代码。Runtime、工具与报告证据的设计记录将在相应阶段补充；参考源码仅使用包内相对路径。
+5. 服务与迁移使用同一配置，只建立应用设置表，不预填业务数据。临时 SQLite 测试验证迁移、WAL、错误脱敏和无模型密钥启动。

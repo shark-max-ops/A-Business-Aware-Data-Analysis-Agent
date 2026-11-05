@@ -55,11 +55,13 @@ Python 模块路径为 `metric_pilot`，下面的安装与启动命令按这个�
 
 ## 各阶段代码讲解
 
-[阶段代码导读](docs/walkthroughs/README.md) 按阶段说明目标、流程、关键代码和验证边界。[5.A 独立天气查询](docs/walkthroughs/stage-5a-weather.md) 与 [5.B 公告检索和原文读取](docs/walkthroughs/stage-5b-advisories.md) 可在终端试用，不需要启动前后端或模型。[5.C 外部证据与报告取值](docs/walkthroughs/stage-5c-external-evidence.md) 建立固定取值链，[5.D 调查接入](docs/walkthroughs/stage-5d-investigation-tools.md) 已支持在分析对话中自动核查、保存发现、查看来源和继续调查，附启动与试用问题。外部来源受已登记站点、日期、许可和运行额度约束，不能单独证明因果。阶段 6—7 未实施。设计取舍见 `docs/decisions/`，实际验收见 `IMPLEMENTATION_STATUS.md`。
+[阶段代码导读](docs/walkthroughs/README.md) 按阶段说明目标、流程、关键代码和验证边界。[5.A 独立天气查询](docs/walkthroughs/stage-5a-weather.md) 与 [5.B 公告检索和原文读取](docs/walkthroughs/stage-5b-advisories.md) 可在终端试用，不需要启动前后端或模型。[5.C 外部证据与报告取值](docs/walkthroughs/stage-5c-external-evidence.md) 建立固定取值链，[5.D 调查接入](docs/walkthroughs/stage-5d-investigation-tools.md) 已支持在分析对话中自动核查、保存发现、查看来源和继续调查，附启动与试用问题。外部来源受已登记站点、日期、许可和运行额度约束，不能单独证明因果。阶段 6—7 未实施。设计取舍见 `参考/docs/blueprint/README.md#implementation-decisions`，实际验收见 `IMPLEMENTATION_STATUS.md`。
 
 ## 环境
 
 Python 3.12、uv、Node.js 22+、npm。Python 版本固定为 3.12，依赖由 `uv.lock` 和 `frontend/package-lock.json` 固定。虚拟环境位于根目录 `.venv`，无需手动激活。依赖安装需要网络，模型密钥不是阶段 0 启动的前提。
+
+仓库只保留依赖声明与锁文件；本地虚拟环境、`node_modules`、构建结果和工具缓存可重新生成。清理后先按下方命令执行 `uv sync --locked` 与 `npm ci`，构建网页时执行 `npm run build`，浏览器测试前重新安装 Playwright Chromium。原始资料与运行证据仍属于本地工作数据，交付源码时遵守下文的数据获取说明。
 
 ## Windows PowerShell
 
@@ -201,7 +203,7 @@ $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) '.cache/ms-playwright'
 npm.cmd run test:analysis --prefix frontend
 ```
 
-启动器使用独立数据库、合成数据和位于 `backend/tests/` 的 FakeLLM，仍运行真实工具与查询子进程。正式配置没有测试模型开关。测试端口为 8002 / 5175；Windows 启动命令已验证，Linux/macOS 尚未实测。实现边界见 [阶段 3 决策](docs/decisions/0004-agent-runtime.md)。
+启动器使用独立数据库、合成数据和位于 `backend/tests/` 的 FakeLLM，仍运行真实工具与查询子进程。正式配置没有测试模型开关。测试端口为 8002 / 5175；Windows 启动命令已验证，Linux/macOS 尚未实测。实现边界见 [阶段 3 决策](参考/docs/blueprint/02-agent-runtime.md#decision-0004)。
 
 ## 阶段 2：使用知识管理
 
@@ -246,7 +248,7 @@ $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) '.cache/ms-playwright'
 npm.cmd run test:knowledge --prefix frontend
 ```
 
-测试配置会在 5174 启动专用前端并代理到 8001，不请求远程模型。详细操作见 [分析使用说明](knowledge_seed/project/07-analysis-guide.md)，设计边界见 [阶段 2 决策](docs/decisions/0003-knowledge-and-metrics.md)。Linux/macOS 的浏览器命令及系统依赖仍需对应系统实测。
+测试配置会在 5174 启动专用前端并代理到 8001，不请求远程模型。详细操作见 [分析使用说明](knowledge_seed/project/07-analysis-guide.md)，设计边界见 [阶段 2 决策](参考/docs/blueprint/04-knowledge-and-metrics.md#decision-0003)。Linux/macOS 的浏览器命令及系统依赖仍需对应系统实测。
 
 
 ## 阶段 1：运行合成演示

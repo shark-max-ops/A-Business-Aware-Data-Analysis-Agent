@@ -88,3 +88,21 @@
 - [FastAPI 文档](https://fastapi.tiangolo.com/)
 
 官方资料支持字段语义与报告规则；本项目的指标默认值、交互、架构和 API 是项目自己的设计。公开统计规范不是某航空公司的内部制度。来源、许可和下载版本应记录在数据清单中，不笼统声明所有第三方资料均可按本项目许可证再发布。
+
+<a id="implementation-decisions"></a>
+
+## 8. 已实施阶段的设计取舍
+
+设计目标与实施取舍统一维护在本蓝图。以下各节保留实施时的背景、参考来源、取舍理由和后续调整；历史阶段的“尚未实现”描述不代表当前状态。实际验收及当前限制以根目录 IMPLEMENTATION_STATUS.md 为准，代码执行路径见 docs/walkthroughs/。
+
+| 实施记录 | 合并位置 |
+| --- | --- |
+| 0001：阶段 0：工程边界与设计来源 | [01-architecture.md](01-architecture.md#decision-0001) |
+| 0002：阶段 1：数据快照与受限查询 | [03-data-and-sql.md](03-data-and-sql.md#decision-0002) |
+| 0003：固定知识修订、引用与审核边界 | [04-knowledge-and-metrics.md](04-knowledge-and-metrics.md#decision-0003) |
+| 0004：单 Agent、持久运行与阶段 3 查询结果 | [02-agent-runtime.md](02-agent-runtime.md#decision-0004) |
+| 0005：服务端取值、固定报告与可追溯展示 | [05-evidence-and-reports.md](05-evidence-and-reports.md#decision-0005) |
+| 0006：持续调查、运行额度与证据归属 | [02-agent-runtime.md](02-agent-runtime.md#decision-0006) |
+| 0007：数据探索与正式项目指标分开授权 | [04-knowledge-and-metrics.md](04-knowledge-and-metrics.md#decision-0007) |
+| 0008：主数据边界与外部证据版本分开校验 | [05-evidence-and-reports.md](05-evidence-and-reports.md#decision-0008) |
+| 0009：在单 Agent 调查中组合受控外部工具 | [02-agent-runtime.md](02-agent-runtime.md#decision-0009) |
