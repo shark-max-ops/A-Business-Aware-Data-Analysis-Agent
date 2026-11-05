@@ -2,11 +2,40 @@
 
 ## 1. 来源与固定版本
 
-使用 [Reporting Carrier On-Time Performance 官方下载页](https://www.transtats.bts.gov/DL_SelectFields.aspx?QO_fu146_anzr=b0-gvzr&gnoyr_VQ=FGJ)。默认 Year=2026、Period=January，按需选择字段下载 CSV 或官方预打包文件。页面若需要交互或下载失败，提供手动下载和本地导入流程，不依赖不稳定的抓取脚本。
+使用 [Reporting Carrier On-Time Performance 官方下载页](https://www.transtats.bts.gov/DL_SelectFields.aspx?QO_fu146_anzr=b0-gvzr&gnoyr_VQ=FGJ)。已有一月基线；下一批 Year=2026，Period 分别为 February、March，逐月选择相同 29 字段下载并解压 CSV。页面若需要交互或下载失败，提供手动下载和本地导入流程，不依赖不稳定的抓取脚本。
 
 不要同时导入 Marketing Carrier 和 Reporting Carrier 两张表。不要把官方月度新闻稿中的汇总数当成当前 CSV 的标准行数。首次成功导入后生成清单并人工核对该表口径，后续复现依赖清单中的哈希。
 
 原始 CSV 不直接提交 Git；README 给出原始网址、获取日期、选择条件与校验方法。仓库提供明确标记的少量合成 fixture，以便无网络测试。离线 fixture 测试不需要付费模型。
+
+<a id="bts-download"></a>
+
+### 下载和存放月度文件
+
+1. 打开上方 Reporting Carrier 官方下载页，确认表名为 **Reporting Carrier On-Time Performance**，不要选择 Marketing Carrier。
+2. `Filter Year` 选 `2026`，`Filter Period` 分别选 `February`、`March`，地理范围保持全部；逐月下载，不混合两种承运人口径。
+3. 按下面 29 个字段勾选后点击 Download。下载 ZIP 后解压 CSV；表头可能导出为 FL_DATE、OP_UNIQUE_CARRIER、ARR_DELAY_NEW 等，已有导入器处理别名，不需手动改表头。
+4. 文件统一放入下列路径。一月已经归位；用户提供的新月份文件需另行核验，不创建空占位文件：
+
+```text
+data/bts/
+  2026-01.csv   已有一月原始文件
+  2026-02.csv   用户下载的二月原件，放入后核验
+  2026-03.csv   用户下载的三月原件，放入后核验
+```
+
+| 分组 | 勾选字段 |
+| --- | --- |
+| 日期 | `FlightDate` |
+| 航空公司与航班 | `Reporting_Airline`、`DOT_ID_Reporting_Airline`、`Flight_Number_Reporting_Airline`、`Tail_Number` |
+| 机场 | `OriginAirportID`、`DestAirportID`、`Origin`、`Dest` |
+| 计划与实际时间 | `CRSDepTime`、`CRSArrTime`、`DepTime`、`ArrTime` |
+| 延误 | `DepDelay`、`ArrDelay`、`ArrDelayMinutes`、`ArrDel15` |
+| 取消与备降 | `Cancelled`、`Diverted`、`CancellationCode` |
+| 航距与时长 | `Distance`、`AirTime`、`CRSElapsedTime`、`ActualElapsedTime` |
+| 已上报原因 | `CarrierDelay`、`WeatherDelay`、`NASDelay`、`SecurityDelay`、`LateAircraftDelay` |
+
+一月文件从 `data/T_ONTIME_REPORTING.csv` 移至 `data/bts/2026-01.csv`，字节和 SHA-256 不变；历史清单中的旧路径保留为当时位置。已有 `storage/datasets/` 冻结副本、旧调查与报告不移动、不重新导入。运行脚本和当前操作说明使用新路径。月度原始 CSV 继续由根目录 `.gitignore` 的 `/data/` 排除，不提交 Git。
 
 ## 2. 字段选择与标准化
 
@@ -158,13 +187,15 @@ ORDER BY delay_rate_pct DESC, carrier_id;
 
 上例函数应纳入允许集。执行参数类型与 DuckDB 实测绑定一致。取消率另查全体计划记录，不复用已排除取消的分母。
 
-## 用户导入与调查数据准备（阶段 6，待实现）
+## 多月 BTS 数据准备（阶段 6，待实现）
 
-阶段 5.C 已增加独立天气查询快照 `v_weather_observations`，不注册为 BTS 主数据源，不跨库拼接。主快照检查保留，天气版本由服务端额外绑定并校验；复用同一 AST、只读子进程、结果冻结和真实取消。天气表数值采用通过筛选的精确温度、风速和能见度；界限、缺失、冲突及原件定位单列保留，降水/积雪暂不开放累计列。详见 [05 外部证据边界](05-evidence-and-reports.md#5c-已实现的外部证据边界)。
+本轮不建设通用 CSV/XLSX 上传或任意业务表语义映射。现有单月导入继续可用，下一步按 [实施顺序](07-build-and-evaluate.md) 的 6.A—6.E 接入月度文件集合、固定多月快照、日期范围和跨月调查；文件归位不代表该能力已实现。
 
-在现有 BTS 专用导入之外，支持用户提供自己的表格数据与业务材料。明确受支持格式、大小、编码、字段与类型，展示真实解析和质量报告，包括缺失、重复、异常值及日期或单位歧义；未知含义由用户确认，不以模型猜测当作业务事实。来源、原文件哈希、转换策略和确认记录进入清单；导入失败不生成可分析的成功快照，新快照不覆盖旧版本。
+计划的多月快照须逐月记录原始文件、月份、哈希、实际日期覆盖和质量；合并后保留来源文件与原行定位，校验缺月、重复文件、重叠和同名字段冲突。原始重复候选与异常不自动删除，缺失不补零。数据契约显式表示范围，不将旧单月 `period` 拼成范围字符串；运行、调查、工具、报告和 UI 同步更新，并继续校验版本与成功产物。
 
-发布为可查询快照前，明确可用表与字段并复用 AST 校验、允许表与函数、受限只读连接、子进程取消与结果限制。用户材料进入版本化知识与审核流程，生成内容不能自动成为正式规则。文件内容属于不可信输入；上传到外部模型服务之前应明确实际发送范围并遵守已有授权和配置。
+指标和业务资料需要覆盖所选范围，现有一月草稿不能自动扩期或批准。新快照不覆盖旧快照，切换范围须新建调查或分支。实际用户文件到达后再执行真实导入与独立 CSV 基线核对；多月命令须在实现和验证后才进入 README。
+
+阶段 5.C 已增加独立天气查询快照 `v_weather_observations`，不注册为 BTS 主数据源，不跨库拼接。主快照检查保留，天气版本由服务端额外绑定并校验；复用同一 AST、只读子进程、结果冻结和真实取消。天气表数值采用通过筛选的精确温度、风速和能见度；界限、缺失、冲突及原件定位单列保留，降水/积雪暂不开放累计列。跨月调查也不自动扩大站点/年份、单次日期范围或联网额度，须从实际线索缩小核查范围。详见 [05 外部证据边界](05-evidence-and-reports.md#5c-已实现的外部证据边界)。
 
 ## 9. 必测情况
 
@@ -176,13 +207,13 @@ ORDER BY delay_rate_pct DESC, carrier_id;
 
 ## 实施设计取舍 0002：阶段 1：数据快照与受限查询
 
-本节保留实施时的阶段边界及后续补充；当前完成状态以根目录 IMPLEMENTATION_STATUS.md 末尾为准。
+本节保留实施时的阶段边界及后续补充；当前完成状态以根目录 IMPLEMENTATION_STATUS.md 中相关事项的最新日期记录为准。
 
-依据蓝图 01—08，重点采用 03 的导入和 SQL 边界、05 的 QueryArtifact、06 的数据源 API。参考源码仅阅读包内 `参考/docs/blueprint/references/dbgpt/10-sql-read-only.py.txt`，未复制源码或安装 DB-GPT。
+依据蓝图 01—08，重点采用 03 的导入和 SQL 边界、05 的 QueryArtifact、06 的数据源 API。查询服务将权限检查、实际执行与成功产物登记分开处理。
 
 #### 设计取舍
 
-- 参考 DB-GPT 将查询检查与执行、产物与展示分开。该快照使用完整语句检查；本项目额外使用 sqlglot AST 默认拒绝白名单、作用域解析、函数/表允许集，结合 DuckDB 受限只读连接和 spawn 子进程超时，不能仅凭 SELECT 前缀判断安全。
+- 查询检查与执行、产物与展示分别负责。sqlglot AST 使用默认拒绝的白名单、作用域解析及函数/表允许集，结合 DuckDB 受限只读连接和 spawn 子进程超时，不能仅凭 SELECT 前缀判断安全。
 - 一个业务分析引擎 DuckDB，SQLite 仅保存目录和执行审计。导入连接可写，只写新临时目录；分析连接只读且禁止外部访问、自动扩展安装/加载，内存与临时磁盘预算固定。锁定版本必须实际支持全部设置。
 - 原始输入先复制并计算哈希，后续解析读取复制件。发布前保留 CSV、DuckDB、manifest、quality 和 schema，关闭写连接后原子重命名，最后在事务中登记。登记失败可能留下不被引用的文件，但不能发布不完整快照。
 - 合成和用户声明的官方 BTS 来源分开登记。出现 Marketing 字段就拒绝混用。未知或缺失基线字段不默认为零；当前版本要求完整基线字段，列不全则明确拒绝整个导入。

@@ -1,19 +1,14 @@
-# 项目参考资料
+# 项目设计文档
 
-这个文件夹包含开始 MetricPilot 个人项目所需的全部设计参考资料，可以整体复制到其他位置。它是开发起点，不是已经实现的应用。
+本目录保存 A Business-Aware Data Analysis Agent 的设计契约、实施取舍和流程图。设计文档用于说明系统边界与模块职责；已实现能力、验收结果和当前限制以根目录的 [实施记录](../IMPLEMENTATION_STATUS.md) 和实际代码为准。
 
-## 当前工作区与使用方式
+## 阅读入口
 
-工作区根目录包含 `参考/`，蓝图位于 `参考/docs/blueprint/`，DB-GPT 源码快照位于 `参考/docs/blueprint/references/dbgpt/`。目前只有参考资料，尚无应用代码、数据、依赖或实施状态文件。
-
-从 [蓝图目录](docs/blueprint/README.md) 开始阅读，再按需阅读 01—08 和源码快照。工作区根目录的 `AGENTS.md` 适用于整个工作区。蓝图中的应用目录、命令和功能是拟议设计，实施时再创建和验证。项目开始实施后可在工作区根目录创建 `IMPLEMENTATION_STATUS.md`，记录实际状态。
-
-## 包内内容
-
-- [完整项目蓝图与文档目录](docs/blueprint/README.md)：范围、架构、Agent、数据、Wiki、报告、页面、API、实施与评估。
+- [蓝图目录](docs/blueprint/README.md)：范围、架构、Agent、数据、知识、报告、页面、API、实施与评估。
+- [代码阅读路线](docs/blueprint/08-code-reading-map.md)：从一次调查定位本项目的后端、前端和检查入口。
+- [各阶段代码讲解](../docs/walkthroughs/README.md)：执行流程、关键文件、验证与限制。
 - [AI 开发约束](../AGENTS.md)：适用于整个工作区。
-- [DB-GPT 参考阅读路线](docs/blueprint/08-dbgpt-reading-map.md)。
-- [12 份源码完整快照](docs/blueprint/references/dbgpt/README.md)：附来源清单、文件哈希和许可证。
+- [配置与启动](../README.md)：依赖安装、迁移、数据准备和使用方式。
 
-不包含真实 BTS 数据、模型密钥或安装好的依赖。实际开发时按照蓝图下载数据、配置服务并创建锁文件；不需要搬运原 DB-GPT 的虚拟环境和 node_modules。
+阶段 5 已完成所列 Windows 工程路径验收，可供用户试用；后续依次为阶段 6 多月 BTS 数据、阶段 7 工具条件与分析扩展、阶段 8 整体评估交付，均尚未实施；不建设通用业务表导入。原始业务数据、模型密钥和本地运行数据库不属于本目录的交付内容。
 

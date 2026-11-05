@@ -95,7 +95,7 @@ async def verify(resume=False):
             if s.source_kind == "official_bts" and s.current_snapshot_id
         )
         snapshot = catalog.snapshot(source.current_snapshot_id)
-        reference, counts = baseline(Path("data/T_ONTIME_REPORTING.csv"), snapshot.period)
+        reference, counts = baseline(Path("data/bts/2026-01.csv"), snapshot.period)
         if snapshot.file_hash != reference["file_hash"]:
             raise RuntimeError("BASELINE_HASH_MISMATCH")
         budget = {

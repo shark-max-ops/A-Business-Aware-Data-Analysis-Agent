@@ -193,7 +193,7 @@ def verify(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", default="http://127.0.0.1:8000/api/v1")
-    parser.add_argument("--input", type=Path, default=Path("data/T_ONTIME_REPORTING.csv"))
+    parser.add_argument("--input", type=Path, default=Path("data/bts/2026-01.csv"))
     parser.add_argument("--case", choices=["all", *QUESTIONS], default="all")
     parser.add_argument("--reuse-record", action="store_true")
     raise SystemExit(0 if verify(parser.parse_args()) else 1)

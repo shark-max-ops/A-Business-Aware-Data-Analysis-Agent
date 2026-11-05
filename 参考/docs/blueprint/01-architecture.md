@@ -32,7 +32,7 @@ flowchart TD
 
 ## 3. 建议目录
 
-以下是设计时的建议结构，并非现有文件清单；实际目录和实现以代码与实施记录为准。调查已由 agent/investigations.py 等模块实现；通用用户导入仍属后续工作。
+以下是设计时的建议结构，并非现有文件清单；实际目录和实现以代码与实施记录为准。调查已由 agent/investigations.py 等模块实现；后续在既有模块内接入多月 BTS 数据和条件化分析工具，不建设通用用户数据导入。
 
 ```text
 metric-pilot/
@@ -83,6 +83,10 @@ metric-pilot/
     artifacts/<sha256>.json
     documents/<sha256>.txt
 ```
+
+### 后续扩展的目录约束
+
+复用现有 agent、data、knowledge、external、reports 及前端组件目录。月度原件集中在 `data/bts/YYYY-MM.csv`；业务资料原件与整理件沿用现有目录，运行/证据/验收留存在 `storage/`，可再生成缓存留在忽略目录。优先消除重复入口与一次性脚本，只有明确新职责才新增模块；不为每题、每月或每轮测试新增顶层目录，也不把不同职责合成巨型文件。移动前核对使用方，保留不可变快照和历史路径审计。
 
 ## 4. 核心对象与关系
 
@@ -147,7 +151,7 @@ SQL_MAX_ROWS=1000
 uv sync
 Copy-Item .env.example .env
 uv run alembic upgrade head
-uv run python -m metric_pilot.data.ingest --input ./data/bts.csv --period 2026-01
+uv run python -m metric_pilot.data.ingest --input ./data/bts/2026-01.csv --period 2026-01
 uv run uvicorn metric_pilot.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -161,14 +165,14 @@ uv run uvicorn metric_pilot.main:app --host 127.0.0.1 --port 8000
 
 <a id="decision-0001"></a>
 
-## 实施设计取舍 0001：阶段 0：工程边界与设计来源
+## 实施设计取舍 0001：阶段 0：工程边界与职责划分
 
-本节保留实施时的阶段边界及后续补充；当前完成状态以根目录 IMPLEMENTATION_STATUS.md 末尾为准。
+本节保留实施时的阶段边界及后续补充；当前完成状态以根目录 IMPLEMENTATION_STATUS.md 中相关事项的最新日期记录为准。
 
 依据蓝图 01、06、07 建立工程。
 
 1. Python 3.12、FastAPI、Pydantic、SQLAlchemy、Alembic 和 SQLite；前端为 React、TypeScript、Vite、Ant Design。数据导入、模型与报告在后续阶段实现。
 2. DTO 由后端 OpenAPI 生成前端声明，页面明确处理加载、正常、降级和失败。
 3. 健康检查只检测本地依赖，配置完整性不等于远程连通性；worker 未实现就返回未实现。
-4. 参考蓝图中 DB-GPT 的职责分离方向，本阶段未复制或执行快照代码。Runtime、工具与报告证据的设计记录将在相应阶段补充；参考源码仅使用包内相对路径。
+4. 将运行控制、工具执行与报告证据分开维护，通过公共契约连接。本阶段仅建立工程基础，各模块的具体实现和验证在对应阶段补充。
 5. 服务与迁移使用同一配置，只建立应用设置表，不预填业务数据。临时 SQLite 测试验证迁移、WAL、错误脱敏和无模型密钥启动。
