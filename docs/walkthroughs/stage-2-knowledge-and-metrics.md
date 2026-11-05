@@ -96,7 +96,7 @@
 
 ### 3.7 知识页面：让资料和指标方便阅读
 
-[KnowledgePage.tsx](../../frontend/src/components/KnowledgePage.tsx) 连接 [knowledge/api.py](../../backend/src/metric_pilot/knowledge/api.py)，提供文档、检索、Wiki、指标与任务操作。
+[KnowledgePage.tsx](../../frontend/src/components/KnowledgePage.tsx) 连接 [knowledge/api.py](../../backend/src/metric_pilot/knowledge/api.py)，将参考资料和计算规则统一放入“文档管理”，另保留 Wiki；支持直接撰写或上传文档、原文阅读和规则审核。固定版本检索和后台任务服务仍供调查使用，不再单列常驻界面。
 
 三个相关展示组件分别解决不同问题：
 
@@ -104,11 +104,11 @@
 - [MetricSummary.tsx](../../frontend/src/components/MetricSummary.tsx)：先展示分子、分母、范围、缺失处理和来源，编辑细节按需打开。
 - [KnowledgeGraph.tsx](../../frontend/src/components/KnowledgeGraph.tsx)：展示实际资料、引用主题、Wiki 与指标的关系；后端关系来自 [graph.py](../../backend/src/metric_pilot/knowledge/graph.py)，连线不代表因果。
 
-关系图根据节点自然高度和 ResizeObserver 同步布局，避免固定高度把长文字裁切。
+关系图采用圆形节点，悬停或键盘聚焦时放大；点击后在图下展示完整标题、相关文档及原文入口。圆内长标题省略，详情保留全文；支持缩放、滚动与减少动态效果偏好。
 
 ## 4. 具体例子
 
-用户搜索“航班早到了，为什么还有负的延误分钟？”时，检索把中文说法与 ArrDelay 等术语联系起来，返回官方字段说明及逐字摘录。
+调查中的知识检索工具收到“航班早到了，为什么还有负的延误分钟？”时，会把中文说法与 ArrDelay 等术语联系起来，返回官方字段说明及逐字摘录。用户也可在文档管理直接打开原文。
 
 这里需要解释的是两个不同字段：ArrDelay 保留实际与计划到达时间的偏差，提前到达为负；ArrDelayMinutes 把提前到达记为 0。展示来源原文与定位，用户可以继续核对。
 

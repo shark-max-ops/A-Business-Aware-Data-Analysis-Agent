@@ -1,10 +1,11 @@
-# 人工合成 fixture
+# 合成测试数据
 
 这里所有航班、公司、机场、代码和 ID 均为人工构造，不是 BTS 官方数据。CSV 的 SyntheticFixture 标记要求显式使用 `--synthetic`，防止误标为官方来源。
 
-- `bts_reporting_synthetic.csv`：11 条原始记录，其中 10 条在 2026-01，另 1 条在 2026-02；实际导入时复算行数和哈希。
-- `carriers_synthetic.csv` / `airports_synthetic.csv`：可选合成维表，键唯一，验证 JOIN 不扩张事实行。
-- `airports_duplicate_synthetic.csv`：故意构造重复键，导入必须拒绝。
+- `synthetic_flight_records.csv`：11 条原始记录，其中 10 条在 2026-01，另 1 条在 2026-02；实际导入时复算行数和哈希。
+- `synthetic_airline_lookup.csv`：虚构航空公司 ID 与名称对照表，键唯一，用于验证关联不增加航班记录数。
+- `synthetic_airport_lookup.csv`：虚构机场 ID 与名称对照表，键唯一，用于验证关联不增加航班记录数。
+- `synthetic_airport_lookup_invalid_duplicate_ids.csv`：故意构造重复键，导入必须拒绝。
 
 覆盖提前到达、0/14/15/20 分钟、取消、备降、缺失到达值和原因分钟、零有效到达分母、多个日期与三个虚构承运人。重复事实行与非法字段由测试在临时目录构造。
 

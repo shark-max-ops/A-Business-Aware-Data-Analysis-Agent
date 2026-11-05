@@ -1,6 +1,6 @@
 ﻿import { describe, expect, it } from 'vitest';
 import type { Run, RunEvent } from '../api/analysis';
-import { executionSteps, executionSummary, runFailureDescription, stepDescription } from './executionPresentation';
+import { executionSteps, executionSummary, modelSteps, stepDuration, runFailureDescription, stepDescription } from './executionPresentation';
 
 const run: Run = { id: 'run_test', conversation_id: 'conv_test', question: '核对范围', snapshot_id: 'snapshot_test', knowledge_snapshot_id: 'ks_test', status: 'completed', budget: {}, context_run_ids: [], metric_revision_ids: [], result: { kind: 'query_result', artifact_ids: ['qa_test'] }, error_code: null, cancel_requested: false, created_at: '2026-10-31T00:00:00Z', seq: 5, usage: {}, model: 'isolated-test' };
 /** 作用：构造明确的合成事件；输入：序号、类型和负载；输出：契约事件。 */
@@ -16,6 +16,23 @@ const history: RunEvent[] = [
 ];
 
 describe('execution presentation uses actual evidence', () => {
+  it('restores model phases from replay and keeps tool time separate', () => {
+    const start = event(1, 'run.progress', { turn: 1 });
+    const events = [history[2], start, history[1], start, event(4, 'run.progress', { turn: 2 }), event(5, 'run.failed', {})];
+    const phases = modelSteps(events);
+    expect(phases).toHaveLength(2);
+    expect(phases.map(step => step.durationMs)).toEqual([1000, 1000]);
+    expect(phases[1].status).toBe('failed');
+    expect(stepDuration(executionSteps(events)[0], run, Date.now())).toBe('1s');
+  });
+  it('ticks active phases but never invents a duration for incomplete terminal history', () => {
+    const step = modelSteps([event(1, 'run.progress', { turn: 1 })])[0];
+    const now = Date.parse('2026-10-31T00:00:19Z');
+    expect(stepDuration(step, { ...run, status: 'running' }, now)).toBe('18s');
+    expect(stepDuration(step, run, now)).toBe('用时未知');
+    expect(stepDuration({ ...step, startedAt: 'invalid' }, { ...run, status: 'running' }, now)).toBe('用时未知');
+    expect(stepDuration({ ...step, durationMs: 150 }, run, now)).toBe('<1s');
+  });
   it('distinguishes a saved report from an unfinished weather check', () => {
     const events = [event(1, 'run.started', {}), event(2, 'tool.started', { tool_execution_id: 'weather', tool: 'query_historical_weather', arguments: { airport: 'ATL', start: '2026-01-24' } }), event(3, 'tool.finished', { tool_execution_id: 'weather', tool: 'query_historical_weather', status: 'failed', ok: false, error_code: 'EXTERNAL_TIMEOUT' }), event(5, 'run.completed', {})];
     const report: Run = { ...run, result: { kind: 'report', report_id: 'synthetic', revision_id: 'synthetic' } };

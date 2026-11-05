@@ -37,7 +37,7 @@ if __name__ == "__main__":
         embedding_model="",
     )
     snapshot = ingest(
-        config, root / "fixtures/bts_reporting_synthetic.csv", "2026-01", synthetic=True
+        config, root / "fixtures/synthetic_flight_records.csv", "2026-01", synthetic=True
     )
     engine = create_metadata_engine(config)
     Catalog(engine, directory).activate(snapshot.source_id, snapshot.id)

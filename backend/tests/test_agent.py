@@ -129,7 +129,7 @@ def agent_workspace(tmp_path, monkeypatch):
         llm_model="test-tool-model",
     )
     snapshot = ingest(
-        config, ROOT / "fixtures/bts_reporting_synthetic.csv", "2026-01", synthetic=True
+        config, ROOT / "fixtures/synthetic_flight_records.csv", "2026-01", synthetic=True
     )
     engine = create_metadata_engine(config)
     store = RunStore(engine)

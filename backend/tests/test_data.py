@@ -31,7 +31,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 ROOT = Path(__file__).resolve().parents[2]
-FIXTURE = ROOT / "fixtures/bts_reporting_synthetic.csv"
+FIXTURE = ROOT / "fixtures/synthetic_flight_records.csv"
 
 
 @pytest.fixture
@@ -64,8 +64,8 @@ def dataset(workspace):
         FIXTURE,
         "2026-01",
         synthetic=True,
-        carriers=ROOT / "fixtures/carriers_synthetic.csv",
-        airports=ROOT / "fixtures/airports_synthetic.csv",
+        carriers=ROOT / "fixtures/synthetic_airline_lookup.csv",
+        airports=ROOT / "fixtures/synthetic_airport_lookup.csv",
     )
     return config, catalog, snapshot
 
@@ -203,7 +203,7 @@ def test_missing_marketing_synthetic_and_duplicate_dimension(workspace, tmp_path
             FIXTURE,
             "2026-01",
             synthetic=True,
-            airports=ROOT / "fixtures/airports_duplicate_synthetic.csv",
+            airports=ROOT / "fixtures/synthetic_airport_lookup_invalid_duplicate_ids.csv",
         )
     assert catalog.sources() == []
 

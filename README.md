@@ -14,12 +14,12 @@
 
 - **自然语言分析**：查看字段、日期范围、缺失和分布，按航空公司、机场、航线或日期查询与比较。模型选择工具，后端校验并执行查询。
 - **持续调查**：保存目标、范围、发现和未解决问题；在同一调查中继续追问，并按归属、成功状态和版本校验复用旧证据。
-- **业务知识管理**：上传 Markdown/TXT 资料，检索原文和来源定位，查看引用关系，生成和编辑 Wiki 草稿；人工审核后发布 Wiki 或启用指标定义。
+- **业务知识管理**：在“文档管理”中直接撰写或导入 Markdown/TXT，阅读参考资料与计算规则；在 Wiki 圆形关系图中探索引用，点击节点后从图下打开原文。规则和 Wiki 仍需人工审核。
 - **外部核查**：查询已登记机场的天气观测，检索 FAA ATCSCC 公告并读取正文，保存来源原件和固定版本。
 - **可追溯报告**：展示关键数字、表格、基础图表、解释与限制；点击数字或图表数据点查看查询和来源依据，支持报告历史版本及 Markdown/JSON 导出。
 - **执行过程查看**：展示当前行动、工具结果和失败信息，按需展开 SQL 与技术记录；支持显式取消，刷新或关闭页面不会自动取消后台运行。
 
-页面分为“分析”“知识”和“报告”。分析页的数据源抽屉可以查看已登记快照、字段、样本和质量报告，并显式选择默认数据版本。
+界面使用统一侧栏与工作区：分析会话在左侧独立滚动，问题、结果和输入框在同一对话画布中；知识管理收拢为“文档管理”和 Wiki，历史报告从侧栏进入。分析页的数据源抽屉可查看快照、字段、样本和质量，并显式选择默认数据版本。
 
 ## 使用边界
 
@@ -79,7 +79,7 @@ uv run alembic upgrade head
 如果已经有本地运行数据，可以保留现有 `storage/` 并跳过重复导入。全新目录可先导入仓库附带的合成数据，查看页面、字段和基本查询流程：
 
 ```powershell
-uv run python -m metric_pilot.data.ingest --input ./fixtures/bts_reporting_synthetic.csv --period 2026-01 --synthetic --carriers ./fixtures/carriers_synthetic.csv --airports ./fixtures/airports_synthetic.csv --activate
+uv run python -m metric_pilot.data.ingest --input ./fixtures/synthetic_flight_records.csv --period 2026-01 --synthetic --carriers ./fixtures/synthetic_airline_lookup.csv --airports ./fixtures/synthetic_airport_lookup.csv --activate
 ```
 
 合成数据只适合演示与测试，不是官方航班数据，不能用于真实业务结论。
@@ -90,7 +90,7 @@ uv run python -m metric_pilot.data.ingest --input ./fixtures/bts_reporting_synth
 uv run python -m metric_pilot.data.ingest --input ./data/bts/2026-01.csv --period 2026-01 --activate
 ```
 
-月度原件统一放在 `data/bts/YYYY-MM.csv`，已有一月为 `2026-01.csv`；后续下载二月、三月分别保存为 `2026-02.csv`、`2026-03.csv`。下载时的 29 字段勾选清单见 [BTS 下载说明](参考/docs/blueprint/03-data-and-sql.md#bts-download)。当前命令仍只导入单月，多个文件就位不代表已能跨月分析，不要将多月拼成一个文件传给旧入口。字段要求和数据口径见 [数据接入说明](参考/docs/blueprint/03-data-and-sql.md)。缺少基线字段会明确拒绝，不会填零补齐。可选 `--carriers`、`--airports` 需提供经过核对的真实代码表；不要将合成维表用于真实数据。每次成功导入创建新快照，`--activate` 将其显式设为默认版本。
+月度原件统一放在 `data/bts/YYYY-MM.csv`，已有一月为 `2026-01.csv`；后续下载二月、三月分别保存为 `2026-02.csv`、`2026-03.csv`。下载时的 29 字段勾选清单见 [BTS 下载说明](docs/design/03-data-and-sql.md#bts-download)。当前命令仍只导入单月，多个文件就位不代表已能跨月分析，不要将多月拼成一个文件传给旧入口。字段要求和数据口径见 [数据接入说明](docs/design/03-data-and-sql.md)。缺少基线字段会明确拒绝，不会填零补齐。可选 `--carriers`、`--airports` 需提供经过核对的真实代码表；不要将合成维表用于真实数据。每次成功导入创建新快照，`--activate` 将其显式设为默认版本。
 
 需要完整的初始业务资料时，先按 [知识材料说明](knowledge_seed/README.md) 准备本地原件及整理材料，再运行：
 
@@ -152,4 +152,4 @@ npm run dev
 
 原始数据、来源材料、模型密钥和 `storage/` 中的本地数据库与证据不随源码分发；新使用者需要自行准备数据和配置。保留旧报告依据时，应一并保留它引用的数据快照和冻结产物。
 
-进一步阅读：[业务资料与指标](knowledge_seed/README.md)、[设计文档](参考/docs/blueprint/README.md)、[代码讲解](docs/walkthroughs/README.md)、[实现与验证记录](IMPLEMENTATION_STATUS.md)。
+进一步阅读：[业务资料与指标](knowledge_seed/README.md)、[设计文档](docs/design/README.md)、[代码讲解](docs/walkthroughs/README.md)、[实现与验证记录](IMPLEMENTATION_STATUS.md)。

@@ -2,9 +2,9 @@
 
 ## 0. 当前 Agent Harness 框架图（阶段 3 已实现）
 
-阶段说明：下图保留阶段 3 完成时的实现快照；阶段 4 的报告生成、取值与保存现已实施，见[阶段 4 代码讲解](../../../docs/walkthroughs/stage-4-reports.md)。图内“阶段 4 待实现”描述的是阶段 3 当时的边界。
+阶段说明：下图保留阶段 3 完成时的实现快照；阶段 4 的报告生成、取值与保存现已实施，见[阶段 4 代码讲解](../walkthroughs/stage-4-reports.md)。图内“阶段 4 待实现”描述的是阶段 3 当时的边界。
 
-更新日期：2026-10-31。下面按阶段 3 代码与[实施记录](../../../IMPLEMENTATION_STATUS.md)整理。后文保留原设计骨架与伪代码，实际实现以代码讲解和实施记录为准。
+更新日期：2026-10-31。下面按阶段 3 代码与[实施记录](../../IMPLEMENTATION_STATUS.md)整理。后文保留原设计骨架与伪代码，实际实现以代码讲解和实施记录为准。
 
 这里的 **Agent Harness** 指包围模型的执行框架：准备上下文、开放有限工具、控制预算和取消、保存结果与记录。它由多个模块组合而成，没有单独名为 AgentHarness 的类。**模型选择下一步，服务端决定是否允许执行以及如何保存证据。**
 
@@ -53,16 +53,16 @@ clarification 是正常结束的结果，表示需要补充字段、口径或审
 
 | 图中职责 | 当前代码位置 | 核心入口 |
 | --- | --- | --- |
-| 接收问题、固定依赖、取消、SSE | [agent/api.py](../../../backend/src/metric_pilot/agent/api.py) | create_run、cancel_run、events |
-| 后台领取与执行循环 | [agent/runtime.py](../../../backend/src/metric_pilot/agent/runtime.py) | AgentWorker、AgentRuntime.run、wait_model |
-| 提示词与上下文管理 | [agent/context.py](../../../backend/src/metric_pilot/agent/context.py) | PROMPT、initial_messages、fit_context |
-| 模型通信与协议清理 | [agent/provider.py](../../../backend/src/metric_pilot/agent/provider.py) | AgentProvider.next_turn、parse |
-| 工具签名、参数与执行范围 | [agent/tools.py](../../../backend/src/metric_pilot/agent/tools.py) | SPECS、ToolRegistry.invoke |
-| 生命周期观测与持久化 | [agent/middleware.py](../../../backend/src/metric_pilot/agent/middleware.py)、[agent/store.py](../../../backend/src/metric_pilot/agent/store.py) | RuntimeObserver、RunStore |
-| SQL 检查与真实执行 | [data/query.py](../../../backend/src/metric_pilot/data/query.py)、[data/guard.py](../../../backend/src/metric_pilot/data/guard.py)、[data/executor.py](../../../backend/src/metric_pilot/data/executor.py) | QueryService、validate_sql、QueryExecutor |
-| 统一运行、结果与事件契约 | [agent/contracts.py](../../../backend/src/metric_pilot/agent/contracts.py)、[data/contracts.py](../../../backend/src/metric_pilot/data/contracts.py) | FinalCandidate、RunDTO、EventDTO、RunContext、ToolResult、QueryArtifact |
-| 可选会话短标题 | [agent/titles.py](../../../backend/src/metric_pilot/agent/titles.py) | split_title、clean_title |
-| 对话页与执行详情 | [AnalysisPage.tsx](../../../frontend/src/components/AnalysisPage.tsx)、[ExecutionTrace.tsx](../../../frontend/src/components/ExecutionTrace.tsx) | 提交、订阅、结果读取、摘要与详情抽屉 |
+| 接收问题、固定依赖、取消、SSE | [agent/api.py](../../backend/src/metric_pilot/agent/api.py) | create_run、cancel_run、events |
+| 后台领取与执行循环 | [agent/runtime.py](../../backend/src/metric_pilot/agent/runtime.py) | AgentWorker、AgentRuntime.run、wait_model |
+| 提示词与上下文管理 | [agent/context.py](../../backend/src/metric_pilot/agent/context.py) | PROMPT、initial_messages、fit_context |
+| 模型通信与协议清理 | [agent/provider.py](../../backend/src/metric_pilot/agent/provider.py) | AgentProvider.next_turn、parse |
+| 工具签名、参数与执行范围 | [agent/tools.py](../../backend/src/metric_pilot/agent/tools.py) | SPECS、ToolRegistry.invoke |
+| 生命周期观测与持久化 | [agent/middleware.py](../../backend/src/metric_pilot/agent/middleware.py)、[agent/store.py](../../backend/src/metric_pilot/agent/store.py) | RuntimeObserver、RunStore |
+| SQL 检查与真实执行 | [data/query.py](../../backend/src/metric_pilot/data/query.py)、[data/guard.py](../../backend/src/metric_pilot/data/guard.py)、[data/executor.py](../../backend/src/metric_pilot/data/executor.py) | QueryService、validate_sql、QueryExecutor |
+| 统一运行、结果与事件契约 | [agent/contracts.py](../../backend/src/metric_pilot/agent/contracts.py)、[data/contracts.py](../../backend/src/metric_pilot/data/contracts.py) | FinalCandidate、RunDTO、EventDTO、RunContext、ToolResult、QueryArtifact |
+| 可选会话短标题 | [agent/titles.py](../../backend/src/metric_pilot/agent/titles.py) | split_title、clean_title |
+| 对话页与执行详情 | [AnalysisPage.tsx](../../frontend/src/components/AnalysisPage.tsx)、[ExecutionTrace.tsx](../../frontend/src/components/ExecutionTrace.tsx) | 提交、订阅、结果读取、摘要与详情抽屉 |
 
 后文的 AgentProfile、ContextBuilder、RunRepository 是设计职责名称，当前分别落在 context.py 的提示词、上下文函数和 RunStore 中，不是另外三套已实现组件。后文类型骨架与伪代码也不替代这里链接的实际实现。
 
@@ -80,7 +80,7 @@ clarification 是正常结束的结果，表示需要补充字段、口径或审
 
 历史读取分概览与详情：read_investigation 的原始审计仍保存完整分页结果；当一页有多项发现时，模型上下文仅保留 ID、来源运行状态、短摘录、产物定位及 detail_offset，不批量重复全部 ValueRef。模型按 detail_offset / limit=1 读取单项完整文字与引用，并核对返回 ID；追加发现后偏移可能变化，应重新获取概览。单项读取仍保留完整引用，失败运行的发现仍只能作线索，跨运行产物授权规则不放宽。
 
-跨 Run 报告与 read_artifact 只允许同调查、同会话、相同数据和知识快照、旧运行 completed 的成功冻结产物，且继续校验执行与文件哈希。普通运行及历史 query_result 保持本次运行限制。模型上下文固定保留目标、边界、实际字段、最近查询摘要和剩余预算；旧发现只带短文摘要，完整引用经工具分页读取。最新整批工具结果放不下时明确报上下文超限，不能静默删除后反复准备。实现及预算取舍见[调查代码讲解](../../../docs/walkthroughs/stage-4-investigations.md)和[设计决策 0006](02-agent-runtime.md#decision-0006)。
+跨 Run 报告与 read_artifact 只允许同调查、同会话、相同数据和知识快照、旧运行 completed 的成功冻结产物，且继续校验执行与文件哈希。普通运行及历史 query_result 保持本次运行限制。模型上下文固定保留目标、边界、实际字段、最近查询摘要和剩余预算；旧发现只带短文摘要，完整引用经工具分页读取。最新整批工具结果放不下时明确报上下文超限，不能静默删除后反复准备。实现及预算取舍见[调查代码讲解](../walkthroughs/stage-4-investigations.md)和[设计决策 0006](02-agent-runtime.md#decision-0006)。
 
 ---
 

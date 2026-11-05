@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react';
 import { Alert, Drawer, Select } from 'antd';
 import type { Run, RunEvent } from '../api/analysis';
 import { terminal } from '../api/analysis';
-import { executionSteps, executionSummary, formatDuration, recordOf, runFailureDescription, stepDescription, toolLabels, toolStatusLabels } from './executionPresentation';
+import { executionSteps, executionSummary, formatDuration, modelSteps, stepDuration, recordOf, runFailureDescription, stepDescription, toolLabels, toolStatusLabels } from './executionPresentation';
 import type { ToolStatus, ToolStep } from './executionPresentation';
 import { ExplorationNote } from './ExplorationNote';
 
@@ -29,8 +29,10 @@ export function ExecutionTrace({ run, events, connection }: { run: Run; events: 
   const [drawer, setDrawer] = useState(false);
   const [selectedId, setSelectedId] = useState<string>();
   const contentId = useId();
+  const [now, setNow] = useState(Date.now);
   const scopedEvents = events.filter(event => event.run_id === run.id);
   const steps = executionSteps(scopedEvents);
+  const timeline = [...steps, ...modelSteps(scopedEvents)].sort((a, b) => (a.startedAt ?? a.finishedAt ?? '').localeCompare(b.startedAt ?? b.finishedAt ?? ''));
   const summary = executionSummary(run, scopedEvents, steps);
   const resultIds = run.result?.kind === 'query_result' ? run.result.artifact_ids : [];
   const preferred = [...steps].reverse().find(step => resultIds.includes(String(recordOf(recordOf(step.result?.data).artifact).id))) ?? steps.at(-1);
@@ -45,6 +47,12 @@ export function ExecutionTrace({ run, events, connection }: { run: Run; events: 
   useEffect(() => { setExpanded(false); setDrawer(false); setSelectedId(undefined); }, [run.id]);
   // 运行结束时自动收起；用户之后仍可以主动展开，重放事件不会反复关闭。
   useEffect(() => { if (terminal(run.status)) setExpanded(false); }, [run.status]);
+  useEffect(() => {
+    if (terminal(run.status)) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [run.id, run.status]);
 
   /** 作用：打开选中工具的真实记录；输入：可选执行 ID；输出：详情抽屉。 */
   function inspect(id?: string) {
@@ -64,10 +72,14 @@ export function ExecutionTrace({ run, events, connection }: { run: Run; events: 
     <span className="sr-only" role="status">{summary.title}</span>
     {reconnecting && <p className="execution-connection" role="status">进度连接已断开，正在重连；后端运行会继续。</p>}
     {expanded && <div id={contentId} role="region" aria-label="工具步骤" className="execution-steps">
-      {steps.length === 0 && <p className="execution-empty">{terminal(run.status) ? '本次运行没有工具执行记录。' : '正在等待实际工具执行。'}</p>}
-      {steps.map(step => <button key={step.id} type="button" className={`execution-step ${visibleStatus(step, run)}`} onClick={() => inspect(step.id)}>
+      {timeline.length === 0 && <p className="execution-empty">{terminal(run.status) ? '本次运行没有工具执行记录。' : '正在等待实际工具执行。'}</p>}
+      {timeline.map(step => step.name === 'model_thinking' ? <div key={step.id} className={`execution-step ${visibleStatus(step, run)}`}>
         <StateMark tone={visibleStatus(step, run)} />
-        <span className="execution-step-copy"><span className="execution-step-label">{toolLabels[step.name] ?? step.name}</span><span className="execution-step-description">{visibleStatus(step, run) === 'unknown' ? '未收到完整的结束记录' : stepDescription(step)}</span></span>
+        <span className="execution-step-copy"><span className="execution-step-label">模型思考<span className="execution-step-duration" title="从模型请求进度至下一阶段事件，包含响应整理；不展示模型内部思维。">{stepDuration(step, run, now)}</span></span></span>
+        <span className="execution-step-state">{toolStatusLabels[visibleStatus(step, run)]}</span>
+      </div> : <button key={step.id} type="button" className={`execution-step ${visibleStatus(step, run)}`} onClick={() => inspect(step.id)}>
+        <StateMark tone={visibleStatus(step, run)} />
+        <span className="execution-step-copy"><span className="execution-step-label">{toolLabels[step.name] ?? step.name}<span className="execution-step-duration">{stepDuration(step, run, now)}</span></span><span className="execution-step-description">{visibleStatus(step, run) === 'unknown' ? '未收到完整的结束记录' : stepDescription(step)}</span></span>
         <span className="execution-step-state">{toolStatusLabels[visibleStatus(step, run)]}</span>
         <span className="execution-step-arrow" aria-hidden="true">↗</span>
       </button>)}

@@ -5,7 +5,6 @@ export type Chunk = components['schemas']['ChunkDTO'];
 export type Citation = components['schemas']['Citation'];
 export type MetricDefinition = components['schemas']['MetricDefinition'];
 export type Job = components['schemas']['JobDTO'];
-export type SearchResult = components['schemas']['SearchResult'];
 export type Revision = components['schemas']['DocumentRevisionDTO'];
 export type GraphResult = components['schemas']['GraphResult'];
 export type GraphNode = components['schemas']['GraphNode'];
@@ -16,7 +15,6 @@ export type WikiRevision = { id: string; page_id: string; version: number; paylo
 export type WikiPage = { id: string; slug: string; version: number; current_revision_id: string; published_revision_id: string | null; revision: WikiRevision };
 export type MetricRevision = { id: string; metric_key: string; version: number; definition: MetricDefinition; created_at: string };
 export type MetricItem = { key: string; version: number; current_revision_id: string; approved_revision_id: string | null; revision: MetricRevision };
-export type Snapshot = { id: string; document_revision_ids: string[]; wiki_revision_ids: string[]; metric_revision_ids: string[] };
 
 /** 作用：统一知识接口和安全错误展示；输入：相对 API 路径与请求；输出：契约 JSON。 */
 export async function knowledgeApi<T>(path: string, init?: RequestInit): Promise<T> {

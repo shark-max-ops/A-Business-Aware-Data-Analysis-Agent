@@ -62,6 +62,28 @@ function elapsed(start: string | null, end: string | null): number | null {
   return Number.isFinite(duration) && duration >= 0 ? duration : null;
 }
 
+/** 作用：还原模型请求阶段，不读取内部思维；输入：真实进度事件；输出：模型阶段及事件边界耗时。 */
+export function modelSteps(events: RunEvent[]): ToolStep[] {
+  const ordered = [...new Map(events.map(event => [event.seq, event])).values()].sort((a, b) => a.seq - b.seq);
+  return ordered.flatMap((event, index) => {
+    if (event.type !== 'run.progress' || typeof event.payload.turn !== 'number') return [];
+    const end = ordered.slice(index + 1).find(next => ['run.progress', 'tool.started', 'report.ready', 'run.completed', 'run.failed', 'run.cancelled', 'run.interrupted'].includes(next.type));
+    const status: ToolStatus = !end ? 'running' : end.type === 'run.failed' ? 'failed' : end.type === 'run.cancelled' ? 'cancelled' : end.type === 'run.interrupted' ? 'interrupted' : 'succeeded';
+    return [{ id: `model-${event.seq}`, name: 'model_thinking', status, arguments: {}, result: null, startedAt: event.created_at, finishedAt: end?.created_at ?? null, durationMs: elapsed(event.created_at, end?.created_at ?? null) }];
+  });
+}
+
+/** 作用：显示完成耗时或正在增长的用时，缺失记录不造数；输入：步骤、运行及当前时间；输出：紧凑用时。 */
+export function stepDuration(step: ToolStep, run: Run, now: number): string {
+  let duration = step.durationMs;
+  if (duration === null && step.status === 'running' && ['queued', 'running'].includes(run.status) && step.startedAt) {
+    const start = Date.parse(step.startedAt);
+    if (Number.isFinite(start)) duration = Math.max(0, now - start);
+  }
+  if (duration === null) return '用时未知';
+  return duration < 1000 ? '<1s' : `${Math.floor(duration / 1000)}s`;
+}
+
 /** 作用：按执行 ID 配对事件，保留失败尝试；输入：运行事件；输出：按实际开始顺序排列的工具步骤。 */
 export function executionSteps(events: RunEvent[]): ToolStep[] {
   const steps = new Map<string, ToolStep>();

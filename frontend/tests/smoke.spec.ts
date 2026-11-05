@@ -19,9 +19,9 @@ test('real backend, navigation and disabled analysis', async ({ page, request })
   await expect(page.getByText('out_of_period', { exact: false })).toBeVisible();
   await page.keyboard.press('Escape');
   await page.getByRole('link', { name: '知识管理', exact: true }).click();
-  await expect(page.getByLabel('原文文件', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '＋ 新建文档', exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('heading', { name: '为每个指标建立依据' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '让知识，成为分析的起点。' })).toBeVisible();
   await page.getByRole('link', { name: '报告', exact: true }).click();
   await expect(page.getByRole('heading', { name: '每个数字，都能找到依据' })).toBeVisible();
   await page.screenshot({ path: '../.cache/screenshots/reports-desktop.png', fullPage: true });

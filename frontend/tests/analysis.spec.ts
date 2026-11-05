@@ -359,3 +359,28 @@ test('report generation, Chinese charts, evidence, exports, revisions and mobile
   await page.screenshot({ path: '../.cache/screenshots/stage4-reports-mobile.png', fullPage: true });
   expect(errors).toEqual([]);
 });
+
+test('many conversations scroll inside a bounded sidebar and mobile navigation remains usable', async ({ page }) => {
+  await page.route('**/api/v1/conversations', route => route.fulfill({ json: { items: Array.from({ length: 80 }, (_, index) => ({ id: `layout-${index}`, title: `分析会话 ${index + 1}：检查机场的日期分布与数据覆盖范围，保留完整标题`, created_at: '2026-01-01T00:00:00Z' })) } }));
+  await page.goto('/analysis');
+  await expect(page.getByRole('heading', { name: '今天，想了解什么？', exact: true })).toBeVisible();
+  await expect(page.locator('.conversation-item')).toHaveCount(80);
+  const list = page.locator('.session-list');
+  expect(await list.evaluate(element => element.scrollHeight > element.clientHeight && element.clientHeight > 0)).toBe(true);
+  expect(await page.locator('.workspace-sidebar').evaluate(element => element.getBoundingClientRect().bottom <= innerHeight + 1)).toBe(true);
+  await page.locator('.conversation-item').last().scrollIntoViewIfNeeded();
+  await expect(page.locator('.conversation-item').last()).toBeInViewport();
+  await expect(page.getByRole('button', { name: '发送问题', exact: true })).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1)).toBe(true);
+  await page.screenshot({ path: '../.cache/screenshots/workspace-analysis-desktop.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole('button', { name: '发送问题', exact: true })).toBeInViewport();
+  await expect.poll(() => page.locator('.workspace-sidebar').evaluate(element => element.getBoundingClientRect().right <= 1)).toBe(true);
+  await page.screenshot({ path: '../.cache/screenshots/workspace-analysis-mobile.png' });
+  await page.getByRole('button', { name: '打开导航', exact: true }).click();
+  await expect(page.getByRole('navigation', { name: '主导航' })).toBeInViewport();
+  await page.getByLabel('搜索会话', { exact: true }).fill('会话 80');
+  await expect(page.locator('.conversation-item')).toHaveCount(1);
+  await page.getByRole('button', { name: '关闭导航', exact: true }).click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

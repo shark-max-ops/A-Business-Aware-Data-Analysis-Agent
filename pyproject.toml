@@ -34,7 +34,7 @@ testpaths = ["backend/tests"]
 target-version = "py312"
 line-length = 100
 include = ["*.py", "*.pyi", "pyproject.toml"]
-extend-exclude = [".cache", ".venv", "参考", ".agents", "frontend/node_modules"]
+extend-exclude = [".cache", ".venv", "docs", ".agents", "frontend/node_modules"]
 force-exclude = true
 
 [tool.ruff.lint]

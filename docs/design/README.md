@@ -60,13 +60,13 @@
 | [03-data-and-sql.md](03-data-and-sql.md) | BTS 来源、下载导入、表结构、连接配置、SQL 防护与示例 |
 | [04-knowledge-and-metrics.md](04-knowledge-and-metrics.md) | 文档、检索、Wiki、指标规则、版本与引用 |
 | [05-evidence-and-reports.md](05-evidence-and-reports.md) | 查询产物、数字引用、报告 Schema、验证与修订 |
-| [06-ui-and-api.md](06-ui-and-api.md) | 三个页面、API、事件流、状态与交互 |
+| [06-ui-and-api.md](06-ui-and-api.md) | 统一工作区、文档与 Wiki、API、事件流、状态与交互 |
 | [07-build-and-evaluate.md](07-build-and-evaluate.md) | 实施顺序、每阶段验收、评估集和交付清单 |
 | [08-code-reading-map.md](08-code-reading-map.md) | 本项目代码阅读路线、模块职责和设计核查问题 |
 
 ## 5. 在当前工作区开始
 
-本蓝图位于 `参考/docs/blueprint/`，对应实现位于根目录的 `backend/`、`frontend/` 和 `scripts/`。根目录的 [AGENTS.md](../../../AGENTS.md) 适用于整个工作区。
+本蓝图位于 `docs/design/`，对应实现位于根目录的 `backend/`、`frontend/` 和 `scripts/`。根目录的 [AGENTS.md](../../AGENTS.md) 适用于整个工作区。
 
 实施前先检查工作区已有文件，并参考 [实施顺序](07-build-and-evaluate.md)。已有应用目录和启动命令以根目录 README 为准；阶段完成后在 `IMPLEMENTATION_STATUS.md` 记录实际实现和验证结果。外部 API Key 从环境变量读取，不提交真实数据大文件或密钥。
 

@@ -21,10 +21,10 @@
 | 文档 | 回答的问题 |
 | --- | --- |
 | 本目录的代码讲解 | 代码怎样工作？一次操作经过哪些文件？ |
-| [蓝图中的实施设计取舍](../../参考/docs/blueprint/README.md#implementation-decisions) | 为什么这样设计？做了哪些取舍？ |
+| [蓝图中的实施设计取舍](../design/README.md#implementation-decisions) | 为什么这样设计？做了哪些取舍？ |
 | [实施记录](../../IMPLEMENTATION_STATUS.md) | 实际完成了什么、做过哪些检查、还有什么限制？ |
 | [根 README](../../README.md) | 项目做什么，怎样配置、启动和操作？ |
-| [设计蓝图](../../参考/docs/blueprint/README.md) | 完整系统原本怎样规划？各阶段的目标契约是什么？ |
+| [设计蓝图](../design/README.md) | 完整系统原本怎样规划？各阶段的目标契约是什么？ |
 
 本文档按当前代码解释各阶段贡献，不是当时源码的逐版本快照。例如阶段 0 建立的 `main.py` 后来接入了知识 worker 和分析 worker；这些增强分别属于阶段 2、3，不能倒算成阶段 0 已实现。
 

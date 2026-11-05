@@ -1,16 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Drawer, Empty, Input, Modal, Select, Space, Table, Tabs, Tag } from 'antd';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Button, Drawer, Empty, Input, Modal, Select, Space, Tabs, Tag } from 'antd';
 import { knowledgeApi as api, jsonRequest as json } from '../api/knowledge';
-import type { Chunk, DocumentItem, Job, MetricDefinition, MetricItem, MetricRevision, Revision, SearchResult, Snapshot, WikiPage, WikiPayload, WikiRevision } from '../api/knowledge';
+import type { Chunk, DocumentItem, Job, MetricDefinition, MetricItem, MetricRevision, Revision, WikiPage, WikiPayload, WikiRevision } from '../api/knowledge';
 import { ReadableMarkdown } from './ReadableMarkdown';
 import { KnowledgeGraph } from './KnowledgeGraph';
 import { MetricSummary } from './MetricSummary';
-import { fieldLabels } from './knowledgePresentation';
 
 const kindLabel = (kind: string) => kind === 'official_reference' ? '官方资料' : kind === 'generated_wiki' ? '生成 Wiki' : '项目规则/整理提示';
 const stateLabel = (state: string) => ({ queued: '排队', running: '处理中', succeeded: '完成', failed: '失败', draft: '待审核草稿', published: '已发布', approved: '已审核' }[state] ?? state);
 
-/** 作用：展示可操作知识管理页和固定检索范围；输入：无；输出：知识页面。 */
+/** 作用：展示文档管理、Wiki 与规则说明；输入：无；输出：知识页面。 */
 export function KnowledgePage() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [pages, setPages] = useState<WikiPage[]>([]);
@@ -19,19 +18,14 @@ export function KnowledgePage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
-  const [query, setQuery] = useState('');
-  const [mode, setMode] = useState<'text' | 'hybrid'>('text');
-  const [asOf, setAsOf] = useState('2026-01-01');
-  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [hits, setHits] = useState<SearchResult | null>(null);
   const [references, setReferences] = useState<Chunk[]>([]);
   const [raw, setRaw] = useState<Revision | null>(null);
   const [chunks, setChunks] = useState<Chunk[]>([]);
   const [history, setHistory] = useState<Revision[]>([]);
   const [source, setSource] = useState<Chunk | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('documents');
   const [metricFocus, setMetricFocus] = useState({ key: '', version: 0 });
-  const [showAllHits, setShowAllHits] = useState(false);
 
   const refresh = useCallback(async () => {
     const [d, w, m, j] = await Promise.all([
@@ -81,7 +75,7 @@ export function KnowledgePage() {
     });
   };
 
-  /** 作用：从指标来源打开固定文档版本；输入：原文修订；输出：来源抽屉。 */
+  /** 作用：从规则参考文档打开固定文档版本；输入：原文修订；输出：来源抽屉。 */
   const openRevision = async (revisionId: string) => {
     const current = documents.find(d => d.current_revision_id === revisionId);
     if (current) return showDocument(current.id, revisionId);
@@ -95,45 +89,16 @@ export function KnowledgePage() {
     });
   };
 
-  return <>
-    <div className="page-heading"><div><p className="eyebrow">KNOWLEDGE & METRICS</p><h1>为每个指标建立依据</h1><p>原文、Wiki 和指标分别保存；发布与审核由你明确操作。</p></div><Button onClick={() => void perform(refresh)} loading={busy}>刷新目录</Button></div>
+  return <div className="knowledge-workspace">
+    <div className="page-heading"><div><p className="eyebrow">YOUR KNOWLEDGE LIBRARY</p><h1>让知识，成为分析的起点。</h1><p>管理参考资料与计算规则，在 Wiki 中探索它们的联系。</p></div><Button type="text" onClick={() => void perform(refresh)} loading={busy}>刷新目录 ↻</Button></div>
     {error && <Alert showIcon type="error" message="操作未完成" description={error} closable onClose={() => setError('')} />}
     {notice && <Alert showIcon type="success" message={notice} closable onClose={() => setNotice('')} />}
-    <section className="panel knowledge-search">
-      <h2>查阅固定版本的知识</h2>
-      <Space wrap>
-        <Input aria-label="知识问题" value={query} onChange={e => setQuery(e.target.value)} placeholder="例如：提前到达为什么是负数" style={{ width: 300, maxWidth: '100%' }} />
-        <Select aria-label="检索模式" value={mode} onChange={setMode} options={[{ value: 'text', label: '关键词检索' }, { value: 'hybrid', label: '关键词 + 向量' }]} />
-        <label>数据日期 <Input aria-label="知识适用日期" type="date" value={asOf} onChange={e => setAsOf(e.target.value)} /></label>
-        <Button aria-label="检索" loading={busy} disabled={!query.trim()} onClick={() => void perform(async () => {
-          setHits(null); setShowAllHits(false);
-          const fixed = snapshot ?? await api<Snapshot>('/knowledge/snapshots', { method: 'POST' });
-          setSnapshot(fixed); setHits(await api<SearchResult>('/knowledge/search', json({ query, mode, snapshot_id: fixed.id, as_of: asOf || null })));
-        })}>检索</Button>
-        <Button onClick={() => void perform(async () => { setSnapshot(await api<Snapshot>('/knowledge/snapshots', { method: 'POST' })); setHits(null); setNotice('已固定当前知识版本，之后的编辑不会改变本次检索范围'); })}>更新知识快照</Button>
-        <Button onClick={() => void perform(async () => { const job = await api<Job>('/knowledge/reindex', { method: 'POST' }); setNotice(`向量构建已排队：${job.id}`); })}>构建/更新向量索引</Button>
-      </Space>
-      <p className="muted">{snapshot ? `固定范围：${snapshot.document_revision_ids.length} 个文档修订，${snapshot.wiki_revision_ids.length} 个已发布 Wiki，${snapshot.metric_revision_ids.length} 个已审核指标` : '首次检索时固定当前版本。更新资料后，可手动更新知识快照。'}；所选引用 {references.length} 条。</p>
-      {hits && <div className="search-result-area"><p>实际模式：{hits.mode === 'hybrid' ? '关键词 + 向量' : '关键词检索'} · 找到 {hits.items.length} 个相关主题，先看最相关的依据</p>{hits.warnings.length > 0 && <details className="technical-details"><summary>资料适用期提醒</summary>{hits.warnings.map(w => <p key={w}>{w}</p>)}</details>}{hits.items.length === 0 && <Empty description="当前版本与日期下没有匹配片段" />}{hits.items.slice(0, showAllHits ? undefined : 5).map((hit, index) => <article className="knowledge-hit" key={hit.chunk.id}>
-        <Space wrap><span className="search-rank">{index + 1}</span><Tag color={hit.chunk.source_kind === 'official_reference' ? 'green' : 'gold'}>{kindLabel(hit.chunk.source_kind)}</Tag><strong>{fieldLabels[String(hit.chunk.locator.section)] ?? String(hit.chunk.locator.section)}</strong></Space>
-        <p className="hit-context">{hit.match_reason} · {documents.find(d => d.current_revision_id === hit.chunk.revision_id)?.title ?? '固定历史资料'} · 原文第 {String(hit.chunk.locator.line_start)} 行</p>
-        <ReadableMarkdown text={hit.excerpt || hit.chunk.text} />
-        {hit.excerpt && hit.excerpt !== hit.chunk.text && <details className="technical-details"><summary>展开完整原文片段</summary><ReadableMarkdown text={hit.chunk.text} /></details>}
-        <Space wrap><Button size="small" onClick={() => void inspect(hit.chunk.id)}>查看原文</Button><Button size="small" onClick={() => setReferences(old => old.some(c => c.id === hit.chunk.id) ? old : [...old, hit.chunk])}>选作 Wiki 引用</Button></Space>
-      </article>)}{hits.items.length > 5 && <Button onClick={() => setShowAllHits(v => !v)}>{showAllHits ? '收起更多结果' : `展开其余 ${hits.items.length - 5} 个主题`}</Button>}</div>}
-      {hits?.wiki_items?.map((item, index) => { const r = item as unknown as WikiRevision; return <details key={index} className="knowledge-hit"><summary>已发布 Wiki：{r.payload.title}</summary><ReadableMarkdown text={r.payload.content} citations={r.payload.citations} onCitation={id => void inspect(id)} /></details>; })}
-    </section>
-    <section className="panel knowledge-panel"><Tabs activeKey={activeTab} onChange={setActiveTab} items={[
-      { key: 'documents', label: '原始文档', children: <DocumentsPanel documents={documents} busy={busy} perform={perform} showDocument={showDocument} notify={setNotice} /> },
-      { key: 'wiki', label: 'Wiki', children: <WikiPanel metricVersion={metrics.map(m => m.current_revision_id).join("|")} pages={pages} documents={documents} references={references} busy={busy} perform={perform} inspect={inspect} notify={setNotice} openDocument={showDocument} selectMetric={key => { setMetricFocus(old => ({ key, version: old.version + 1 })); setActiveTab('metrics'); }} /> },
-      { key: 'metrics', label: '指标定义', children: <MetricsPanel metrics={metrics} documents={documents} busy={busy} perform={perform} snapshot={snapshot} asOf={asOf} notify={setNotice} initialKey={metricFocus} openSource={id => void openRevision(id)} /> },
-      { key: 'jobs', label: `处理任务 (${jobs.filter(j => j.state === 'queued' || j.state === 'running').length})`, children: <Table<Job> rowKey="id" dataSource={jobs} scroll={{ x: 650 }} columns={[
-        { title: '类型', dataIndex: 'kind' }, { title: '状态', dataIndex: 'state', render: stateLabel }, { title: '进度', dataIndex: 'stage' },
-        { title: '结果/错误', render: (_, j) => j.error_code ?? JSON.stringify(j.result) },
-        { title: '操作', render: (_, j) => j.state === 'failed' ? <Button onClick={() => void perform(async () => { await api(`/jobs/${j.id}/retry`, { method: 'POST' }); })}>重试</Button> : null },
-      ]} /> },
+    {jobs.some(job => job.state === 'queued' || job.state === 'running') && <p role="status" className="library-processing">资料正在整理中，你可以继续阅读已有文档。</p>}
+    <section className="knowledge-panel"><Tabs activeKey={activeTab} onChange={setActiveTab} items={[
+      { key: 'documents', label: '文档管理', children: <DocumentsPanel documents={documents} metrics={metrics} busy={busy} perform={perform} showDocument={showDocument} notify={setNotice} openRule={key => { setMetricFocus(old => ({ key, version: old.version + 1 })); setRulesOpen(true); }} /> },
+      { key: 'wiki', label: 'Wiki', children: <WikiPanel metricVersion={metrics.map(m => m.current_revision_id).join("|")} pages={pages} documents={documents} references={references} busy={busy} perform={perform} inspect={inspect} notify={setNotice} openDocument={showDocument} selectMetric={key => { setMetricFocus(old => ({ key, version: old.version + 1 })); setRulesOpen(true); }} /> },
     ]} /></section>
-    <Drawer title="固定原文与来源" open={!!raw} width={820} onClose={() => { setRaw(null); setSource(null); }}>
+    <Drawer title="文档原文" zIndex={1200} open={!!raw} width={820} onClose={() => { setRaw(null); setSource(null); }}>
       {raw && <><Space wrap><Tag>{kindLabel(raw.metadata.source_kind)}</Tag><span>v{raw.version}</span><Select aria-label="原文历史版本" value={raw.id} style={{ width: 230 }} options={history.map(r => ({ value: r.id, label: `v${r.version} · ${r.created_at.slice(0, 10)}` }))} onChange={id => void showDocument(raw.document_id, id)} /></Space>
         <p>{raw.metadata.origin_url && <a href={raw.metadata.origin_url} target="_blank" rel="noreferrer">打开来源网址</a>}</p><p>适用期：{raw.metadata.effective_from ?? '未声明'} 至 {raw.metadata.effective_to ?? '未声明截止'}（不含）</p>
         {source && <Alert type="info" message={`引用位置：${String(source.locator.section)} · 第 ${String(source.locator.line_start)} 行`} />}
@@ -141,14 +106,24 @@ export function KnowledgePage() {
         <Tabs items={[{ key: 'raw', label: '原文', children: <><ReadableMarkdown text={raw.content} /><details className="technical-details"><summary>查看原始 Markdown / 文本</summary><pre className="knowledge-text">{raw.content}</pre></details></> }, { key: 'chunks', label: '可引用片段', children: chunks.map(c => <article className="knowledge-hit" key={c.id}><Tag>{kindLabel(c.source_kind)}</Tag><Button size="small" onClick={() => setReferences(old => old.some(x => x.id === c.id) ? old : [...old, c])}>选作 Wiki 引用</Button><ReadableMarkdown text={c.text} /><small>{String(c.locator.section)} · 第 {String(c.locator.line_start)} 行</small></article>) }]} />
       </>}
     </Drawer>
-  </>;
+    <Drawer title="计算规则说明" zIndex={1100} open={rulesOpen} width={860} onClose={() => setRulesOpen(false)}>
+      <p className="rule-introduction">规则文档说明一个数字怎样计算。例如延误率需要明确哪些航班计入分子、哪些计入分母。保存只创建草稿，确认审核后才供新的分析使用。</p>
+      <MetricsPanel metrics={metrics} documents={documents} busy={busy} perform={perform} notify={setNotice} initialKey={metricFocus} openSource={id => void openRevision(id)} />
+    </Drawer>
+  </div>;
+
 }
 
 type Actions = { busy: boolean; perform: (action: () => Promise<void>) => Promise<void>; notify: (text: string) => void };
 
-/** 作用：导入或更新 UTF-8 原文，并查看历史；输入：目录与操作；输出：文档面板。 */
-function DocumentsPanel({ documents, busy, perform, showDocument, notify }: Actions & { documents: DocumentItem[]; showDocument: (doc: string, rev: string) => Promise<void> }) {
+/** 作用：在同一目录管理来源文档和规则说明，按需新建；输入：真实目录；输出：文档管理。 */
+function DocumentsPanel({ documents, metrics, busy, perform, showDocument, notify, openRule }: Actions & { documents: DocumentItem[]; metrics: MetricItem[]; showDocument: (doc: string, rev: string) => Promise<void>; openRule: (key: string) => void }) {
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [filter, setFilter] = useState('');
+  const [category, setCategory] = useState('all');
   const [file, setFile] = useState<File | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [content, setContent] = useState('');
   const [title, setTitle] = useState('');
   const [target, setTarget] = useState<string | null>(null);
   const [targetVersion, setTargetVersion] = useState(0);
@@ -156,25 +131,47 @@ function DocumentsPanel({ documents, busy, perform, showDocument, notify }: Acti
   const [url, setUrl] = useState('');
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
-  return <div className="knowledge-stack"><div className="knowledge-form">
-    <label>原文文件（UTF-8 Markdown / TXT，最大 500 KB）<input aria-label="原文文件" type="file" accept=".md,.txt" onChange={e => { const selected = e.target.files?.[0] ?? null; setFile(selected); if (selected && !title) setTitle(selected.name.replace(/\.(md|txt)$/i, '')); }} /></label>
-    <label>文档标题<Input aria-label="文档标题" value={title} onChange={e => setTitle(e.target.value)} /></label>
-    <label>保存方式<Select aria-label="文档保存方式" value={target ?? ''} onChange={v => { setTarget(v || null); setTargetVersion(documents.find(d => d.id === v)?.version ?? 0); }} options={[{ value: '', label: '新建文档' }, ...documents.map(d => ({ value: d.id, label: `更新：${d.title}（当前 v${d.version}）` }))]} /></label>
-    <label>来源类型<Select aria-label="文档来源类型" value={kind} onChange={setKind} options={[{ value: 'project_policy', label: '项目规则' }, { value: 'official_reference', label: '官方资料' }]} /></label>
-    <label>原始网址<Input aria-label="文档来源网址" value={url} onChange={e => setUrl(e.target.value)} placeholder="官方资料必填 http(s) 网址" /></label>
-    <label>生效日期<Input aria-label="文档生效日期" type="date" value={start} onChange={e => setStart(e.target.value)} /></label>
-    <label>截止日期（不含）<Input aria-label="文档截止日期" type="date" value={end} onChange={e => setEnd(e.target.value)} /></label>
-    <Button type="primary" loading={busy} disabled={!file || !title.trim() || (kind === 'official_reference' && !url)} onClick={() => void perform(async () => {
-      const body = new FormData(); body.set('file', file!); body.set('title', title); body.set('expected_version', String(targetVersion));
-      if (target) body.set('document_id', target);
-      body.set('metadata', JSON.stringify({ source_kind: kind, origin_url: url || null, effective_from: start || null, effective_to: end || null }));
-      const receipt = await api<{ job_id: string }>('/documents', { method: 'POST', body }); if (target) setTargetVersion(v => v + 1); notify(`原文已保存，处理任务：${receipt.job_id}`);
-    })}>保存原文并索引</Button>
-  </div><Table<DocumentItem> rowKey="id" dataSource={documents} locale={{ emptyText: '尚无文档，请导入材料' }} scroll={{ x: 650 }} columns={[
-    { title: '文档', dataIndex: 'title' }, { title: '来源', render: (_, d) => kindLabel(d.metadata.source_kind) }, { title: '版本', dataIndex: 'version' },
-    { title: '状态', render: (_, d) => d.job ? stateLabel(d.job.state) : '未处理' },
-    { title: '操作', render: (_, d) => <Button onClick={() => void showDocument(d.id, d.current_revision_id)}>原文与历史</Button> },
-  ]} /></div>;
+  const matches = (title: string) => title.toLowerCase().includes(filter.toLowerCase().trim());
+  const visibleDocuments = category === 'rules' ? [] : documents.filter(doc => matches(doc.title));
+  const visibleRules = category === 'sources' ? [] : metrics.filter(rule => matches(rule.revision.definition.name));
+  return <div className="knowledge-stack">
+    <div className="library-toolbar"><Input aria-label="搜索文档" placeholder="搜索文档或规则…" value={filter} onChange={event => setFilter(event.target.value)} allowClear /><Space wrap><Button onClick={() => openRule('__new__')}>新建规则说明</Button><Button type="primary" onClick={() => setEditorOpen(true)}>＋ 新建文档</Button></Space></div>
+    <div className="library-filters" aria-label="文档分类">{[{ key: 'all', label: '全部文档', count: documents.length + metrics.length }, { key: 'sources', label: '参考资料', count: documents.length }, { key: 'rules', label: '计算规则', count: metrics.length }].map(item => <button key={item.key} aria-pressed={category === item.key} onClick={() => setCategory(item.key)}>{item.label}<span>{item.count}</span></button>)}</div>
+    <div className="document-library">
+      {visibleDocuments.map(doc => <article className="library-document-card" aria-label={doc.title} key={doc.id}>
+        <button className="document-card-main" onClick={() => void showDocument(doc.id, doc.current_revision_id)}><span className="document-icon" aria-hidden="true">▤</span><span className="document-card-copy"><strong>{doc.title}</strong><span>{kindLabel(doc.metadata.source_kind)} · 第 {doc.version} 版</span></span><span className="document-card-arrow" aria-hidden="true">↗</span></button>
+        <div className="document-card-meta"><Tag>{doc.job ? stateLabel(doc.job.state) : '未处理'}</Tag>{doc.metadata.effective_from && <span>{doc.metadata.effective_from} 起适用</span>}{doc.job?.state === 'failed' && <Button size="small" onClick={() => void perform(async () => { await api(`/jobs/${doc.job!.id}/retry`, { method: 'POST' }); notify('已重新提交资料整理'); })}>重新整理</Button>}</div>
+      </article>)}
+      {visibleRules.map(rule => <article className="library-document-card rule-document" aria-label={rule.revision.definition.name} key={rule.key}>
+        <button className="document-card-main" onClick={() => openRule(rule.key)}><span className="document-icon" aria-hidden="true">ƒ</span><span className="document-card-copy"><strong>{rule.revision.definition.name}</strong><span>计算规则 · 说明统计范围、算法与参考依据</span></span><span className="document-card-arrow" aria-hidden="true">↗</span></button>
+        <div className="document-card-meta"><Tag color={rule.revision.definition.review_state === 'approved' ? 'green' : 'gold'}>{stateLabel(rule.revision.definition.review_state)}</Tag><span>第 {rule.version} 版</span></div>
+      </article>)}
+    </div>
+    {!visibleDocuments.length && !visibleRules.length && <Empty description={filter ? '没有找到匹配的文档' : '从一份资料开始，建立你的知识库'} />}
+    <details className="library-maintenance"><summary>资料维护</summary><Button loading={busy} onClick={() => void perform(async () => { await api<Job>('/knowledge/reindex', { method: 'POST' }); notify('检索索引已开始更新，完成前仍可阅读原文'); })}>更新检索索引</Button></details>
+    <Drawer title={target ? '更新参考文档' : '新建文档'} open={editorOpen} width={740} onClose={() => setEditorOpen(false)}>
+      <div className="knowledge-stack document-editor">
+        <label>文档标题<Input aria-label="文档标题" value={title} onChange={e => setTitle(e.target.value)} placeholder="给这份资料一个清晰的名字" /></label>
+        <label>内容（Markdown）<Input.TextArea aria-label="文档内容" rows={10} value={content} onChange={event => setContent(event.target.value)} placeholder="在这里撰写说明，或在下方选择已有的 Markdown / TXT 文件…" /></label>
+        <label className="document-upload">或导入已有文件<input ref={fileInput} aria-label="原文文件" type="file" accept=".md,.txt" onChange={event => { const selected = event.target.files?.[0] ?? null; setFile(selected); if (selected && !title) setTitle(selected.name.replace(/\.(md|txt)$/i, '')); }} /><small>UTF-8 Markdown / TXT，最大 500 KB。选择文件后以文件内容为准。</small></label>
+        <details className="technical-details"><summary>来源与适用范围</summary><div className="knowledge-form">
+          <label>保存方式<Select aria-label="文档保存方式" value={target ?? ''} onChange={value => { setTarget(value || null); setTargetVersion(documents.find(doc => doc.id === value)?.version ?? 0); }} options={[{ value: '', label: '新建文档' }, ...documents.map(doc => ({ value: doc.id, label: `更新：${doc.title}（当前 v${doc.version}）` }))]} /></label>
+          <label>来源类型<Select aria-label="文档来源类型" value={kind} onChange={setKind} options={[{ value: 'project_policy', label: '项目说明 / 参考规则' }, { value: 'official_reference', label: '官方资料' }]} /></label>
+          <label>原始网址<Input aria-label="文档来源网址" value={url} onChange={e => setUrl(e.target.value)} placeholder="官方资料必填 http(s) 网址" /></label>
+          <label>生效日期<Input aria-label="文档生效日期" type="date" value={start} onChange={e => setStart(e.target.value)} /></label>
+          <label>截止日期（不含）<Input aria-label="文档截止日期" type="date" value={end} onChange={e => setEnd(e.target.value)} /></label>
+        </div></details>
+        <Button type="primary" loading={busy} disabled={(!file && !content.trim()) || !title.trim() || (kind === 'official_reference' && !url)} onClick={() => void perform(async () => {
+          const body = new FormData(); body.set('file', file ?? new File([content], 'document.md', { type: 'text/markdown' })); body.set('title', title); body.set('expected_version', String(targetVersion));
+          if (target) body.set('document_id', target);
+          body.set('metadata', JSON.stringify({ source_kind: kind, origin_url: url || null, effective_from: start || null, effective_to: end || null }));
+          await api<{ job_id: string }>('/documents', { method: 'POST', body });
+          if (fileInput.current) fileInput.current.value = '';
+          setEditorOpen(false); setFile(null); setContent(''); setTitle(''); setTarget(null); setTargetVersion(0); notify('文档已保存，正在整理内容');
+        })}>保存文档</Button>
+      </div>
+    </Drawer>
+  </div>;
 }
 
 /** 作用：查看和编辑有引用的 Wiki，生成只创建草稿；输入：目录与引用；输出：Wiki 面板。 */
@@ -187,6 +184,7 @@ function WikiPanel({ pages, documents, references, busy, perform, inspect, notif
   const [inputs, setInputs] = useState<string[]>([]);
   const [history, setHistory] = useState<WikiRevision[]>([]);
   const [published, setPublished] = useState<WikiRevision | null>(null);
+  const [wikiView, setWikiView] = useState('graph');
   const [initialized, setInitialized] = useState(false);
   const [editing, setEditing] = useState(true);
   const page = pages.find(p => p.id === selected);
@@ -202,9 +200,9 @@ function WikiPanel({ pages, documents, references, busy, perform, inspect, notif
   return <div className="knowledge-stack"><Space wrap><Select aria-label="Wiki 页面" style={{ width: 320 }} value={selected ?? ''} options={[{ value: '', label: '新建人工草稿' }, ...pages.map(p => ({ value: p.id, label: `${p.revision.payload.title} · v${p.version}` }))]} onChange={id => {
     setSelected(id || null); setInitialized(true); setEditing(!id); setPublished(null); const p = pages.find(p => p.id === id); setSlug(p?.slug ?? ''); setEditorVersion(p?.version ?? 0); setDraft(p ? { title: p.revision.payload.title, content: p.revision.payload.content, citations: p.revision.payload.citations, input_revision_ids: p.revision.payload.input_revision_ids } : { title: '', content: '', citations: [], input_revision_ids: [] });
   }} /><Tag>{page ? stateLabel(page.revision.payload.state) : '新草稿'}</Tag><Button onClick={() => { setSelected(null); setInitialized(true); setEditing(true); setSlug(''); setEditorVersion(0); setDraft({ title: '', content: '', citations: [], input_revision_ids: [] }); }}>新建 Wiki</Button></Space>
-    {page && <><div className="wiki-reading-header"><div><p className="eyebrow">知识导航</p><h2>{page.revision.payload.title}</h2><p>先看资料、引用主题和指标之间的关系，再打开原文核对。</p></div><Space wrap><Button onClick={() => setEditing(v => !v)}>{editing ? '收起编辑器' : '编辑草稿'}</Button><Button disabled={page.revision.payload.state !== 'draft'} onClick={requestPublish}>审核并发布</Button><Button onClick={() => void openHistory()}>版本历史与回滚</Button></Space></div>
-      <Tabs items={[
-        { key: 'graph', label: '关系图', children: <KnowledgeGraph relatedVersion={metricVersion} pageId={page.id} revisionId={page.current_revision_id} inspect={id => void inspect(id)} openDocument={(doc, rev) => void openDocument(doc, rev)} selectMetric={selectMetric} /> },
+    {page && <><div className="wiki-reading-header"><div><p className="eyebrow">知识导航</p><h2>{page.revision.payload.title}</h2><p>点击圆形节点探索联系，在地图下方打开相关文档。</p></div><Space wrap><Button onClick={() => setEditing(v => !v)}>{editing ? '收起编辑器' : '编辑草稿'}</Button><Button disabled={page.revision.payload.state !== 'draft'} onClick={requestPublish}>审核并发布</Button><Button onClick={() => void openHistory()}>版本历史与回滚</Button></Space></div>
+      <Tabs activeKey={wikiView} onChange={setWikiView} items={[
+        { key: 'graph', label: '关系图', children: <KnowledgeGraph readWiki={() => setWikiView('reading')} relatedVersion={metricVersion} pageId={page.id} revisionId={page.current_revision_id} inspect={id => void inspect(id)} openDocument={(doc, rev) => void openDocument(doc, rev)} selectMetric={selectMetric} /> },
         { key: 'reading', label: '阅读解释', children: <div className="wiki-reader"><ReadableMarkdown text={page.revision.payload.content} citations={page.revision.payload.citations} onCitation={id => void inspect(id)} /><div className="wiki-reference-list"><h3>参考依据</h3>{page.revision.payload.citations.map((c, i) => <Button key={c.chunk_id} onClick={() => void inspect(c.chunk_id)}>引用 {i + 1} · 查看原文</Button>)}</div></div> },
       ]} /></>}
     <details className="wiki-editor" open={editing || !page} onToggle={e => setEditing(e.currentTarget.open)}><summary>编辑与生成草稿</summary><div className="knowledge-stack">
@@ -218,7 +216,7 @@ function WikiPanel({ pages, documents, references, busy, perform, inspect, notif
     })}>插入所选原文及引用（{references.length}）</Button>
     <label>Wiki 正文<Input.TextArea aria-label="Wiki 正文" rows={12} value={draft.content} onChange={e => setDraft(d => ({ ...d, content: e.target.value }))} /></label>
     <Space wrap><Button type="primary" loading={busy} disabled={!slug || !draft.title || !draft.content || !draft.citations.length} onClick={() => void perform(async () => {
-      const result = await api<{ page_id: string; version: number }>(page ? `/wiki/pages/${page.id}` : `/wiki/pages?slug=${encodeURIComponent(slug)}`, json({ title: draft.title, content: draft.content, citations: draft.citations, input_revision_ids: draft.input_revision_ids, expected_version: editorVersion }, page ? 'PUT' : 'POST')); setSelected(result.page_id); setEditorVersion(result.version); notify('已保存为新草稿版本');
+      const result = await api<{ page_id: string; version: number }>(page ? `/wiki/pages/${page.id}` : `/wiki/pages?slug=${encodeURIComponent(slug)}`, json({ title: draft.title, content: draft.content, citations: draft.citations, input_revision_ids: draft.input_revision_ids, expected_version: editorVersion }, page ? 'PUT' : 'POST')); setSelected(result.page_id); setEditorVersion(result.version); setEditing(false); notify('已保存为新草稿版本');
     })}>保存人工草稿</Button>
       <Button disabled={!page} onClick={() => { const p = page!; setDraft({ title: p.revision.payload.title, content: p.revision.payload.content, citations: p.revision.payload.citations, input_revision_ids: p.revision.payload.input_revision_ids }); setEditorVersion(p.version); }}>载入最新已保存正文</Button>
       <Button disabled={!page || !page.published_revision_id} onClick={() => void perform(async () => { setPublished(await api<WikiRevision>(`/wiki/pages/${page!.id}/revisions/${page!.published_revision_id}`)); })}>查看已发布内容作对照</Button>
@@ -231,7 +229,7 @@ function WikiPanel({ pages, documents, references, busy, perform, inspect, notif
 }
 
 /** 作用：编辑和审核结构化口径，展示历史与适用期；输入：指标和文档目录；输出：指标面板。 */
-function MetricsPanel({ metrics, documents, busy, perform, snapshot, asOf, notify, initialKey, openSource }: Actions & { metrics: MetricItem[]; documents: DocumentItem[]; snapshot: Snapshot | null; asOf: string; initialKey: { key: string; version: number }; openSource: (id: string) => void }) {
+function MetricsPanel({ metrics, documents, busy, perform, notify, initialKey, openSource }: Actions & { metrics: MetricItem[]; documents: DocumentItem[]; initialKey: { key: string; version: number }; openSource: (id: string) => void }) {
   const [modal, modalContext] = Modal.useModal();
   const [key, setKey] = useState('');
   const [editorVersion, setEditorVersion] = useState(0);
@@ -242,32 +240,33 @@ function MetricsPanel({ metrics, documents, busy, perform, snapshot, asOf, notif
   const metric = metrics.find(m => m.key === key);
   useEffect(() => {
     const focus = `${initialKey.key}:${initialKey.version}`;
+    if (initialKey.key === '__new__' && consumedFocus !== focus) { setKey(''); setEditorVersion(0); setDraft({ key: '', version: 1, name: '', authority: 'project_policy', review_state: 'draft', unit: 'percent', grain: '', numerator_description: '', denominator_description: '', population_filters: [], required_columns: [], null_policy: '', effective_from: '2026-01-01', effective_to: '2026-02-01', source_revision_ids: [], template_key: null }); setEditing(true); setConsumedFocus(focus); return; }
     const target = initialKey.key && consumedFocus !== focus ? metrics.find(m => m.key === initialKey.key) : !draft ? metrics[0] : null;
     if (target) { setKey(target.key); setEditorVersion(target.version); setDraft({ ...target.revision.definition }); setEditing(false); setConsumedFocus(focus); }
   }, [metrics, initialKey, consumedFocus, draft]);
   /** 作用：更新单个指标字段；输入：字段名与值；输出：编辑状态。 */
   const update = <K extends keyof MetricDefinition>(field: K, value: MetricDefinition[K]) => setDraft(d => d ? { ...d, [field]: value } : d);
-  return <div className="knowledge-stack"><Space wrap><Select aria-label="指标选择" style={{ width: 330 }} value={key || undefined} placeholder="选择指标" options={metrics.map(m => ({ value: m.key, label: `${m.revision.definition.name} · v${m.version} · ${stateLabel(m.revision.definition.review_state)}` }))} onChange={v => { const selected = metrics.find(m => m.key === v)!; setKey(v); setEditorVersion(selected.version); setDraft({ ...selected.revision.definition }); setEditing(false); }} />
-    <Button onClick={() => { setKey(''); setEditorVersion(0); setEditing(true); setDraft({ key: '', version: 1, name: '', authority: 'project_policy', review_state: 'draft', unit: 'percent', grain: '', numerator_description: '', denominator_description: '', population_filters: [], required_columns: [], null_policy: '', effective_from: '2026-01-01', effective_to: '2026-02-01', source_revision_ids: [], template_key: null }); }}>新建指标草稿</Button></Space>
-    {modalContext}{!draft ? <Empty description="选择一个指标查看分子、分母、来源和版本" /> : <><MetricSummary definition={metric?.revision.definition ?? draft} documents={documents} openSource={openSource} /><Button disabled={!metric} onClick={() => setEditing(v => !v)}>{editing ? '收起规则编辑' : '编辑规则'}</Button><details className="metric-editor" open={editing} onToggle={e => setEditing(e.currentTarget.open)}><summary>修改指标草稿</summary><div className="knowledge-form">
-      <label>指标键<Input aria-label="指标键" disabled={!!metric} value={draft.key} onChange={e => update('key', e.target.value)} /></label>
-      <label>名称<Input aria-label="指标名称" value={draft.name} onChange={e => update('name', e.target.value)} /></label>
-      <label>单位<Select aria-label="指标单位" value={draft.unit} onChange={v => update('unit', v)} options={[{ value: 'count', label: '数量' }, { value: 'percent', label: '百分比（0—100）' }, { value: 'minutes', label: '分钟' }]} /></label>
-      <label>分组粒度<Input aria-label="指标粒度" value={draft.grain} onChange={e => update('grain', e.target.value)} /></label>
-      <label>分子描述<Input.TextArea aria-label="指标分子" value={draft.numerator_description} onChange={e => update('numerator_description', e.target.value)} /></label>
-      <label>分母描述<Input.TextArea aria-label="指标分母" value={draft.denominator_description ?? ''} onChange={e => update('denominator_description', e.target.value || null)} /></label>
-      <label>过滤条件（每行一项）<Input.TextArea aria-label="指标过滤" value={draft.population_filters.join('\n')} onChange={e => update('population_filters', e.target.value.split('\n'))} /></label>
-      <label>所需字段（每行一项）<Input.TextArea aria-label="指标所需字段" value={draft.required_columns.join('\n')} onChange={e => update('required_columns', e.target.value.split('\n'))} /></label>
-      <label>空值及零分母处理<Input.TextArea aria-label="指标空值规则" value={draft.null_policy} onChange={e => update('null_policy', e.target.value)} /></label>
-      <label>适用起始日期<Input aria-label="指标生效日期" type="date" value={draft.effective_from} onChange={e => update('effective_from', e.target.value)} /></label>
-      <label>截止日期（不含）<Input aria-label="指标截止日期" type="date" value={draft.effective_to ?? ''} onChange={e => update('effective_to', e.target.value || null)} /></label>
-      <label>来源文档固定版本<Select aria-label="指标来源" mode="multiple" value={draft.source_revision_ids} onChange={v => update('source_revision_ids', v)} options={[...documents.map(d => ({ value: d.current_revision_id, label: `${d.title} v${d.version}` })), ...draft.source_revision_ids.filter(id => !documents.some(d => d.current_revision_id === id)).map(id => ({ value: id, label: `固定旧版本 ${id}` }))]} /></label>
-    </div><Space wrap><Button type="primary" loading={busy} onClick={() => void perform(async () => { const result = await api<{ definition: MetricDefinition }>(metric ? `/metrics/${metric.key}/revisions` : '/metrics', json({ expected_version: editorVersion, definition: { ...draft, version: editorVersion + 1, review_state: 'draft', population_filters: draft.population_filters.filter(Boolean), required_columns: draft.required_columns.filter(Boolean) } })); setKey(result.definition.key); setDraft(result.definition); setEditorVersion(result.definition.version); notify('指标已保存为待审核新版本'); })}>保存指标草稿</Button>
-      <Button disabled={!metric} onClick={() => { setDraft({ ...metric!.revision.definition }); setEditorVersion(metric!.version); }}>载入最新已保存指标</Button>
+  return <div className="knowledge-stack"><Space wrap><Select aria-label="规则选择" style={{ width: 330 }} value={key || undefined} placeholder="选择规则说明" options={metrics.map(m => ({ value: m.key, label: `${m.revision.definition.name} · v${m.version} · ${stateLabel(m.revision.definition.review_state)}` }))} onChange={v => { const selected = metrics.find(m => m.key === v)!; setKey(v); setEditorVersion(selected.version); setDraft({ ...selected.revision.definition }); setEditing(false); }} />
+    <Button onClick={() => { setKey(''); setEditorVersion(0); setEditing(true); setDraft({ key: '', version: 1, name: '', authority: 'project_policy', review_state: 'draft', unit: 'percent', grain: '', numerator_description: '', denominator_description: '', population_filters: [], required_columns: [], null_policy: '', effective_from: '2026-01-01', effective_to: '2026-02-01', source_revision_ids: [], template_key: null }); }}>新建规则草稿</Button></Space>
+    {modalContext}{!draft ? <Empty description="选择一个指标查看分子、分母、来源和版本" /> : <><MetricSummary definition={metric?.revision.definition ?? draft} documents={documents} openSource={openSource} /><Button disabled={!metric} onClick={() => setEditing(v => !v)}>{editing ? '收起规则编辑' : '编辑规则'}</Button><details className="metric-editor" open={editing} onToggle={e => setEditing(e.currentTarget.open)}><summary>编辑规则说明</summary><div className="knowledge-form">
+      <label>规则标识<Input aria-label="规则标识" disabled={!!metric} value={draft.key} onChange={e => update('key', e.target.value)} /></label>
+      <label>名称<Input aria-label="规则名称" value={draft.name} onChange={e => update('name', e.target.value)} /></label>
+      <label>单位<Select aria-label="规则单位" value={draft.unit} onChange={v => update('unit', v)} options={[{ value: 'count', label: '数量' }, { value: 'percent', label: '百分比（0—100）' }, { value: 'minutes', label: '分钟' }]} /></label>
+      <label>分组粒度<Input aria-label="规则分组" value={draft.grain} onChange={e => update('grain', e.target.value)} /></label>
+      <label>分子描述<Input.TextArea aria-label="规则分子" value={draft.numerator_description} onChange={e => update('numerator_description', e.target.value)} /></label>
+      <label>分母描述<Input.TextArea aria-label="规则分母" value={draft.denominator_description ?? ''} onChange={e => update('denominator_description', e.target.value || null)} /></label>
+      <label>过滤条件（每行一项）<Input.TextArea aria-label="规则过滤" value={draft.population_filters.join('\n')} onChange={e => update('population_filters', e.target.value.split('\n'))} /></label>
+      <label>所需字段（每行一项）<Input.TextArea aria-label="规则所需字段" value={draft.required_columns.join('\n')} onChange={e => update('required_columns', e.target.value.split('\n'))} /></label>
+      <label>空值及零分母处理<Input.TextArea aria-label="规则空值处理" value={draft.null_policy} onChange={e => update('null_policy', e.target.value)} /></label>
+      <label>适用起始日期<Input aria-label="规则生效日期" type="date" value={draft.effective_from} onChange={e => update('effective_from', e.target.value)} /></label>
+      <label>截止日期（不含）<Input aria-label="规则截止日期" type="date" value={draft.effective_to ?? ''} onChange={e => update('effective_to', e.target.value || null)} /></label>
+      <label>来源文档固定版本<Select aria-label="规则参考文档" mode="multiple" value={draft.source_revision_ids} onChange={v => update('source_revision_ids', v)} options={[...documents.map(d => ({ value: d.current_revision_id, label: `${d.title} v${d.version}` })), ...draft.source_revision_ids.filter(id => !documents.some(d => d.current_revision_id === id)).map(id => ({ value: id, label: `固定旧版本 ${id}` }))]} /></label>
+    </div><Space wrap><Button type="primary" loading={busy} onClick={() => void perform(async () => { const result = await api<{ definition: MetricDefinition }>(metric ? `/metrics/${metric.key}/revisions` : '/metrics', json({ expected_version: editorVersion, definition: { ...draft, version: editorVersion + 1, review_state: 'draft', population_filters: draft.population_filters.filter(Boolean), required_columns: draft.required_columns.filter(Boolean) } })); setKey(result.definition.key); setDraft(result.definition); setEditorVersion(result.definition.version); notify('规则已保存为待审核新版本'); })}>保存规则草稿</Button>
+      <Button disabled={!metric} onClick={() => { setDraft({ ...metric!.revision.definition }); setEditorVersion(metric!.version); }}>载入最新已保存规则</Button>
       </Space></details><Space wrap>
-      <Button disabled={!metric || metric.revision.definition.review_state !== 'draft'} onClick={() => modal.confirm({ title: '审核当前已保存的指标口径？', okText: '确认审核', cancelText: '取消', content: '请核对分母、过滤、缺失处理、适用期和来源。此操作审核服务器上的已保存版本，编辑框未保存的内容不会生效。', onOk: () => perform(async () => { await api(`/metrics/${metric!.key}/approve`, json({ revision_id: metric!.current_revision_id, expected_version: metric!.version })); notify('已创建已审核指标修订；更新知识快照后供后续分析使用'); }) })}>审核此指标</Button>
-      <Button disabled={!metric} onClick={() => void perform(async () => { setHistory((await api<{ items: MetricRevision[] }>(`/metrics/${metric!.key}/revisions`)).items); })}>指标版本历史</Button>
-      <Button disabled={!metric || !snapshot || !asOf} onClick={() => void perform(async () => { const result = await api<MetricRevision>(`/metrics/${key}/resolve?snapshot_id=${snapshot!.id}&as_of=${asOf}`); notify(`当前快照与日期适用：${result.definition.name} v${result.version}`); })}>检查所选日期适用性</Button></Space></>}
-    <Modal title="固定指标历史" open={history.length > 0} onCancel={() => setHistory([])} footer={null} width={800}>{history.map(r => <article key={r.id} className="knowledge-hit"><h3>v{r.version} · {stateLabel(r.definition.review_state)}</h3><p>分子：{r.definition.numerator_description}</p><p>分母：{r.definition.denominator_description ?? '不适用'}</p><p>过滤：{r.definition.population_filters.join('；')}</p><p>空值：{r.definition.null_policy}</p><p>适用期：{r.definition.effective_from} 至 {r.definition.effective_to ?? '未声明截止'}</p></article>)}</Modal>
+      <Button disabled={!metric || metric.revision.definition.review_state !== 'draft'} onClick={() => modal.confirm({ title: '确认这份计算规则？', okText: '确认审核', cancelText: '取消', content: '请核对分母、过滤、缺失处理、适用期和来源。此操作审核服务器上的已保存版本，编辑框未保存的内容不会生效。', onOk: () => perform(async () => { await api(`/metrics/${metric!.key}/approve`, json({ revision_id: metric!.current_revision_id, expected_version: metric!.version })); notify('规则审核完成，将供新调查使用'); }) })}>审核此规则</Button>
+      <Button disabled={!metric} onClick={() => void perform(async () => { setHistory((await api<{ items: MetricRevision[] }>(`/metrics/${metric!.key}/revisions`)).items); })}>规则版本历史</Button>
+</Space></>}
+    <Modal title="规则修订记录" open={history.length > 0} onCancel={() => setHistory([])} footer={null} width={800}>{history.map(r => <article key={r.id} className="knowledge-hit"><h3>v{r.version} · {stateLabel(r.definition.review_state)}</h3><p>分子：{r.definition.numerator_description}</p><p>分母：{r.definition.denominator_description ?? '不适用'}</p><p>过滤：{r.definition.population_filters.join('；')}</p><p>空值：{r.definition.null_policy}</p><p>适用期：{r.definition.effective_from} 至 {r.definition.effective_to ?? '未声明截止'}</p></article>)}</Modal>
   </div>;
 }
