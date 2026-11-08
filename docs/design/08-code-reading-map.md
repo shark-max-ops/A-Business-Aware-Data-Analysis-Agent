@@ -13,6 +13,8 @@
 | 5 | [上下文](../../backend/src/metric_pilot/agent/context.py)、[生命周期观测](../../backend/src/metric_pilot/agent/middleware.py) | 固定目标、完整工具配对裁剪、审计与事件 |
 | 6 | [调查管理](../../backend/src/metric_pilot/agent/investigations.py) | 发现、限制、累计额度及跨运行证据授权 |
 | 7 | [数据导入](../../backend/src/metric_pilot/data/ingest.py)、[查询服务](../../backend/src/metric_pilot/data/query.py)、[SQL 校验](../../backend/src/metric_pilot/data/guard.py)、[执行器](../../backend/src/metric_pilot/data/executor.py) | 不可变数据快照、AST 允许集、只读连接与查询子进程 |
+| 7a | [6.A 原件核验](../../backend/src/metric_pilot/data/audit.py)、[独立复核](../../scripts/verify_bts_audit.py) | 只读原 CSV，登记哈希、字段、日期、质量与用户来源声明，不创建或激活快照 |
+| 7b | [6.B 多月快照](../../backend/src/metric_pilot/data/multimonth.py)、[独立验收](../../scripts/verify_multimonth.py) | 复用单月规范化，校验6.A哈希，逐月来源与范围、实际取消及原子发布；调查待6.C |
 | 8 | [资料管理](../../backend/src/metric_pilot/knowledge/documents.py)、[检索](../../backend/src/metric_pilot/knowledge/retrieval.py)、[Wiki](../../backend/src/metric_pilot/knowledge/wiki.py)、[指标](../../backend/src/metric_pilot/knowledge/metrics.py) | 原文修订、来源定位、草稿发布与指标审核 |
 | 9 | [外部 HTTP](../../backend/src/metric_pilot/external/http.py)、[证据冻结](../../backend/src/metric_pilot/external/evidence.py) | 允许来源、真实请求取消、原件哈希与外部版本 |
 | 10 | [报告服务](../../backend/src/metric_pilot/reports/service.py)、[取值](../../backend/src/metric_pilot/reports/values.py)、[物化](../../backend/src/metric_pilot/reports/materialize.py) | 从成功冻结产物取数、校验引用与保存不可变报告 |

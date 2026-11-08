@@ -2241,7 +2241,13 @@ export interface components {
             /** Source Id */
             source_id: string;
             /** Period */
-            period: string;
+            period: string | null;
+            /** Periods */
+            periods?: string[];
+            /** Coverage Start */
+            coverage_start?: string | null;
+            /** Coverage End Exclusive */
+            coverage_end_exclusive?: string | null;
             /** Row Count */
             row_count: number;
             /** File Hash */

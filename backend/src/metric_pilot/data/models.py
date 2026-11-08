@@ -33,7 +33,7 @@ class DataSnapshot(Base):
     __tablename__ = "data_snapshots"
     id: Mapped[str] = mapped_column(primary_key=True)
     source_id: Mapped[str] = mapped_column(ForeignKey("data_sources.id"), index=True)
-    period: Mapped[str]
+    period: Mapped[str | None]
     row_count: Mapped[int]
     file_hash: Mapped[str]
     schema_hash: Mapped[str]

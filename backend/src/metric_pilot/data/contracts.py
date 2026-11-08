@@ -72,7 +72,10 @@ class SnapshotDTO(StrictDTO):
 
     id: str
     source_id: str
-    period: str
+    period: str | None
+    periods: list[str] = Field(default_factory=list)
+    coverage_start: str | None = None
+    coverage_end_exclusive: str | None = None
     row_count: int
     file_hash: str
     schema_hash: str

@@ -98,15 +98,16 @@ export function DataSourceDrawer({ open, onClose, fixedSnapshotId, fixedSourceId
       {snapshots.kind === 'loading' && <Spin size="small" />}
       {snapshots.kind === 'error' && <Alert type="error" message="快照读取失败" description={snapshots.message} />}
       {snapshots.kind === 'ready' && snapshots.data.length === 0 && <Empty description="这个来源尚无快照" />}
-      {!fixedSnapshotId && snapshots.kind === 'ready' && snapshots.data.length > 0 && <label>预览快照<Select aria-label="预览快照" value={snapshotId} onChange={setSnapshotId} style={{ width: '100%' }} options={snapshots.data.map(s => ({ value: s.id, label: `${s.period} · ${s.row_count.toLocaleString()} 行 · ${new Date(s.created_at).toLocaleString()} · ${s.id.slice(-8)}` }))} /></label>}
+      {!fixedSnapshotId && snapshots.kind === 'ready' && snapshots.data.length > 0 && <label>预览快照<Select aria-label="预览快照" value={snapshotId} onChange={setSnapshotId} style={{ width: '100%' }} options={snapshots.data.map(s => ({ value: s.id, label: `${s.period ?? (s.periods ?? []).join('、')} · ${s.row_count.toLocaleString()} 行 · ${new Date(s.created_at).toLocaleString()} · ${s.id.slice(-8)}` }))} /></label>}
       {actionError && <Alert type="error" message={actionError} />}
       {selected && <>
-        {!fixedSnapshotId && <Button type="primary" loading={activation === 'saving'} disabled={source?.current_snapshot_id === snapshotId} onClick={() => void activate()}>{source?.current_snapshot_id === snapshotId ? '已是默认快照' : '设为默认快照'}</Button>}
+        {selected.period === null && <Alert type="info" message="多月快照已登记；跨月调查尚未接入，暂不能设为默认版本" />}
+        {!fixedSnapshotId && <Button type="primary" loading={activation === 'saving'} disabled={selected.period === null || source?.current_snapshot_id === snapshotId} onClick={() => void activate()}>{source?.current_snapshot_id === snapshotId ? '已是默认快照' : '设为默认快照'}</Button>}
         <Descriptions bordered size="small" column={1} items={[
-          { key: 'period', label: '月份', children: selected.period },
+          { key: 'period', label: '月份', children: selected.period ?? (selected.periods ?? []).join('、') },
           { key: 'rows', label: '公开记录数', children: selected.row_count.toLocaleString() },
           { key: 'id', label: '快照 ID', children: <code style={{ overflowWrap: 'anywhere' }}>{selected.id}</code> },
-          { key: 'hash', label: '原文件 SHA-256', children: <code style={{ overflowWrap: 'anywhere' }}>{selected.file_hash}</code> },
+          { key: 'hash', label: selected.period === null ? '原件集合 SHA-256' : '原文件 SHA-256', children: <code style={{ overflowWrap: 'anywhere' }}>{selected.file_hash}</code> },
         ]} />
         <Tabs items={[
           { key: 'schema', label: '可查询表结构', children: <>

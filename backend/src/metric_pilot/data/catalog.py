@@ -1,6 +1,7 @@
 """只根据服务端登记的 ID 定位不可变快照。"""
 
 import re
+from datetime import date
 from pathlib import Path
 
 from sqlalchemy import select
@@ -67,7 +68,41 @@ class Catalog:
         输入：record - 快照记录
         输出：快照 DTO
         """
-        return SnapshotDTO(**{key: getattr(record, key) for key in SnapshotDTO.model_fields})
+        payload = {
+            key: getattr(record, key)
+            for key in (
+                "id",
+                "source_id",
+                "period",
+                "row_count",
+                "file_hash",
+                "schema_hash",
+                "created_at",
+                "manifest",
+                "quality_report",
+            )
+        }
+        # 旧记录只在响应中补范围，不改写其冻结清单。
+        if record.period:
+            first = date.fromisoformat(record.period + "-01")
+            end = date(first.year + (first.month == 12), first.month % 12 + 1, 1)
+            payload.update(
+                periods=[record.period],
+                coverage_start=first.isoformat(),
+                coverage_end_exclusive=end.isoformat(),
+            )
+        else:
+            payload.update(
+                {
+                    key: record.manifest[key]
+                    for key in (
+                        "periods",
+                        "coverage_start",
+                        "coverage_end_exclusive",
+                    )
+                }
+            )
+        return SnapshotDTO(**payload)
 
     def snapshot(self, snapshot_id: str) -> SnapshotDTO:
         """
@@ -120,6 +155,7 @@ class Catalog:
         输入：来源与快照标识
         输出：更新后的来源 DTO
         """
+        self.require_single_month(snapshot_id)
         self.database_path(snapshot_id)
         with Session(self.engine) as session, session.begin():
             source = session.get(DataSource, source_id)
@@ -130,6 +166,17 @@ class Catalog:
                 raise DataError("SNAPSHOT_NOT_FOUND")
             source.current_snapshot_id = snapshot_id
         return next(item for item in self.sources() if item.id == source_id)
+
+    def require_single_month(self, snapshot_id: str) -> SnapshotDTO:
+        """
+        作用：在6.C范围契约接通前阻止多月快照进入单月调查或默认版本
+        输入：snapshot_id - 已登记快照
+        输出：单月快照，多月返回明确能力边界
+        """
+        snapshot = self.snapshot(snapshot_id)
+        if snapshot.period is None:
+            raise DataError("MULTIMONTH_INVESTIGATION_NOT_READY")
+        return snapshot
 
     def register(self, snapshot: dict, schema: dict, source_kind: str) -> SnapshotDTO:
         """

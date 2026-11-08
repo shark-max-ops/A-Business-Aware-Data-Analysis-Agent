@@ -24,13 +24,26 @@ def include_object(obj, name, type_, reflected, compare_to):
 
 try:
     with engine.connect() as connection:
+        # SQLite重建被引用表需要暂时关闭外键；结束前检查完整性并恢复。
+        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        connection.commit()
+        connection.exec_driver_sql("BEGIN")
         context.configure(
             connection=connection,
             target_metadata=Base.metadata,
             render_as_batch=True,
             include_object=include_object,
         )
-        with context.begin_transaction():
-            context.run_migrations()
+        try:
+            with context.begin_transaction():
+                context.run_migrations()
+            if connection.exec_driver_sql("PRAGMA foreign_key_check").fetchone():
+                raise RuntimeError("MIGRATION_FOREIGN_KEY_CHECK_FAILED")
+            connection.commit()
+        except BaseException:
+            connection.rollback()
+            raise
+        finally:
+            connection.exec_driver_sql("PRAGMA foreign_keys=ON")
 finally:
     engine.dispose()

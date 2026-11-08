@@ -75,7 +75,7 @@ class ToolRegistry:
         self.run, self.ctx, self.query, self.cancel = run, ctx, query, cancel
         self.store = KnowledgeStore(query.catalog.engine)
         self.retriever = Retriever(self.store, KnowledgeProvider(settings))
-        snapshot = query.catalog.snapshot(ctx.snapshot_id)
+        snapshot = query.catalog.require_single_month(ctx.snapshot_id)
         self.schema = query.catalog.schema(snapshot.source_id, snapshot.id)
         year, month = map(int, snapshot.period.split("-"))
         self.first = date(year, month, 1)

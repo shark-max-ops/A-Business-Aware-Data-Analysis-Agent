@@ -2,7 +2,7 @@
 
 ## 1. 来源与固定版本
 
-使用 [Reporting Carrier On-Time Performance 官方下载页](https://www.transtats.bts.gov/DL_SelectFields.aspx?QO_fu146_anzr=b0-gvzr&gnoyr_VQ=FGJ)。已有一月基线；下一批 Year=2026，Period 分别为 February、March，逐月选择相同 29 字段下载并解压 CSV。页面若需要交互或下载失败，提供手动下载和本地导入流程，不依赖不稳定的抓取脚本。
+使用 [Reporting Carrier On-Time Performance 官方下载页](https://www.transtats.bts.gov/DL_SelectFields.aspx?QO_fu146_anzr=b0-gvzr&gnoyr_VQ=FGJ)。已有一月基线；阶段 6.A 核验本地 2026 年一至四月文件，逐月选择相同 29 字段。页面若需要交互或下载失败，提供手动下载和本地导入流程，不依赖不稳定的抓取脚本。
 
 不要同时导入 Marketing Carrier 和 Reporting Carrier 两张表。不要把官方月度新闻稿中的汇总数当成当前 CSV 的标准行数。首次成功导入后生成清单并人工核对该表口径，后续复现依赖清单中的哈希。
 
@@ -13,7 +13,7 @@
 ### 下载和存放月度文件
 
 1. 打开上方 Reporting Carrier 官方下载页，确认表名为 **Reporting Carrier On-Time Performance**，不要选择 Marketing Carrier。
-2. `Filter Year` 选 `2026`，`Filter Period` 分别选 `February`、`March`，地理范围保持全部；逐月下载，不混合两种承运人口径。
+2. `Filter Year` 选 `2026`，`Filter Period` 分别选需要的月份（本轮为一至四月），地理范围保持全部；逐月下载，不混合两种承运人口径。
 3. 按下面 29 个字段勾选后点击 Download。下载 ZIP 后解压 CSV；表头可能导出为 FL_DATE、OP_UNIQUE_CARRIER、ARR_DELAY_NEW 等，已有导入器处理别名，不需手动改表头。
 4. 文件统一放入下列路径。一月已经归位；用户提供的新月份文件需另行核验，不创建空占位文件：
 
@@ -22,6 +22,7 @@ data/bts/
   2026-01.csv   已有一月原始文件
   2026-02.csv   用户下载的二月原件，放入后核验
   2026-03.csv   用户下载的三月原件，放入后核验
+  2026-04.csv   用户下载的四月原件，放入后核验
 ```
 
 | 分组 | 勾选字段 |
@@ -187,9 +188,36 @@ ORDER BY delay_rate_pct DESC, carrier_id;
 
 上例函数应纳入允许集。执行参数类型与 DuckDB 实测绑定一致。取消率另查全体计划记录，不复用已排除取消的分母。
 
-## 多月 BTS 数据准备（阶段 6，待实现）
+## 多月 BTS 数据准备（阶段 6.A 已实现）
 
-本轮不建设通用 CSV/XLSX 上传或任意业务表语义映射。现有单月导入继续可用，下一步按 [实施顺序](07-build-and-evaluate.md) 的 6.A—6.E 接入月度文件集合、固定多月快照、日期范围和跨月调查；文件归位不代表该能力已实现。
+本轮不建设通用 CSV/XLSX 上传或任意业务表语义映射。6.A 已提供 [离线核验模块](../../backend/src/metric_pilot/data/audit.py) 与 [合成测试](../../backend/tests/test_bts_audit.py)，直接读取月度 CSV，不连接应用数据库、不调用模型或网络、不登记快照。6.B 已提供下述多月数据快照；调查范围、跨期口径与页面仍待 [6.C—6.E](07-build-and-evaluate.md)，现有单月导入继续可用。
+
+```powershell
+uv run python -m metric_pilot.data.audit --input-dir data/bts --periods 2026-01 2026-02 2026-03 2026-04 --output-dir storage/validation/bts-6a/my-audit
+uv run python scripts/verify_bts_audit.py --manifest storage/validation/bts-6a/my-audit/manifest.json --input-dir data/bts --output storage/validation/bts-6a/my-audit/independent-check.json
+```
+
+核验目录必须新建，拒绝覆盖历史结果或将结果目录设在原件目录内。真实清单及验收结果位于忽略的 `storage/validation/`，不提交真实原件、明细或本机路径。`manifest.json` 包含文件字节、扫描前后 SHA-256、29 字段映射、额外/缺失/冲突列、全量行数、每日覆盖、空白/非法字段、取消/备降、负时长、一致性检查、重复候选及最多五条异常行定位；`summary.md` 提供阅读摘要。坏行或解析失败不能当作已完整核验。
+
+原始全字段重复、规范29字段重复和航班候选键重复分别计数，均为每组首条以外的行数，不自动删行。候选键使用日期、Reporting Carrier DOT ID、航班号、出发/到达机场ID、计划出发时间，不声称它是唯一键。空白不填零；空白计数仅覆盖格式完整且字段可定位的行，缺列和坏行另记。负到达偏差允许，负时长单独保留质量提示；缺少日期仅表示文件与预期日历存在差异，不直接证明官方数据遗漏。
+
+退出码 0 只表示所选月份没有技术阻断，不表示官方来源已认证或质量无异常；2 表示缺文件、缺月、坏行、字段错误、越月/重叠日期、重复文件或扫描不完整等阻断。来源默认待确认，获取时间未知留空；仅在用户已明确确认所选文件来自 Reporting Carrier 且地理范围全部时，追加 `--user-confirmed-reporting-all`，声明绑定本次文件哈希，仍保留 `provenance_verified=false`。独立复核脚本复用既有 `verify_bts_snapshot.profile_csv` 的独立原始列映射及 datetime/Decimal 计算，核对主要统计；该脚本当前针对官方导出别名表头，不验证下载凭据、重复候选或业务结论。
+
+本地一至四月实际核验、用户来源确认、质量异常及未测范围见 [实施日志](../../IMPLEMENTATION_STATUS.md)。6.B 依据该清单重新核对输入哈希，保留异常与来源声明，创建新的不可变多月快照。
+
+### 6.B：不可变多月数据快照
+
+[多月导入模块](../../backend/src/metric_pilot/data/multimonth.py) 调用现有 `ingest.prepare_month` 完成各月原件冻结、别名检查、类型解析与质量计算，在本次临时 DuckDB 中逐月装载；正式数据必须提供6.A清单并重新核对哈希、行数、空值、负时长与重复候选等。月份必须连续且不重复，实际日期必须属于来源月，正式数据须覆盖完整日历；不能仅依赖清单自称通过。合成样本以 `--synthetic` 显式隔离，允许部分日覆盖以测试边界。命令见根 README。
+
+`raw_flights` 和允许查询的 `v_flights` 增加 `source_file_id`、`source_period`；`source_row_number` 保留原始CSV逻辑记录号，`record_id` 仍按原件哈希与记录号生成。冻结原件保存为 `sources/YYYY-MM/source.csv`，清单逐月记录原件哈希、字节、映射、日期、每日分布和用户来源声明，负值、空白、重复候选不删除或改写。当前不附加代码维表，不自动审核业务指标。
+
+`SnapshotDTO.period` 改为可空：单月仍返回原月份，多月返回 `null`；新增 `periods`、`coverage_start`、`coverage_end_exclusive`，结束日不包含在范围内。旧快照响应按原月份补充这些字段，不改写旧清单。多月 `file_hash` 是按有序月份与原件哈希计算的集合摘要，具体每月字节哈希在 `manifest.sources`，不冒充某个CSV的哈希。元数据迁移 `0008_multimonth` 只放宽单月字段可空；迁移时事务性重建引用表、检查外键完整性，存在多月记录时拒绝降级以避免丢数据。
+
+逐月入库后核对实际行数、日期、空值、取消/备降和负时长，整体核对总量和记录ID唯一性；关闭连接、写完清单后才重命名完整目录并原子登记。失败、取消、超时清理本次UUID目录，不修改默认指针；已经提交的完整快照不会因调用方退出被删。导入预算独立于查询预算，默认600秒且可显式配置；文件处理定期检查取消/截止时间，DuckDB语句运行时由监测线程调用 `interrupt()` 终止实际执行。CLI不提供自动激活选项。
+
+6.C尚未接通前，服务端默认切换、创建调查/运行和工具初始化拒绝多月快照，返回 `MULTIMONTH_INVESTIGATION_NOT_READY`。前端可只读预览来源、质量和结构，但不能设为默认或选择为调查数据。受控SQL服务仍可通过显式快照ID作数据层核对，不能据此宣称模型跨月调查已实现。OpenAPI与前端类型由生成命令同步。
+
+独立验收入口为 [verify_multimonth.py](../../scripts/verify_multimonth.py)，参数为 `--storage-dir`、`--snapshot-id`、`--input-dir`、`--output`。它直接扫描原始CSV并以独立映射和Decimal基线对照实际受控SQL产物，检查冻结原件哈希及来源定位；会向指定验收存储写查询审计/产物，不调用模型、天气或公告。输出文件须尚不存在，真实验收存储与原件不提交Git。
 
 计划的多月快照须逐月记录原始文件、月份、哈希、实际日期覆盖和质量；合并后保留来源文件与原行定位，校验缺月、重复文件、重叠和同名字段冲突。原始重复候选与异常不自动删除，缺失不补零。数据契约显式表示范围，不将旧单月 `period` 拼成范围字符串；运行、调查、工具、报告和 UI 同步更新，并继续校验版本与成功产物。
 

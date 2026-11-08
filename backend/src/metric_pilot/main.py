@@ -195,6 +195,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
         status = 404 if missing else 503 if unavailable else 409
         investigation_messages = {
+            "MULTIMONTH_INVESTIGATION_NOT_READY": (
+                "多月快照已登记；跨月调查范围尚未接入，暂不能设为默认或用于调查"
+            ),
             "INVESTIGATION_BUSY": "当前调查仍有运行，请等待完成或显式停止",
             "INVESTIGATION_VERSION_CONFLICT": "调查进展已更新，请刷新后继续",
             "INVESTIGATION_BOUNDARY_MISMATCH": "数据或知识版本与调查不一致，请显式新建调查或分支",

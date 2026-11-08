@@ -32,6 +32,21 @@ async function select(page: Page, label: string) {
   await page.locator('.ant-select-item-option-content').getByText(label, { exact: true }).click();
 }
 
+test('multimonth snapshots remain readable but cannot activate or start an investigation', async ({ page }) => {
+  await setup(page, []);
+  await page.route('**/api/v1/sources/source/snapshots', route => route.fulfill({ json: { items: [
+    { id: 'multi', period: null, periods: ['2026-01', '2026-02'], row_count: 6, created_at: timestamp, file_hash: 'collection', manifest: { source_kind: 'synthetic' }, quality_report: {} },
+    { id: 'snap', period: '2026-01', row_count: 3, created_at: timestamp, file_hash: 'original', manifest: { source_kind: 'synthetic' }, quality_report: {} },
+  ] } }));
+  await page.route('**/api/v1/sources/source/schema?*', route => route.fulfill({ json: { snapshot_id: 'multi', tables: [] } }));
+  await page.getByRole('button', { name: '工作区数据源 ↗' }).click();
+  const drawer = page.getByRole('dialog', { name: '数据源与固定快照' });
+  await expect(drawer).toContainText('2026-01、2026-02');
+  await expect(drawer).toContainText('跨月调查尚未接入');
+  await expect(drawer.getByRole('button', { name: '设为默认快照', exact: true })).toBeDisabled();
+  await expect(drawer).toContainText('原件集合 SHA-256');
+});
+
 test('continuous history, investigation isolation, drafts, drawers and mobile layout', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
   const logs: string[] = []; page.on('request', request => { if (request.url().includes('/event-log')) logs.push(request.url()); });

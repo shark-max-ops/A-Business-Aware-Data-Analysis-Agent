@@ -140,7 +140,7 @@ def parse_value(value: str, name: str, kind: str):
     return value
 
 
-def copy_hashed(source: Path, target: Path) -> str:
+def copy_hashed(source: Path, target: Path, *, check=None) -> str:
     """
     作用：冻结实际输入字节，同时计算哈希避免读取期间替换
     输入：输入文件和工作目录内目标
@@ -149,6 +149,8 @@ def copy_hashed(source: Path, target: Path) -> str:
     checksum = hashlib.sha256()
     with source.open("rb") as reader, target.open("xb") as writer:
         while chunk := reader.read(1024 * 1024):
+            if check:
+                check()
             checksum.update(chunk)
             writer.write(chunk)
     return checksum.hexdigest()
@@ -201,6 +203,117 @@ def import_dimension(connection, source: Path, table: str, key: str, target: Pat
     return {"sha256": file_hash, "rows": len(rows)}
 
 
+def prepare_month(
+    input_path: Path,
+    temporary: Path,
+    period: str,
+    *,
+    synthetic=False,
+    check=None,
+    expected_sha256=None,
+):
+    """
+    作用：冻结并规范化单个月文件，不登记快照
+    输入：原件、已创建临时目录、月份、合成声明、取消检查和预期哈希
+    输出：原件哈希、字段映射和质量报告
+    """
+    source_hash = copy_hashed(input_path, temporary / "source.csv", check=check)
+    if expected_sha256 is not None and source_hash != expected_sha256:
+        raise DataError("SOURCE_HASH_MISMATCH")
+    nulls, duplicates, raw_count, exposed_count, out_of_period = Counter(), set(), 0, 0, 0
+    duplicate_count, overlaps, mismatches = 0, 0, 0
+    negative_durations = Counter({name: 0 for name in sorted(DURATION_COLUMNS)})
+    negative_duration_examples = {name: [] for name in sorted(DURATION_COLUMNS)}
+    normalized = temporary / "normalized.csv"
+    with (
+        (temporary / "source.csv").open(encoding="utf-8-sig", newline="") as stream,
+        normalized.open("w", encoding="utf-8", newline="") as output,
+    ):
+        reader = csv.DictReader(stream)
+        headers = reader.fieldnames or []
+        normalized_headers = [normalize_header(h) for h in headers]
+        if len(set(normalized_headers)) != len(normalized_headers):
+            raise DataError("DUPLICATE_COLUMNS")
+        if any("MARKETING" in h or h.startswith(("OPERATING", "MKT")) for h in normalized_headers):
+            raise DataError("MARKETING_CARRIER_NOT_ALLOWED")
+        if "SYNTHETICFIXTURE" in normalized_headers and not synthetic:
+            raise DataError("SYNTHETIC_FLAG_REQUIRED")
+        lookup = dict(zip(normalized_headers, headers, strict=True))
+        for original, *_ in FIELDS:
+            candidates = [
+                key
+                for name in (original, *HEADER_ALIASES.get(original, ()))
+                if (key := normalize_header(name)) in lookup
+            ]
+            if len(candidates) > 1:
+                raise DataError("AMBIGUOUS_COLUMNS", {"column": original})
+            if candidates:
+                lookup[normalize_header(original)] = lookup[candidates[0]]
+        missing = [original for original, *_ in FIELDS if normalize_header(original) not in lookup]
+        if missing:
+            raise DataError("MISSING_COLUMNS", {"columns": missing})
+        mapping = {lookup[normalize_header(original)]: name for original, name, *_ in FIELDS}
+        writer = csv.writer(output)
+        writer.writerow(["record_id", "source_row_number"] + [name for _, name, *_ in FIELDS])
+        for row_number, row in enumerate(reader, start=2):
+            if check and raw_count % 1000 == 0:
+                check()
+            raw_count += 1
+            if None in row or any(v is None for v in row.values()):
+                raise DataError("INVALID_CSV_ROW", {"row": row_number})
+            values = []
+            for original, name, kind, _ in FIELDS:
+                try:
+                    value = parse_value(row[lookup[normalize_header(original)]], name, kind)
+                except (ValueError, InvalidOperation, OverflowError):
+                    raise DataError(
+                        "INVALID_FIELD", {"row": row_number, "column": original}
+                    ) from None
+                nulls[name] += value is None
+                values.append(value)
+            record = dict(zip([name for _, name, *_ in FIELDS], values, strict=True))
+            # 源文件中的负时长不重写、不删行；与允许为负的延误偏差分开质检。
+            for name in DURATION_COLUMNS:
+                if record[name] is not None and record[name] < 0:
+                    negative_durations[name] += 1
+                    if len(negative_duration_examples[name]) < 5:
+                        negative_duration_examples[name].append(
+                            {"source_row_number": row_number, "value": record[name]}
+                        )
+            row_hash = digest(values)
+            duplicate_count += row_hash in duplicates
+            duplicates.add(row_hash)
+            overlaps += record["cancelled"] == record["diverted"] == 1
+            if record["arrival_delay"] is not None and record["arrival_delayed_15"] is not None:
+                mismatches += int(record["arrival_delay"] >= 15) != record["arrival_delayed_15"]
+            if record["flight_date"][:7] == period:
+                exposed_count += 1
+            else:
+                out_of_period += 1
+            record_id = hashlib.sha256(f"{source_hash}:{row_number}".encode()).hexdigest()
+            writer.writerow([record_id, row_number] + values)
+    if raw_count == 0:
+        raise DataError("EMPTY_INPUT")
+    quality = {
+        "rows_raw": raw_count,
+        "rows_exposed": exposed_count,
+        "out_of_period": out_of_period,
+        "null_counts": dict(nulls),
+        "duplicate_candidates": duplicate_count,
+        "cancelled_diverted_overlap": overlaps,
+        "arrival_threshold_mismatches": mismatches,
+        "negative_duration_counts": dict(negative_durations),
+        "negative_duration_examples": negative_duration_examples,
+        "policy": (
+            "保留原始行和重复候选；业务视图仅暴露所选月；"
+            "不填充空值、不删除负偏差；负时长原值保留并单列质检"
+        ),
+        "invalid_rows": 0,
+        "dimension_join_cardinality_verified": [],
+    }
+    return source_hash, mapping, quality
+
+
 def ingest(
     settings: Settings,
     input_path: Path,
@@ -238,83 +351,11 @@ def ingest(
         temporary.mkdir()
         if inspect_database(engine)[0] != "ready":
             raise DataError("MIGRATION_REQUIRED")
-        source_hash = copy_hashed(input_path, temporary / "source.csv")
-        nulls, duplicates, raw_count, exposed_count, out_of_period = Counter(), set(), 0, 0, 0
-        duplicate_count, overlaps, mismatches = 0, 0, 0
-        negative_durations = Counter({name: 0 for name in sorted(DURATION_COLUMNS)})
-        negative_duration_examples = {name: [] for name in sorted(DURATION_COLUMNS)}
+        source_hash, mapping, quality = prepare_month(
+            input_path, temporary, period, synthetic=synthetic
+        )
         normalized = temporary / "normalized.csv"
-        with (
-            (temporary / "source.csv").open(encoding="utf-8-sig", newline="") as stream,
-            normalized.open("w", encoding="utf-8", newline="") as output,
-        ):
-            reader = csv.DictReader(stream)
-            headers = reader.fieldnames or []
-            normalized_headers = [normalize_header(h) for h in headers]
-            if len(set(normalized_headers)) != len(normalized_headers):
-                raise DataError("DUPLICATE_COLUMNS")
-            if any(
-                "MARKETING" in h or h.startswith(("OPERATING", "MKT")) for h in normalized_headers
-            ):
-                raise DataError("MARKETING_CARRIER_NOT_ALLOWED")
-            if "SYNTHETICFIXTURE" in normalized_headers and not synthetic:
-                raise DataError("SYNTHETIC_FLAG_REQUIRED")
-            lookup = dict(zip(normalized_headers, headers, strict=True))
-            for original, *_ in FIELDS:
-                candidates = [
-                    key
-                    for name in (original, *HEADER_ALIASES.get(original, ()))
-                    if (key := normalize_header(name)) in lookup
-                ]
-                if len(candidates) > 1:
-                    raise DataError("AMBIGUOUS_COLUMNS", {"column": original})
-                if candidates:
-                    lookup[normalize_header(original)] = lookup[candidates[0]]
-            missing = [
-                original for original, *_ in FIELDS if normalize_header(original) not in lookup
-            ]
-            if missing:
-                raise DataError("MISSING_COLUMNS", {"columns": missing})
-            mapping = {lookup[normalize_header(original)]: name for original, name, *_ in FIELDS}
-            writer = csv.writer(output)
-            writer.writerow(["record_id", "source_row_number"] + [name for _, name, *_ in FIELDS])
-            for row_number, row in enumerate(reader, start=2):
-                raw_count += 1
-                if None in row or any(v is None for v in row.values()):
-                    raise DataError("INVALID_CSV_ROW", {"row": row_number})
-                values = []
-                for original, name, kind, _ in FIELDS:
-                    try:
-                        value = parse_value(row[lookup[normalize_header(original)]], name, kind)
-                    except (ValueError, InvalidOperation, OverflowError):
-                        raise DataError(
-                            "INVALID_FIELD", {"row": row_number, "column": original}
-                        ) from None
-                    nulls[name] += value is None
-                    values.append(value)
-                record = dict(zip([name for _, name, *_ in FIELDS], values, strict=True))
-                # 源文件中的负时长不重写、不删行；与允许为负的延误偏差分开质检。
-                for name in DURATION_COLUMNS:
-                    if record[name] is not None and record[name] < 0:
-                        negative_durations[name] += 1
-                        if len(negative_duration_examples[name]) < 5:
-                            negative_duration_examples[name].append(
-                                {"source_row_number": row_number, "value": record[name]}
-                            )
-                row_hash = digest(values)
-                duplicate_count += row_hash in duplicates
-                duplicates.add(row_hash)
-                overlaps += record["cancelled"] == record["diverted"] == 1
-                if record["arrival_delay"] is not None and record["arrival_delayed_15"] is not None:
-                    mismatches += int(record["arrival_delay"] >= 15) != record["arrival_delayed_15"]
-                if record["flight_date"][:7] == period:
-                    exposed_count += 1
-                else:
-                    out_of_period += 1
-                record_id = hashlib.sha256(f"{source_hash}:{row_number}".encode()).hexdigest()
-                writer.writerow([record_id, row_number] + values)
-        if raw_count == 0:
-            raise DataError("EMPTY_INPUT")
+        raw_count, exposed_count = quality["rows_raw"], quality["rows_exposed"]
         connection = duckdb.connect(str(temporary / "analytics.duckdb"))
         columns = "record_id VARCHAR, source_row_number BIGINT, " + ", ".join(
             f'"{name}" {kind}' for _, name, kind, _ in FIELDS
@@ -375,23 +416,7 @@ def ingest(
         connection.close()
         connection = None
         normalized.unlink()
-        quality = {
-            "rows_raw": raw_count,
-            "rows_exposed": exposed_count,
-            "out_of_period": out_of_period,
-            "null_counts": dict(nulls),
-            "duplicate_candidates": duplicate_count,
-            "cancelled_diverted_overlap": overlaps,
-            "arrival_threshold_mismatches": mismatches,
-            "negative_duration_counts": dict(negative_durations),
-            "negative_duration_examples": negative_duration_examples,
-            "policy": (
-                "保留原始行和重复候选；业务视图仅暴露所选月；"
-                "不填充空值、不删除负偏差；负时长原值保留并单列质检"
-            ),
-            "invalid_rows": 0,
-            "dimension_join_cardinality_verified": list(dimensions),
-        }
+        quality["dimension_join_cardinality_verified"] = list(dimensions)
         schema = {"snapshot_id": snapshot_id, "tables": tables}
         schema_hash = digest([{k: t[k] for k in ("name", "columns", "join_keys")} for t in tables])
         created = utc_now()

@@ -106,7 +106,7 @@ def create_run(body: CreateRun, request: Request):
         raise DataError("ANALYSIS_WORKER_NOT_READY")
     if not settings.integration_configured("llm"):
         raise DataError("MODEL_NOT_CONFIGURED")
-    snapshot = get_catalog(request).snapshot(body.snapshot_id)
+    snapshot = get_catalog(request).require_single_month(body.snapshot_id)
     knowledge = KnowledgeStore(store.engine)
     fixed = (
         knowledge.snapshot()
@@ -162,7 +162,7 @@ def create_investigation(body: CreateInvestigation, request: Request):
     输出：调查记录
     """
     store = store_for(request)
-    get_catalog(request).snapshot(body.snapshot_id)
+    get_catalog(request).require_single_month(body.snapshot_id)
     config = request.app.state.settings
     fixed = KnowledgeStore(store.engine).snapshot()
     return InvestigationStore(store.engine).create(

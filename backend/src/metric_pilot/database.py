@@ -7,7 +7,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from metric_pilot.settings import Settings
 
-SCHEMA_REVISION = "0007_external_evidence"
+SCHEMA_REVISION = "0008_multimonth"
 
 
 class Base(DeclarativeBase):
