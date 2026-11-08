@@ -16,7 +16,10 @@
 | 8 | [资料管理](../../backend/src/metric_pilot/knowledge/documents.py)、[检索](../../backend/src/metric_pilot/knowledge/retrieval.py)、[Wiki](../../backend/src/metric_pilot/knowledge/wiki.py)、[指标](../../backend/src/metric_pilot/knowledge/metrics.py) | 原文修订、来源定位、草稿发布与指标审核 |
 | 9 | [外部 HTTP](../../backend/src/metric_pilot/external/http.py)、[证据冻结](../../backend/src/metric_pilot/external/evidence.py) | 允许来源、真实请求取消、原件哈希与外部版本 |
 | 10 | [报告服务](../../backend/src/metric_pilot/reports/service.py)、[取值](../../backend/src/metric_pilot/reports/values.py)、[物化](../../backend/src/metric_pilot/reports/materialize.py) | 从成功冻结产物取数、校验引用与保存不可变报告 |
-| 11 | [分析页面](../../frontend/src/components/AnalysisPage.tsx)、[执行记录](../../frontend/src/components/ExecutionTrace.tsx)、[证据抽屉](../../frontend/src/components/EvidenceDrawer.tsx) | 真实状态、按需查看依据、页面重连与显式取消 |
+| 11 | [分析页面](../../frontend/src/components/AnalysisPage.tsx)、[逐轮结果](../../frontend/src/components/RunTurn.tsx)、[执行记录](../../frontend/src/components/ExecutionTrace.tsx) | 调查与发送目标、连续轮次、活动 SSE、历史记录按需读取及显式取消 |
+| 12 | [逐轮调查内容](../../frontend/src/components/RunDetails.tsx)、[调查汇总与发现](../../frontend/src/components/InvestigationPanel.tsx)、[发现展示转换](../../frontend/src/components/investigationPresentation.ts) | 顶部汇总与逐轮内容并存、跨轮修正归组、实际引用来源筛选与来源运行归属 |
+| 13 | [事件日志读取](../../frontend/src/api/eventLog.ts)、[历史与冻结内容读取](../../frontend/src/api/runHistory.ts) | 响应契约与分类错误、部分分页重试、读取并发及固定资源缓存 |
+| 14 | [数据抽屉](../../frontend/src/components/DataSourceDrawer.tsx)、[证据抽屉](../../frontend/src/components/EvidenceDrawer.tsx) | 工作区数据管理与逐轮固定快照只读模式、不可变依据的按需读取 |
 
 ## 2. 关键设计问题
 
@@ -26,6 +29,9 @@
 - Wiki 摘要、项目指标与官方原文是否分别标记？更新是否创建新修订并保留旧快照？
 - 报告数字是否从冻结结果取值？引用校验是否与业务语义判断明确区分？
 - 同调查继续核查时，是否核对旧运行成功状态、会话归属、主快照和外部证据版本？
+- 顶部汇总是否与逐轮发现区分？后轮修正后，原轮次的发现和历史建议是否仍可查阅？
+- 记录未读、部分读取与读取失败是否真实区分？逐轮数据入口是否锁定原快照，引用材料是否实际绑定且保留来源运行？
+- 连续历史展示是否与模型实际收到的上下文区分，定位轮次是否只影响阅读而不改变发送目标？
 
 ## 3. 设计取舍
 

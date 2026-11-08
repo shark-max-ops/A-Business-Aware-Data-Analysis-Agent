@@ -124,9 +124,15 @@ SQL 取消和超时最终进入 [QueryExecutor.execute()](../../backend/src/metr
 
 [agent/api.py](../../backend/src/metric_pilot/agent/api.py) 的 `events()` 按数据库事件游标持续读取，支持 `Last-Event-ID` 和 `after`。事件 `seq` 在事务内严格递增，先提交再被订阅读取；心跳不写数据库。
 
-[AnalysisPage.tsx](../../frontend/src/components/AnalysisPage.tsx) 提供会话/历史、快照选择、问题提交、显式停止和结果分页；[api/analysis.ts](../../frontend/src/api/analysis.ts) 的 `mergeEvents()` 按运行 ID 和序号去重。
+[AnalysisPage.tsx](../../frontend/src/components/AnalysisPage.tsx) 管理会话、调查选择、问题提交、显式停止和按调查保存的页内草稿，顶部提供调查汇总及工作区数据入口。同一调查的运行按时间连续展示，默认渲染最近 20 轮，每次可再显示 20 轮；运行列表接口仍一次返回全部记录，分批的是页面渲染。“定位轮次”只滚动到对应回答，不改变当前调查或发送目标；无调查归属的历史独立运行只读查看。
+
+[RunTurn.tsx](../../frontend/src/components/RunTurn.tsx) 独立维护各轮执行记录、读取错误和结果分页，仅活动运行订阅 SSE；[api/analysis.ts](../../frontend/src/api/analysis.ts) 的 `mergeEvents()` 按运行 ID 和序号去重。历史运行在展开执行记录时通过 [eventLog.ts](../../frontend/src/api/eventLog.ts) 校验并读取现有 `event-log` 接口，[runHistory.ts](../../frontend/src/api/runHistory.ts) 按页合并记录，失败保留已读部分，重试从已读位置继续；未读取、部分读取不显示为完整统计，轮次卸载后停止读取后续页。
+
+报告和查询结果在轮次进入视野附近时加载；各轮查询分页与失败重试独立。`runHistory.ts` 为报告、查询及固定依据读取提供共享的三路并发队列，只对固定报告修订与冻结依据缓存成功响应，失败后允许重试，不缓存创建或取消请求。
 
 [ExecutionTrace.tsx](../../frontend/src/components/ExecutionTrace.tsx) 把执行过程放在本次问题下方：运行时显示真实当前操作，完成后自动收起；点击箭头展开短步骤，点击“执行详情”或某一步再打开右侧抽屉，集中查看 SQL、参数、来源、错误和版本。页面不再常驻显示执行侧栏。
+
+执行记录读取区分网络、HTTP、响应解析和契约错误，部分分页失败也会保留已读记录；错误与重试在执行详情内可见，读取失败不会改写运行终态。调查记录读取失败不能当成零发现。用户原先报告的“获取失败”尚未在原浏览器复现、根因未确认，新增诊断与重试入口不等于已修复该历史故障，后续应结合实际错误核对请求、代理与服务状态。
 
 [executionPresentation.ts](../../frontend/src/components/executionPresentation.ts) 按真实事件序号和执行 ID 配对步骤，保留失败与后续成功尝试，避免把所有状态都显示为绿色完成。用时只从实际开始/结束事件计算，缺失时不编造。抽屉关闭和步骤折叠不会发出取消请求。
 

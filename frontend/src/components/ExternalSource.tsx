@@ -37,8 +37,8 @@ export function ExternalSource({ source: incoming }: { source: Source }) {
     <summary><Tag>{weather ? '官方天气观测' : '官方运行公告'}</Tag><span>{source.title}</span></summary>
     <div className="external-source-body">
       {weather ? <>
-        {(source.locator.acquisition as { cache_used?: boolean } | undefined)?.cache_used && <p className="external-caption">本次复用已核验的历史原件；下方保留原获取时间，并非本轮重新联网取得。</p>}
-        {Array.isArray((source.locator.acquisition as { revalidations?: unknown[] } | undefined)?.revalidations) && (source.locator.acquisition as { revalidations: unknown[] }).revalidations.length > 0 && <p className="external-caption">本轮已联网向官方核对版本，官方确认原件未变（HTTP 304）；复用原件，未重新下载全年文件。</p>}
+        {(source.locator.acquisition as { cache_used?: boolean } | undefined)?.cache_used && <p className="external-caption">该固定版本的获取记录显示复用历史原件；下方保留原获取时间，并非本轮重新联网取得。</p>}
+        {Array.isArray((source.locator.acquisition as { revalidations?: unknown[] } | undefined)?.revalidations) && (source.locator.acquisition as { revalidations: unknown[] }).revalidations.length > 0 && <p className="external-caption">该固定版本的获取记录包含官方条件核验：官方确认原件未变（HTTP 304），复用原件，未重新下载全年文件；不代表当前展示轮次重新联网。</p>}
         <p className="external-caption">{data.mapping?.airport} · 气象站 {data.mapping?.station} · {data.mapping?.timezone}</p>
         <p>观测范围（UTC）：{utcText(source.locator.utc_start)} 至 {utcText(source.locator.utc_end_exclusive)}，右端不含。</p>
         <div className="external-coverage">{Object.entries(data.coverage ?? {}).map(([field, coverage]) => <article key={field}>

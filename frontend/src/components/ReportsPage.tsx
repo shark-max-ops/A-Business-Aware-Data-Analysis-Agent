@@ -5,6 +5,7 @@ import { jsonRequest, reportApi } from '../api/reports';
 import type { FrozenValue, Report, ReportBlock, ReportSummary, Selection } from '../api/reports';
 import { EvidenceDrawer } from './EvidenceDrawer';
 import { ReportChart } from './ReportChart';
+import { readFrozen } from '../api/runHistory';
 
 type ReportList = { items: ReportSummary[]; next_cursor?: string | null };
 
@@ -34,14 +35,15 @@ export function ReportContent({ report, compact = false }: { report: Report; com
 export function ReportPreview({ reportId, revisionId }: { reportId: string; revisionId: string }) {
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
     setReport(null); setError('');
-    void reportApi<Report>(`/reports/${reportId}/revisions/${revisionId}`)
+    void readFrozen<Report>(`/reports/${reportId}/revisions/${revisionId}`)
       .then(value => { if (alive) setReport(value); }).catch(reason => { if (alive) setError(reason.message); });
     return () => { alive = false; };
-  }, [reportId, revisionId]);
-  if (error) return <Alert type="error" message="报告读取失败" description={error} />;
+  }, [reportId, revisionId, attempt]);
+  if (error) return <Alert type="error" message="报告读取失败" description={error} action={<Button onClick={() => setAttempt(a => a + 1)}>重试报告</Button>} />;
   if (!report) return <Spin tip="正在读取报告"><div className="evidence-loading" /></Spin>;
   return <section className="analysis-report-preview"><div className="report-preview-heading"><div><p className="eyebrow">报告已保存</p><h2>{report.title}</h2></div><Link className="report-open-link" to={`/reports/${report.report_id}/revisions/${report.revision_id}`}>打开完整报告 ↗</Link></div><ReportContent report={report} compact /><p className="report-note">数字取自获授权的成功查询，点击可查看固定依据。</p></section>;
 }

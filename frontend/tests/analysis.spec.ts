@@ -11,6 +11,7 @@ test('external findings and reports show fixed weather coverage and scoped origi
   await expect(page.getByRole('link', { name: '打开完整报告' })).toBeVisible({ timeout: 45000 });
   await page.reload();
   await expect(page.getByRole('link', { name: '打开完整报告' })).toBeVisible();
+  await page.getByRole('button', { name: /调查发现 ·/ }).click();
   const panel = page.getByRole('region', { name: '当前调查' });
   await panel.getByRole('button', { name: '查看依据' }).click();
   const finding = page.getByRole('dialog', { name: '发现的固定依据' });
@@ -24,6 +25,10 @@ test('external findings and reports show fixed weather coverage and scoped origi
   expect(await finding.evaluate(e => e.getBoundingClientRect().width <= innerWidth)).toBe(true);
   await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/stage5d-finding-mobile.png' });
   await finding.getByRole('button', { name: '关闭', exact: true }).click();
+  if (await page.getByRole('dialog', { name: '调查发现', exact: true }).isVisible()) {
+    await page.getByRole('dialog', { name: '调查发现', exact: true }).getByRole('button', { name: '关闭', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: '调查发现', exact: true })).toBeHidden();
+  }
   await page.getByRole('link', { name: '打开完整报告' }).click();
   await page.locator('.report-text button').first().click();
   const drawer = page.getByRole('dialog', { name: '这个结果从哪里来' });
@@ -46,6 +51,7 @@ test('explicit exploration recovers from an unavailable metric and keeps its ide
   await page.getByRole('button', { name: '发送问题' }).click();
   await expect(page.getByRole('link', { name: '打开完整报告' })).toBeVisible({ timeout: 30000 });
   await expect(page.locator('.analysis-report-preview')).toContainText('未绑定已审核项目指标');
+  await page.getByRole('button', { name: /调查发现 ·/ }).click();
   const panel = page.getByRole('region', { name: '当前调查' });
   await expect(panel).toContainText('首日记录为');
   await panel.getByRole('button', { name: '查看依据' }).click();
@@ -53,6 +59,10 @@ test('explicit exploration recovers from an unavailable metric and keeps its ide
   await finding.getByText(/成功查询 · 冻结/).click();
   await expect(finding.getByRole('note', { name: '探索结果说明' })).toContainText('缺失处理');
   await finding.getByRole('button', { name: '关闭', exact: true }).click();
+  if (await page.getByRole('dialog', { name: '调查发现', exact: true }).isVisible()) {
+    await page.getByRole('dialog', { name: '调查发现', exact: true }).getByRole('button', { name: '关闭', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: '调查发现', exact: true })).toBeHidden();
+  }
   await page.getByRole('link', { name: '打开完整报告' }).click();
   await expect(page.getByRole('heading', { name: '每日航班记录', exact: true })).toBeVisible();
   await page.getByRole('button', { name: /^首日记录数：/ }).click();
@@ -84,11 +94,15 @@ test('investigation continues with fixed evidence, history, explicit branch and 
   await page.getByLabel('分析问题', { exact: true }).fill('调查验收：核查合成数据的逐日记录');
   await page.getByRole('button', { name: '发送问题' }).click();
   await expect(page.getByRole('link', { name: '打开完整报告' })).toBeVisible({ timeout: 30000 });
+  await page.getByRole('button', { name: /调查发现 ·/ }).click();
   const panel = page.getByRole('region', { name: '当前调查' });
   await expect(panel).toContainText('观察事实');
   await expect(panel).toContainText('首日记录为');
-  await panel.getByText('版本与累计额度', { exact: true }).click();
-  await expect(panel).toContainText('已分配 1/4 次运行');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: '调查信息', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: '调查信息', exact: true })).toContainText('已分配 1/4 次运行');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: /调查发现 ·/ }).click();
   await panel.getByRole('button', { name: '查看依据' }).click();
   const evidence = page.getByRole('dialog', { name: '发现的固定依据' });
   await expect(evidence).toContainText('引用值');
@@ -100,13 +114,16 @@ test('investigation continues with fixed evidence, history, explicit branch and 
   await expect(evidence).toBeHidden();
   await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/investigation-desktop.png', fullPage: true });
   await page.reload();
+  await page.getByRole('button', { name: /调查发现 ·/ }).click();
   await expect(panel).toContainText('首日记录为');
   await panel.getByRole('button', { name: '检查其他日期是否存在不同分布' }).click();
   await expect(page.getByLabel('分析问题', { exact: true })).toHaveValue('检查其他日期是否存在不同分布');
   await page.getByLabel('分析问题', { exact: true }).fill('继续调查验收：核对解释边界');
   await page.getByRole('button', { name: '发送问题' }).click();
+  await expect(page.locator('.run-result')).toHaveCount(2);
+  await page.getByRole('button', { name: /调查发现 ·/ }).click();
   await expect(panel).toContainText('反向证据', { timeout: 30000 });
-  await expect(page.getByRole('heading', { name: '调查继续核查', exact: true })).toBeVisible();
+  await expect(page.locator('.analysis-thread').getByRole('heading', { name: '调查继续核查', exact: true })).toBeAttached();
   await expect(panel.locator('.investigation-finding:not(.historical)')).toHaveCount(1);
   await panel.getByText('查看被修正的历史记录', { exact: true }).click();
   await expect(panel).toContainText('已有后续修正');
@@ -126,12 +143,16 @@ test('investigation continues with fixed evidence, history, explicit branch and 
   await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/investigation-evidence-mobile.png' });
   await evidence.getByRole('button', { name: '关闭', exact: true }).click();
   await expect(evidence).toBeHidden();
+  await page.keyboard.press('Escape');
   await page.getByRole('button', { name: '新建分支', exact: true }).click();
   const modal = page.getByRole('dialog', { name: '新建调查分支' });
   await modal.getByLabel('调查范围', { exact: true }).fill('仅核查范围变化后的记录');
   await modal.getByRole('button', { name: '固定范围并创建' }).click();
-  await expect(panel).toContainText('仅核查范围变化后的记录');
-  await expect(panel).toContainText('此调查由已有调查显式建立分支');
+  await page.getByRole('button', { name: '调查信息', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: '调查信息', exact: true })).toContainText('仅核查范围变化后的记录');
+  await expect(page.getByRole('dialog', { name: '调查信息', exact: true })).toContainText('此调查由已有调查显式建立分支');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: /调查发现 ·/ }).click();
   await expect(panel.locator('.investigation-finding')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
@@ -150,7 +171,7 @@ test('inline execution, actual repair, drawer, replay and mobile layout', async 
   const toggle = page.locator('.execution-toggle');
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.locator('.execution-step').first()).toBeVisible();
+  await expect(page.locator('button.execution-step').first()).toBeVisible();
   await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/execution-running.png', fullPage: true });
   await page.getByRole('button', { name: '执行详情' }).click();
   const dialog = page.getByRole('dialog', { name: '执行详情' });
@@ -161,14 +182,16 @@ test('inline execution, actual repair, drawer, replay and mobile layout', async 
   await page.reload();
   await expect(page.getByRole('columnheader', { name: 'record_count' })).toBeVisible({ timeout: 30000 });
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
   await expect(toggle).toContainText('5 次工具调用');
+  await toggle.click();
   await expect(page.locator('.conversation-item.selected')).toHaveText('航班数据范围');
   await expect(toggle).toContainText('1 次失败记录');
   await expect(page.getByRole('region', { name: '工具步骤' })).toHaveCount(0);
   await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/execution-desktop-collapsed.png', fullPage: true });
 
   await toggle.click();
-  await expect(page.locator('.execution-step')).toHaveCount(5);
+  await expect(page.locator('button.execution-step')).toHaveCount(5);
   await expect(page.locator('.execution-step.failed')).toHaveCount(1);
   await page.locator('.execution-step.failed').click();
   await expect(dialog).toBeVisible();
@@ -187,10 +210,12 @@ test('inline execution, actual repair, drawer, replay and mobile layout', async 
   await page.locator('.analysis-question').click();
   await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/execution-desktop-expanded.png', fullPage: true });
   await page.reload();
+  if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
   await expect(toggle).toContainText('5 次工具调用');
+  await toggle.click();
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await toggle.click();
-  await expect(page.locator('.execution-step')).toHaveCount(5);
+  await expect(page.locator('button.execution-step')).toHaveCount(5);
   await expect(page.locator('.execution-step.failed')).toHaveCount(1);
   await toggle.click();
 
@@ -238,8 +263,8 @@ test('clarification does not show a green completed-query indicator or invented 
   await expect(page.locator('.execution-toggle')).toContainText('需要补充条件');
   await expect(page.locator('.execution-trace.success')).toHaveCount(0);
   await page.locator('.execution-toggle').click();
-  await expect(page.getByText('本次运行没有工具执行记录。', { exact: true })).toBeVisible();
-  await expect(page.locator('.execution-step')).toHaveCount(0);
+  await expect(page.getByRole('region', { name: '工具步骤' })).toBeVisible();
+  await expect(page.locator('button.execution-step')).toHaveCount(0);
   await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/execution-clarification.png', fullPage: true });
 });
 
@@ -295,6 +320,10 @@ test('report generation, Chinese charts, evidence, exports, revisions and mobile
   await expect(page.getByRole('link', { name: '打开完整报告' })).toBeVisible({ timeout: 30000 });
   await expect(page.locator('.execution-toggle')).toContainText('报告已生成');
   await page.screenshot({ path: '../.cache/screenshots/stage4-analysis.png', fullPage: true });
+  if (await page.getByRole('dialog', { name: '调查发现', exact: true }).isVisible()) {
+    await page.getByRole('dialog', { name: '调查发现', exact: true }).getByRole('button', { name: '关闭', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: '调查发现', exact: true })).toBeHidden();
+  }
   await page.getByRole('link', { name: '打开完整报告' }).click();
   await expect(page.getByRole('heading', { name: '每日航班记录', exact: true })).toBeVisible();
   await expect(page.locator('.report-kpi')).toHaveCount(2);
