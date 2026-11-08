@@ -4,7 +4,9 @@ import { requestData } from '../api/data';
 import type { LoadState, Schema, Snapshot, Source } from '../api/data';
 
 /** 作用：查看真实快照、质量和表结构；输入：打开状态与关闭回调；输出：数据源抽屉。 */
-export function DataSourceDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function DataSourceDrawer({ open, onClose, fixedSnapshotId, fixedSourceId }: {
+  open: boolean; onClose: () => void; fixedSnapshotId?: string; fixedSourceId?: string;
+}) {
   const [sources, setSources] = useState<LoadState<Source[]>>({ kind: 'loading' });
   const [snapshots, setSnapshots] = useState<LoadState<Snapshot[]>>({ kind: 'loading' });
   const [schema, setSchema] = useState<LoadState<Schema>>({ kind: 'loading' });
@@ -18,15 +20,26 @@ export function DataSourceDrawer({ open, onClose }: { open: boolean; onClose: ()
     if (!open) return;
     const controller = new AbortController();
     setSources({ kind: 'loading' });
-    void requestData<{ items: Source[] }>('/sources', { signal: controller.signal }).then(result => {
+    setSourceId(undefined); setSnapshotId(undefined);
+    void requestData<{ items: Source[] }>('/sources', { signal: controller.signal }).then(async result => {
       if (controller.signal.aborted) return;
       setSources({ kind: 'ready', data: result.items });
+      if (fixedSnapshotId) {
+        let match = result.items.find(source => source.id === fixedSourceId);
+        if (!match) {
+          const lists = await Promise.all(result.items.map(source => requestData<{ items: Snapshot[] }>(`/sources/${source.id}/snapshots`, { signal: controller.signal })));
+          match = result.items.find((_, index) => lists[index].items.some(snapshot => snapshot.id === fixedSnapshotId));
+        }
+        if (controller.signal.aborted) return;
+        if (!match) throw new Error('固定快照详情读取失败；不会改用最新快照');
+        setSourceId(match.id); return;
+      }
       setSourceId(current => result.items.some(s => s.id === current) ? current
         : result.items.find(s => s.source_kind === 'official_bts' && s.current_snapshot_id)?.id
           ?? result.items.find(s => s.current_snapshot_id)?.id ?? result.items[0]?.id);
     }).catch(error => { if (!controller.signal.aborted) setSources({ kind: 'error', message: String(error.message) }); });
     return () => controller.abort();
-  }, [open, attempt]);
+  }, [open, attempt, fixedSnapshotId, fixedSourceId]);
 
   useEffect(() => {
     if (!open || !sourceId) return;
@@ -36,11 +49,14 @@ export function DataSourceDrawer({ open, onClose }: { open: boolean; onClose: ()
     setActionError('');
     void requestData<{ items: Snapshot[] }>(`/sources/${sourceId}/snapshots`, { signal: controller.signal }).then(result => {
       if (controller.signal.aborted) return;
+      if (fixedSnapshotId && !result.items.some(snapshot => snapshot.id === fixedSnapshotId)) {
+        setSnapshots({ kind: 'error', message: '固定快照详情读取失败；不会改用最新快照' }); return;
+      }
       setSnapshots({ kind: 'ready', data: result.items });
-      setSnapshotId(result.items[0]?.id);
+      setSnapshotId(fixedSnapshotId ?? result.items[0]?.id);
     }).catch(error => { if (!controller.signal.aborted) setSnapshots({ kind: 'error', message: String(error.message) }); });
     return () => controller.abort();
-  }, [open, sourceId, attempt]);
+  }, [open, sourceId, attempt, fixedSnapshotId]);
 
   useEffect(() => {
     if (!open || !sourceId || !snapshotId) return;
@@ -57,7 +73,7 @@ export function DataSourceDrawer({ open, onClose }: { open: boolean; onClose: ()
 
   /** 作用：明确提交默认快照切换并显示实际结果；输入：当前选择；输出：更新状态。 */
   async function activate() {
-    if (!sourceId || !snapshotId) return;
+    if (fixedSnapshotId || !sourceId || !snapshotId) return;
     setActivation('saving');
     setActionError('');
     try {
@@ -69,23 +85,23 @@ export function DataSourceDrawer({ open, onClose }: { open: boolean; onClose: ()
     finally { setActivation('idle'); }
   }
 
-  return <Drawer title="数据源与固定快照" open={open} onClose={onClose} width={800}>
-    <p>通过项目导入命令登记 CSV 后，可在这里查看快照。选择预览不会改变默认版本。</p>
+  return <Drawer title={fixedSnapshotId ? '本轮固定数据快照' : '数据源与固定快照'} open={open} onClose={onClose} width="min(800px, 100vw)">
+    <p>{fixedSnapshotId ? <>只读查看该轮固定版本，不改变默认快照。<br /><code>{fixedSnapshotId}</code></> : '通过项目导入命令登记 CSV 后，可在这里查看快照。选择预览不会改变默认版本。'}</p>
     <Button onClick={() => setAttempt(a => a + 1)}>刷新数据源</Button>
     {sources.kind === 'loading' && <p role="status"><Spin size="small" /> 正在读取数据源…</p>}
     {sources.kind === 'error' && <Alert type="error" message="数据源读取失败" description={sources.message} />}
     {sources.kind === 'ready' && sources.data.length === 0 && <Empty description="尚未导入数据" />}
     {sources.kind === 'ready' && sources.data.length > 0 && <Space direction="vertical" size="middle" style={{ width: '100%', marginTop: 20 }}>
-      <label>数据源<Select aria-label="数据源" value={sourceId} onChange={setSourceId} style={{ width: '100%' }} options={sources.data.map(s => ({ value: s.id, label: s.name }))} /></label>
+      {fixedSnapshotId ? <p>数据源：{source?.name ?? '正在定位固定来源…'}</p> : <label>数据源<Select aria-label="数据源" value={sourceId} onChange={setSourceId} style={{ width: '100%' }} options={sources.data.map(s => ({ value: s.id, label: s.name }))} /></label>}
       {source && <Tag color={source.source_kind === 'synthetic' ? 'orange' : 'blue'}>{source.source_kind === 'synthetic' ? '人工合成测试数据' : '用户登记的 BTS Reporting 来源'}</Tag>}
-      <p>当前默认快照：<code style={{ overflowWrap: 'anywhere' }}>{source?.current_snapshot_id || '尚未设置'}</code></p>
+      {!fixedSnapshotId && <p>当前默认快照：<code style={{ overflowWrap: 'anywhere' }}>{source?.current_snapshot_id || '尚未设置'}</code></p>}
       {snapshots.kind === 'loading' && <Spin size="small" />}
       {snapshots.kind === 'error' && <Alert type="error" message="快照读取失败" description={snapshots.message} />}
       {snapshots.kind === 'ready' && snapshots.data.length === 0 && <Empty description="这个来源尚无快照" />}
-      {snapshots.kind === 'ready' && snapshots.data.length > 0 && <label>预览快照<Select aria-label="预览快照" value={snapshotId} onChange={setSnapshotId} style={{ width: '100%' }} options={snapshots.data.map(s => ({ value: s.id, label: `${s.period} · ${s.row_count.toLocaleString()} 行 · ${new Date(s.created_at).toLocaleString()} · ${s.id.slice(-8)}` }))} /></label>}
+      {!fixedSnapshotId && snapshots.kind === 'ready' && snapshots.data.length > 0 && <label>预览快照<Select aria-label="预览快照" value={snapshotId} onChange={setSnapshotId} style={{ width: '100%' }} options={snapshots.data.map(s => ({ value: s.id, label: `${s.period} · ${s.row_count.toLocaleString()} 行 · ${new Date(s.created_at).toLocaleString()} · ${s.id.slice(-8)}` }))} /></label>}
       {actionError && <Alert type="error" message={actionError} />}
       {selected && <>
-        <Button type="primary" loading={activation === 'saving'} disabled={source?.current_snapshot_id === snapshotId} onClick={() => void activate()}>{source?.current_snapshot_id === snapshotId ? '已是默认快照' : '设为默认快照'}</Button>
+        {!fixedSnapshotId && <Button type="primary" loading={activation === 'saving'} disabled={source?.current_snapshot_id === snapshotId} onClick={() => void activate()}>{source?.current_snapshot_id === snapshotId ? '已是默认快照' : '设为默认快照'}</Button>}
         <Descriptions bordered size="small" column={1} items={[
           { key: 'period', label: '月份', children: selected.period },
           { key: 'rows', label: '公开记录数', children: selected.row_count.toLocaleString() },

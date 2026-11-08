@@ -45,8 +45,8 @@ export function EvidenceDrawer({ report, selection, close }: { report: Report; s
     {error && <Alert type="error" message="依据读取失败" description={error} />}
     {evidence && <div className="evidence-content">
       {evidence.value && <section className="evidence-highlight"><p>你点击的数值</p><strong>{evidence.value.display}</strong><small>原始值：{typeof evidence.value.raw === 'object' ? JSON.stringify(evidence.value.raw) : String(evidence.value.raw ?? '缺失')}</small></section>}
-      <section><h3>数据与统计范围</h3><p>{evidence.artifact?.external_snapshot_id ? '本项数值来自固定天气观测；调查主数据月份：' : evidence.data_snapshot.manifest?.source_kind === 'synthetic' ? '合成测试数据 · ' : '固定航班数据 · '}{evidence.data_snapshot.period}</p><p>来自本次分析已保存的查询结果，资料更新不会替换这里的依据。</p>
-        {evidence.artifact && <p>结果共 {evidence.artifact.returned_rows} 行 · {evidence.artifact.truncated ? '已截断' : '未截断'}</p>}
+      <section><h3>数据与统计范围</h3><p>{evidence.artifact?.external_snapshot_id ? '本项数值来自固定天气观测；调查主数据月份：' : evidence.data_snapshot.manifest?.source_kind === 'synthetic' ? '合成测试数据 · ' : '固定航班数据 · '}{evidence.data_snapshot.period}</p><p>来自获授权的已保存查询结果，资料更新不会替换这里的依据。</p>
+        {evidence.artifact && <><p>{evidence.artifact.run_id === report.run_id ? '本轮产生的查询' : '引用旧轮次的证据'} · 来源运行：<code>{evidence.artifact.run_id}</code></p><p>结果共 {evidence.artifact.returned_rows} 行 · {evidence.artifact.truncated ? '已截断' : '未截断'}</p></>}
       </section>
       <ExplorationNote artifact={evidence.artifact} />
       {evidence.metrics.length > 0 ? <section><h3>使用的已审核口径</h3>{evidence.metrics.map((metric, i) => <MetricSummary key={i} definition={metric.definition as MetricDefinition} documents={[]} openSource={id => { const source = document.getElementById(`report-source-${id}`); if (source instanceof HTMLDetailsElement) source.open = true; source?.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); }} />)}</section> : <p className="report-note">这是基础数据探索，没有绑定已审核的项目指标。</p>}

@@ -20,6 +20,7 @@
 
 ## 实施原则
 
+- 只有在用户允许后才能修改代码。
 - 每次完成一个可运行的纵向阶段，不一次生成整个平台。
 - 统一使用文档契约：RunContext、ToolResult、QueryArtifact、MetricDefinition、ReportDraft、SSE envelope。
 - 核心协议使用组合；接口确有需要才抽象，不制造多模型/多数据源兼容层。

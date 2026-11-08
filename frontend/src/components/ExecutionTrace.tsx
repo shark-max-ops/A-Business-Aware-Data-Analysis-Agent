@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react';
-import { Alert, Drawer, Select } from 'antd';
+import { Alert, Button, Drawer, Select } from 'antd';
 import type { Run, RunEvent } from '../api/analysis';
 import { terminal } from '../api/analysis';
 import { executionSteps, executionSummary, formatDuration, modelSteps, stepDuration, recordOf, runFailureDescription, stepDescription, toolLabels, toolStatusLabels } from './executionPresentation';
@@ -24,7 +24,11 @@ function JsonBlock({ value }: { value: unknown }) {
 }
 
 /** 作用：显示按需展开的执行过程；输入：固定运行、真实事件与连接提示；输出：行内摘要和详情抽屉。 */
-export function ExecutionTrace({ run, events, connection }: { run: Run; events: RunEvent[]; connection: string }) {
+export function ExecutionTrace({ run, events, connection, recordsState = 'complete', onReadRecords, recordError }: {
+  run: Run; events: RunEvent[]; connection: string;
+  recordsState?: 'idle' | 'loading' | 'partial' | 'complete' | 'live'; onReadRecords?: () => void;
+  recordError?: string;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [selectedId, setSelectedId] = useState<string>();
@@ -33,7 +37,12 @@ export function ExecutionTrace({ run, events, connection }: { run: Run; events: 
   const scopedEvents = events.filter(event => event.run_id === run.id);
   const steps = executionSteps(scopedEvents);
   const timeline = [...steps, ...modelSteps(scopedEvents)].sort((a, b) => (a.startedAt ?? a.finishedAt ?? '').localeCompare(b.startedAt ?? b.finishedAt ?? ''));
-  const summary = executionSummary(run, scopedEvents, steps);
+  const complete = recordsState === 'complete' || recordsState === 'live';
+  const summary = complete ? executionSummary(run, scopedEvents, steps) : {
+    tone: run.status === 'failed' ? 'error' as const : 'neutral' as const,
+    title: run.status === 'completed' ? (run.result?.kind === 'report' ? '报告已生成' : run.result?.kind === 'clarification' ? '需要补充条件' : '查询已完成') : run.status === 'cancelled' ? '分析已取消' : '分析未完成',
+    info: recordsState === 'loading' ? '正在读取执行记录…' : recordsState === 'partial' ? '仅已读取部分记录' : '执行记录按需读取',
+  };
   const resultIds = run.result?.kind === 'query_result' ? run.result.artifact_ids : [];
   const preferred = [...steps].reverse().find(step => resultIds.includes(String(recordOf(recordOf(step.result?.data).artifact).id))) ?? steps.at(-1);
   const selected = steps.find(step => step.id === selectedId) ?? preferred;
@@ -56,13 +65,14 @@ export function ExecutionTrace({ run, events, connection }: { run: Run; events: 
 
   /** 作用：打开选中工具的真实记录；输入：可选执行 ID；输出：详情抽屉。 */
   function inspect(id?: string) {
+    onReadRecords?.();
     setSelectedId(id);
     setDrawer(true);
   }
 
   return <div className={`execution-trace ${summary.tone}`}>
     <div className="execution-summary">
-      <button type="button" className="execution-toggle" aria-expanded={expanded} aria-controls={contentId} onClick={() => setExpanded(value => !value)}>
+      <button type="button" className="execution-toggle" aria-expanded={expanded} aria-controls={contentId} onClick={() => { if (!expanded) onReadRecords?.(); setExpanded(value => !value); }}>
         <svg className={`execution-chevron ${expanded ? 'expanded' : ''}`} aria-hidden="true" viewBox="0 0 16 16"><path d="m6 3 5 5-5 5" /></svg>
         <StateMark tone={summary.tone} />
         <span className="execution-summary-copy"><span className="execution-title">{summary.title}</span><span className="execution-meta">{summary.info}</span></span>
@@ -72,7 +82,7 @@ export function ExecutionTrace({ run, events, connection }: { run: Run; events: 
     <span className="sr-only" role="status">{summary.title}</span>
     {reconnecting && <p className="execution-connection" role="status">进度连接已断开，正在重连；后端运行会继续。</p>}
     {expanded && <div id={contentId} role="region" aria-label="工具步骤" className="execution-steps">
-      {timeline.length === 0 && <p className="execution-empty">{terminal(run.status) ? '本次运行没有工具执行记录。' : '正在等待实际工具执行。'}</p>}
+      {timeline.length === 0 && <p className="execution-empty">{!complete ? summary.info : terminal(run.status) ? '本次运行没有工具执行记录。' : '正在等待实际工具执行。'}</p>}
       {timeline.map(step => step.name === 'model_thinking' ? <div key={step.id} className={`execution-step ${visibleStatus(step, run)}`}>
         <StateMark tone={visibleStatus(step, run)} />
         <span className="execution-step-copy"><span className="execution-step-label">模型思考<span className="execution-step-duration" title="从模型请求进度至下一阶段事件，包含响应整理；不展示模型内部思维。">{stepDuration(step, run, now)}</span></span></span>
@@ -89,6 +99,7 @@ export function ExecutionTrace({ run, events, connection }: { run: Run; events: 
       <p className="execution-drawer-eyebrow">本次分析</p><h3 className="execution-drawer-question">{run.question}</h3>
       <div className={`execution-overview ${summary.tone}`}><StateMark tone={summary.tone} /><span>{summary.title}</span><span className="execution-meta">{summary.info}</span></div>
       <p className="execution-fixed-note">数据与知识版本已固定。以下仅展示实际操作与结果。</p>
+      {recordError && <Alert type="warning" message="执行记录尚未完整读取" description={recordError} action={<Button onClick={onReadRecords}>重试记录</Button>} />}
       {run.error_code && <Alert type={run.status === 'cancelled' ? 'info' : 'warning'} showIcon message={summary.title} description={<><p>{runFailureDescription(run)}</p><code>{run.error_code}</code></>} />}
       {steps.length > 0 ? <>
         <label className="execution-field-label" htmlFor={`${contentId}-tool`}>工具记录</label>
@@ -105,7 +116,7 @@ export function ExecutionTrace({ run, events, connection }: { run: Run; events: 
           <details className="execution-technical"><summary>工具输入</summary><JsonBlock value={selected.arguments} /></details>
           <details className="execution-technical"><summary>工具返回结果</summary>{selected.result ? <JsonBlock value={selected.result} /> : <p>工具尚未返回结果。</p>}</details>
         </section>}
-      </> : <p className="execution-empty">本次运行尚无工具记录。</p>}
+      </> : <p className="execution-empty">{complete ? '本次运行尚无工具记录。' : summary.info}</p>}
       <details className="execution-technical"><summary>固定版本与运行信息</summary><JsonBlock value={{ run_id: run.id, snapshot_id: run.snapshot_id, knowledge_snapshot_id: run.knowledge_snapshot_id, metric_revision_ids: run.metric_revision_ids, model: run.model }} /></details>
       <details className="execution-technical"><summary>原始事件 · {scopedEvents.length} 条</summary><JsonBlock value={scopedEvents} /></details>
     </Drawer>
