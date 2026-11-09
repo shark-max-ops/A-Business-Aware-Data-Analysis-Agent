@@ -108,6 +108,7 @@ class GuardedQuery:
     functions: list[str]
     parameter_keys: list[str]
     ordered: bool
+    scope_sql: str | None = None
 
 
 def validate_sql(

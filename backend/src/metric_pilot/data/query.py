@@ -9,8 +9,10 @@ import sys
 import tempfile
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from metric_pilot.data.catalog import Catalog
@@ -25,6 +27,7 @@ from metric_pilot.data.contracts import (
 from metric_pilot.data.executor import QueryExecutor
 from metric_pilot.data.guard import FUNCTIONS, GUARD_VERSION, validate_sql
 from metric_pilot.data.models import ArtifactRecord, QueryExecution
+from metric_pilot.data.ranges import resolve_range, run_range, scope_sql
 from metric_pilot.database import create_metadata_engine
 from metric_pilot.settings import Settings
 
@@ -85,6 +88,17 @@ class QueryService:
             )
         try:
             snapshot = self.catalog.snapshot(ctx.snapshot_id)
+            selected_range = resolve_range(self.catalog.engine, snapshot.id, ctx.date_range)
+            # 正式运行从持久化边界复核；离线验收的独立运行ID仍可使用显式上下文。
+            from metric_pilot.agent.models import runs
+
+            with self.catalog.engine.connect() as c:
+                recorded = c.execute(select(runs.c.payload).where(runs.c.id == ctx.run_id)).first()
+            if recorded and (
+                recorded[0]["snapshot_id"] != ctx.snapshot_id
+                or run_range(self.catalog.engine, recorded[0]) != selected_range
+            ):
+                raise DataError("RUN_DATE_RANGE_MISMATCH")
             external = None
             external_evidence_ids = []
             if external_snapshot_id is not None:
@@ -114,6 +128,8 @@ class QueryService:
             guarded = validate_sql(
                 sql, parameters, {table.name for table in schema.tables}, self.executor.max_rows
             )
+            if external_snapshot_id is None and "v_flights" in guarded.tables:
+                guarded = replace(guarded, scope_sql=scope_sql(selected_range))
             with Session(self.catalog.engine) as session, session.begin():
                 execution = session.get(QueryExecution, execution_id)
                 execution.parameters = parameters
@@ -172,6 +188,8 @@ class QueryService:
                 unavailable_metric_keys=list(unavailable_metric_keys),
                 external_snapshot_id=external_snapshot_id,
                 external_evidence_ids=external_evidence_ids,
+                date_range=selected_range,
+                scope_sql=guarded.scope_sql,
             )
             if cancel is not None and cancel.is_set():
                 raise DataError("QUERY_CANCELLED")

@@ -233,7 +233,19 @@ class SearchRequest(StrictDTO):
     query: str = Field(min_length=1, max_length=500)
     snapshot_id: str
     as_of: date | None = None
+    end_exclusive: date | None = None
     mode: Literal["text", "hybrid"] = "text"
+
+    @model_validator(mode="after")
+    def valid_search_range(self):
+        """
+        作用：范围检索必须有开始，结束不包含且严格大于开始
+        输入：当前请求
+        输出：当前请求或验证失败
+        """
+        if self.end_exclusive and (not self.as_of or self.end_exclusive <= self.as_of):
+            raise ValueError("INVALID_SEARCH_DATE_RANGE")
+        return self
 
 
 class SearchHit(StrictDTO):

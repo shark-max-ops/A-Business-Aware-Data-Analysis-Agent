@@ -1228,6 +1228,7 @@ export interface components {
             snapshot_id: string;
             /** Parent Id */
             parent_id?: string | null;
+            date_range?: components["schemas"]["DateRange"] | null;
         };
         /**
          * CreateRun
@@ -1250,6 +1251,19 @@ export interface components {
             investigation_id?: string | null;
             /** Expected Investigation Version */
             expected_investigation_version?: number | null;
+            date_range?: components["schemas"]["DateRange"] | null;
+        };
+        /**
+         * DateRange
+         * @description 作用：严格表达包含开始、不包含结束的业务日期范围
+         *     输入：ISO日期字符串
+         *     输出：非空且顺序正确的日期范围
+         */
+        DateRange: {
+            /** Start */
+            start: string;
+            /** End Exclusive */
+            end_exclusive: string;
         };
         /**
          * DocumentMetadata
@@ -1387,6 +1401,7 @@ export interface components {
             external_snapshots?: {
                 [key: string]: unknown;
             }[];
+            date_range?: components["schemas"]["DateRange"] | null;
         };
         /**
          * ExplorationScope
@@ -1663,6 +1678,7 @@ export interface components {
             run_ids: string[];
             /** Findings */
             findings: components["schemas"]["FindingDTO"][];
+            date_range?: components["schemas"]["DateRange"] | null;
         };
         /**
          * ItemList
@@ -1907,6 +1923,9 @@ export interface components {
             external_snapshot_id?: string | null;
             /** External Evidence Ids */
             external_evidence_ids?: string[];
+            date_range?: components["schemas"]["DateRange"] | null;
+            /** Scope Sql */
+            scope_sql?: string | null;
         };
         /**
          * QueryResult
@@ -2022,6 +2041,7 @@ export interface components {
             external_snapshots?: {
                 [key: string]: unknown;
             }[];
+            date_range?: components["schemas"]["DateRange"] | null;
         };
         /**
          * ReportDraft
@@ -2094,7 +2114,8 @@ export interface components {
             /** Scope */
             scope: string;
             /** Period */
-            period: string;
+            period: string | null;
+            date_range?: components["schemas"]["DateRange"] | null;
             /** Source Kind */
             source_kind: string;
             /** Created At */
@@ -2154,6 +2175,7 @@ export interface components {
             investigation_id?: string | null;
             /** Expected Investigation Version */
             expected_investigation_version?: number | null;
+            date_range?: components["schemas"]["DateRange"] | null;
         };
         /**
          * SchemaDTO
@@ -2201,6 +2223,8 @@ export interface components {
             snapshot_id: string;
             /** As Of */
             as_of?: string | null;
+            /** End Exclusive */
+            end_exclusive?: string | null;
             /**
              * Mode
              * @default text

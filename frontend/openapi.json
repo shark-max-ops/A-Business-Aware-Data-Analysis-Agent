@@ -3290,6 +3290,16 @@
               }
             ],
             "title": "Parent Id"
+          },
+          "date_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -3357,6 +3367,16 @@
               }
             ],
             "title": "Expected Investigation Version"
+          },
+          "date_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -3368,6 +3388,28 @@
         ],
         "title": "CreateRun",
         "description": "作用：请求分析\n输入：问题与已登记快照\n输出：严格请求"
+      },
+      "DateRange": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "title": "Start"
+          },
+          "end_exclusive": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "title": "End Exclusive"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start",
+          "end_exclusive"
+        ],
+        "title": "DateRange",
+        "description": "作用：严格表达包含开始、不包含结束的业务日期范围\n输入：ISO日期字符串\n输出：非空且顺序正确的日期范围"
       },
       "DocumentMetadata": {
         "properties": {
@@ -3653,6 +3695,16 @@
             },
             "type": "array",
             "title": "External Snapshots"
+          },
+          "date_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -4252,6 +4304,16 @@
             },
             "type": "array",
             "title": "Findings"
+          },
+          "date_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -4923,6 +4985,27 @@
             },
             "type": "array",
             "title": "External Evidence Ids"
+          },
+          "date_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope_sql": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Sql"
           }
         },
         "additionalProperties": false,
@@ -5190,6 +5273,16 @@
             },
             "type": "array",
             "title": "External Snapshots"
+          },
+          "date_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -5366,8 +5459,25 @@
             "title": "Scope"
           },
           "period": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Period"
+          },
+          "date_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "source_kind": {
             "type": "string",
@@ -5547,6 +5657,16 @@
               }
             ],
             "title": "Expected Investigation Version"
+          },
+          "date_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -5645,6 +5765,18 @@
               }
             ],
             "title": "As Of"
+          },
+          "end_exclusive": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Exclusive"
           },
           "mode": {
             "type": "string",

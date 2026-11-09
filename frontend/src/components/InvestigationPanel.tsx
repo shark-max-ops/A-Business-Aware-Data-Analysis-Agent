@@ -1,3 +1,4 @@
+import { dateRangeLabel } from '../api/data';
 import { useEffect, useRef, useState } from 'react';
 import { Button, Empty, Modal, Tag } from 'antd';
 import type { components } from '../api/schema';
@@ -72,6 +73,6 @@ export function InvestigationPanel({ investigation: inv, disabled, onFollowUp, r
 
 /** 固定版本及分配额度仅在调查信息抽屉内呈现。 */
 export function InvestigationInfo({ investigation: inv }: { investigation: Investigation }) {
-  return <section className="investigation-info"><h2>{inv.goal}</h2><p>{inv.scope}</p><Tag>{inv.status === 'running' ? '核查中' : inv.status === 'budget_exhausted' ? '累计额度已用完' : '可继续调查'}</Tag>
+  return <section className="investigation-info"><h2>{inv.goal}</h2><p>{inv.scope}</p>{inv.date_range && <p>{dateRangeLabel(inv.date_range)}</p>}<Tag>{inv.status === 'running' ? '核查中' : inv.status === 'budget_exhausted' ? '累计额度已用完' : '可继续调查'}</Tag>
     <h3>版本与累计额度</h3><p>数据和知识版本在调查创建时固定。运行前分配额度，取消或失败也不退回；这不是实际 token 消耗。</p><p>已分配 {inv.allocated.runs}/{inv.limits.runs} 次运行 · {inv.allocated.max_turns}/{inv.limits.max_turns} 轮模型交互 · {inv.allocated.max_tool_calls}/{inv.limits.max_tool_calls} 次工具调用 · {inv.allocated.timeout_seconds}/{inv.limits.timeout_seconds} 秒执行额度</p><p>剩余任一额度不足以分配完整运行时不能继续。</p><code>数据：{inv.snapshot_id}<br />知识：{inv.knowledge_snapshot_id}</code>{inv.parent_id && <p>此调查由已有调查显式建立分支。</p>}</section>;
 }

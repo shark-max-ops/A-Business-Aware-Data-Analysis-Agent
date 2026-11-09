@@ -1,3 +1,4 @@
+import { dateRangeLabel } from '../api/data';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Alert, Button } from 'antd';
 import type { Run } from '../api/analysis';
@@ -37,7 +38,7 @@ export function RunDetails({ run, investigation, snapshot, disabled, onFollowUp,
       <p>这是本轮预算与已记录用量，调查累计分配额度见顶部“调查信息”。</p>
     </details>
     <details className="turn-sources" onToggle={event => { if (event.currentTarget.open) setSourcesOpen(true); }}><summary>本轮数据与依据</summary>
-      <p>主数据：{snapshot ? `${snapshot.period} · ${snapshot.row_count.toLocaleString()} 条` : '固定快照详情尚未读取'}<br /><code>{run.snapshot_id}</code></p>
+      <p>主数据快照（全版本）：{snapshot ? `${snapshot.period ?? (snapshot.periods ?? []).join('、')} · ${snapshot.row_count.toLocaleString()} 条` : '固定快照详情尚未读取'}<br />{run.date_range && <>{dateRangeLabel(run.date_range)}<br /></>}<code>{run.snapshot_id}</code></p>
       <Button onClick={() => setDataOpen(true)}>查看本轮固定数据</Button>
       {sourcesOpen && <RunSources run={run} investigationId={investigation?.id} findings={findings} investigationError={investigationError} />}
     </details>

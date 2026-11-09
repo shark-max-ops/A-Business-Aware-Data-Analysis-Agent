@@ -5,6 +5,7 @@ from sqlalchemy import select
 from metric_pilot.agent import models as agent_models
 from metric_pilot.agent.investigations import read_evidence_artifact
 from metric_pilot.data.common import DataError, digest, new_id, utc_now
+from metric_pilot.data.ranges import run_range
 from metric_pilot.knowledge.store import KnowledgeStore
 from metric_pilot.reports import models as m
 from metric_pilot.reports.contracts import EvidenceDTO, ReportDraft, ReportDTO, ReportSummary
@@ -87,7 +88,7 @@ class ReportService(KnowledgeStore):
                 raise DataError("REPORT_RESULT_INCOMPLETE")
             artifacts[ident] = {"artifact": artifact, "rows": rows}
         snapshot = self.query.catalog.snapshot(run["snapshot_id"]).model_dump()
-        sources, metrics, knowledge = freeze_sources(self, run, artifacts, snapshot["period"])
+        sources, metrics, knowledge = freeze_sources(self, run, artifacts)
         external_ids = {
             ident
             for block in draft.blocks
@@ -113,6 +114,7 @@ class ReportService(KnowledgeStore):
                 "run_id": run["id"],
                 "question": run["question"],
                 "data_snapshot": snapshot,
+                "date_range": run_range(self.engine, run).model_dump(),
                 "knowledge_snapshot_id": run["knowledge_snapshot_id"],
                 "knowledge_snapshot": knowledge,
                 "sources": sources,
@@ -242,6 +244,7 @@ class ReportService(KnowledgeStore):
                     question=p["question"],
                     scope=p["scope"],
                     period=p["data_snapshot"]["period"],
+                    date_range=p.get("date_range"),
                     source_kind=p["data_snapshot"]["manifest"].get("source_kind", "unknown"),
                     created_at=p["created_at"],
                 )
@@ -337,6 +340,7 @@ class ReportService(KnowledgeStore):
             value=value,
             artifact=artifact,
             data_snapshot=p["data_snapshot"],
+            date_range=p.get("date_range"),
             knowledge_snapshot_id=p["knowledge_snapshot_id"],
             sources=[source for key, source in p["sources"].items() if key in source_ids],
             metrics=[metric for key, metric in p["metrics"].items() if key in metric_ids],

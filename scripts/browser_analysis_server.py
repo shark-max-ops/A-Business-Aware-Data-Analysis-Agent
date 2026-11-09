@@ -1,5 +1,6 @@
 """仅供阶段 3 浏览器测试的隔离启动器；正式服务无 FakeLLM 开关。"""
 
+import csv
 import os
 import sys
 from pathlib import Path
@@ -10,6 +11,7 @@ from alembic import command
 from alembic.config import Config
 from metric_pilot.data.catalog import Catalog
 from metric_pilot.data.ingest import ingest
+from metric_pilot.data.multimonth import ingest_months
 from metric_pilot.database import create_metadata_engine
 from metric_pilot.knowledge.store import KnowledgeStore
 from metric_pilot.main import create_app
@@ -39,6 +41,23 @@ if __name__ == "__main__":
     snapshot = ingest(
         config, root / "fixtures/synthetic_flight_records.csv", "2026-01", synthetic=True
     )
+    # 额外登记明确合成的多月版本，保留既有单月默认，供日期选择路径实测。
+    inputs = directory / "synthetic-months"
+    inputs.mkdir()
+    with (root / "fixtures/synthetic_flight_records.csv").open(
+        encoding="utf-8", newline=""
+    ) as source:
+        reader = csv.DictReader(source)
+        fields = reader.fieldnames
+        rows = list(reader)
+    for period in ("2026-01", "2026-02"):
+        with (inputs / f"{period}.csv").open("w", encoding="utf-8", newline="") as target:
+            writer = csv.DictWriter(target, fields)
+            writer.writeheader()
+            for row in rows:
+                if row["FlightDate"].startswith("2026-01"):
+                    writer.writerow({**row, "FlightDate": period + row["FlightDate"][7:]})
+    ingest_months(config, inputs, ["2026-01", "2026-02"], synthetic=True)
     engine = create_metadata_engine(config)
     Catalog(engine, directory).activate(snapshot.source_id, snapshot.id)
     add_document(KnowledgeStore(engine))

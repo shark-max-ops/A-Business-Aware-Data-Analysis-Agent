@@ -195,9 +195,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
         status = 404 if missing else 503 if unavailable else 409
         investigation_messages = {
-            "MULTIMONTH_INVESTIGATION_NOT_READY": (
-                "多月快照已登记；跨月调查范围尚未接入，暂不能设为默认或用于调查"
-            ),
+            "DATE_RANGE_REQUIRED": "多月调查必须明确选择开始日期和结束日期（结束日不包含）",
+            "DATE_RANGE_OUTSIDE_SNAPSHOT": "调查日期超出所选数据快照覆盖范围",
+            "CONTEXT_DATE_RANGE_MISMATCH": "旧运行的日期范围不同，不能作为本次续查上下文",
+            "ARTIFACT_DATE_RANGE_MISMATCH": "该证据的固定日期范围与本次调查不一致",
             "INVESTIGATION_BUSY": "当前调查仍有运行，请等待完成或显式停止",
             "INVESTIGATION_VERSION_CONFLICT": "调查进展已更新，请刷新后继续",
             "INVESTIGATION_BOUNDARY_MISMATCH": "数据或知识版本与调查不一致，请显式新建调查或分支",

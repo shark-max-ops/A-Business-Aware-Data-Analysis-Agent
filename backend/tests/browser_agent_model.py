@@ -182,6 +182,120 @@ class BrowserModel(FakeLLM):
                 "usage": {},
                 "attempts": 1,
             }
+        if "跨月趋势验收" in question and self.index == 0:
+            monthly_state = {}
+            # 仅供隔离浏览器测试；实际数字和差值都由受控SQL计算。
+            sql = """WITH monthly AS (
+                SELECT CAST(DATE_TRUNC('month',flight_date) AS DATE) AS month,
+                       COUNT(*) AS n
+                FROM v_flights GROUP BY 1
+            ) SELECT a.month,a.n,a.n-b.n AS delta,
+                     CAST(1.0*(a.n-b.n)/NULLIF(b.n,0) AS DOUBLE) AS relative_delta
+              FROM monthly a LEFT JOIN monthly b
+                ON a.month=b.month+INTERVAL '1 month'
+              ORDER BY a.month"""
+            grouped_sql = """SELECT CAST(DATE_TRUNC('month',flight_date) AS DATE) AS month,
+                carrier_code,COUNT(*) AS n FROM v_flights GROUP BY 1,2 ORDER BY 1,2"""
+
+            def monthly_report(messages):
+                """
+                作用：将实际月度结果绑定为冻结表格和趋势图
+                输入：测试工具消息
+                输出：隔离报告候选，不预填数值
+                """
+                artifact = monthly_state["artifact_id"]
+                grouped_artifact = final_from_query(messages)["artifact_ids"][0]
+                return {
+                    "kind": "report",
+                    "report": {
+                        "schema_version": "1",
+                        "title": "合成跨月趋势与分组比较",
+                        "scope": "固定部分月范围内按月份与承运人计数",
+                        "metric_revision_ids": [],
+                        "limitations": [
+                            "明确合成数据；两端为部分月，总量不能解释为完整月环比或季节规律。"
+                        ],
+                        "blocks": [
+                            {
+                                "type": "table",
+                                "id": "monthly",
+                                "title": "月度变化与部分月比较",
+                                "artifact_id": artifact,
+                                "columns": [
+                                    "month",
+                                    "n",
+                                    "delta",
+                                    "relative_delta",
+                                ],
+                                "column_labels": {
+                                    "month": "月份",
+                                    "n": "记录数",
+                                    "delta": "绝对变化",
+                                    "relative_delta": "相对变化（比例）",
+                                },
+                            },
+                            {
+                                "type": "table",
+                                "id": "grouped",
+                                "title": "按承运人分组的月度记录",
+                                "artifact_id": grouped_artifact,
+                                "columns": ["month", "carrier_code", "n"],
+                                "column_labels": {
+                                    "month": "月份",
+                                    "carrier_code": "承运人",
+                                    "n": "记录数",
+                                },
+                            },
+                            {
+                                "type": "chart",
+                                "id": "trend",
+                                "title": "所选范围月度趋势",
+                                "artifact_id": artifact,
+                                "kind": "line",
+                                "x": "month",
+                                "y": ["n"],
+                                "x_label": "月份",
+                                "series_labels": {"n": "记录数"},
+                                "format": "integer",
+                            },
+                        ],
+                    },
+                }
+
+            def monthly_finding(messages):
+                """
+                作用：保存本轮实际查询及部分月限制，遵循报告前置检查
+                输入：实际工具消息
+                输出：发现工具调用
+                """
+                artifact = final_from_query(messages)["artifact_ids"][0]
+                monthly_state["artifact_id"] = artifact
+                return calls(
+                    (
+                        "record_finding",
+                        {
+                            "kind": "fact",
+                            "check": "核对所选范围的承运人月度分布",
+                            "statement": {
+                                "type": "text",
+                                "id": "monthly_observed",
+                                "text_template": (
+                                    "首个部分月有 {{n}} 条记录；不能据此解释完整月或季节规律。"
+                                ),
+                                "values": {"n": {"artifact_id": artifact, "row": 0, "column": "n"}},
+                                "evidence_ids": [artifact],
+                            },
+                            "questions": [],
+                        },
+                    )
+                )
+
+            self.steps = [
+                calls(("query_sql", {"sql": sql})),
+                monthly_finding,
+                calls(("query_sql", {"sql": grouped_sql})),
+                monthly_report,
+            ]
         if "模拟服务失败" in question:
             raise DataError("MODEL_REQUEST_FAILED")
         await asyncio.sleep(30 if "等待取消" in question else 0.6)

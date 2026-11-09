@@ -37,7 +37,9 @@ def open_analysis_connection(path: Path):
     return connection
 
 
-def query_child(send, path: str, sql: str, parameters: dict, max_rows: int, max_bytes: int):
+def query_child(
+    send, path: str, sql: str, parameters: dict, max_rows: int, max_bytes: int, scope_sql=None
+):
     """
     作用：在固定策略下执行 SQL 并输出有限类型化结果
     输入：IPC、已验证路径和 SQL、标量绑定与服务端上限
@@ -47,6 +49,8 @@ def query_child(send, path: str, sql: str, parameters: dict, max_rows: int, max_
     connection = None
     try:
         connection = open_analysis_connection(Path(path))
+        if scope_sql is not None:
+            connection.execute(scope_sql)
         send.send(("executing", None))
         cursor = connection.execute(sql, parameters)
         columns = [{"name": item[0], "type": str(item[1])} for item in cursor.description]
@@ -113,7 +117,15 @@ class QueryExecutor:
         receive, send = context.Pipe(duplex=False)
         process = context.Process(
             target=query_child,
-            args=(send, str(path), guarded.limited_sql, parameters, self.max_rows, self.max_bytes),
+            args=(
+                send,
+                str(path),
+                guarded.limited_sql,
+                parameters,
+                self.max_rows,
+                self.max_bytes,
+                guarded.scope_sql,
+            ),
             daemon=True,
         )
         stop_at = min(deadline, time.monotonic() + self.timeout_seconds)

@@ -132,6 +132,39 @@ def test_reserves_prepare_and_final_repair_within_sixteen_turns(agent_workspace)
     assert events[-1]["type"] == "run.completed"
 
 
+def test_final_phase_repairs_missing_finding_without_reopening_queries(agent_workspace):
+    """
+    作用：发现参数修正延迟到收尾时仍可在原预算保存记录，禁止重新查询
+    输入：缺失statement.type且带敏感示例值的合成调用
+    输出：真实报告成功，错误只给字段位置和类型
+    """
+
+    def missing_type(messages):
+        """作用：复现真实模型缺少文字块类型；输入：工具上下文；输出：非法调用。"""
+        result = finding_call(messages)
+        result[0][1]["statement"].pop("type")
+        result[0][1]["statement"]["extra"] = "private-invalid-value"
+        return result
+
+    steps = [calls(("query_sql", {"sql": SQL}))] + [calls(("list_tables", {}))] * 10
+    steps += [missing_type, repaired_finding, finding_call, report_candidate]
+    run, model, events = execute(agent_workspace, steps)
+    assert run["status"] == "completed", run
+    assert model.index == 15 and run["budget"]["max_turns"] == 16
+    assert model.toolsets[13] == {"record_finding"}
+    assert model.toolsets[14] == set()
+    failures = [
+        e["payload"]
+        for e in events
+        if e["type"] == "tool.finished" and e["payload"].get("error_code") == "INVALID_ARGUMENT"
+    ]
+    assert len(failures) == 2
+    assert any(
+        field["location"] == ["statement", "type"] for field in failures[0]["data"]["fields"]
+    )
+    assert "private-invalid-value" not in json.dumps(failures[0]["data"])
+
+
 def test_unadvertised_late_query_is_denied_and_messages_still_pair(agent_workspace):
     """
     作用：模型忽略收尾限制也无法新增查询，且可改为保存发现和报告

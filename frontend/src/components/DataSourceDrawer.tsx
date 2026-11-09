@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { Alert, Button, Descriptions, Drawer, Empty, Select, Space, Spin, Table, Tabs, Tag } from 'antd';
 import { requestData } from '../api/data';
 import type { LoadState, Schema, Snapshot, Source } from '../api/data';
+import { SnapshotSummary } from './SnapshotSummary';
 
 /** 作用：查看真实快照、质量和表结构；输入：打开状态与关闭回调；输出：数据源抽屉。 */
-export function DataSourceDrawer({ open, onClose, fixedSnapshotId, fixedSourceId }: {
-  open: boolean; onClose: () => void; fixedSnapshotId?: string; fixedSourceId?: string;
+export function DataSourceDrawer({ open, onClose, fixedSnapshotId, fixedSourceId, onActivated }: {
+  open: boolean; onClose: () => void; fixedSnapshotId?: string; fixedSourceId?: string; onActivated?: () => void;
 }) {
   const [sources, setSources] = useState<LoadState<Source[]>>({ kind: 'loading' });
   const [snapshots, setSnapshots] = useState<LoadState<Snapshot[]>>({ kind: 'loading' });
@@ -81,6 +82,7 @@ export function DataSourceDrawer({ open, onClose, fixedSnapshotId, fixedSourceId
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ snapshot_id: snapshotId }),
       });
       setSources(current => current.kind === 'ready' ? { kind: 'ready', data: current.data.map(s => s.id === updated.id ? updated : s) } : current);
+      onActivated?.();
     } catch (error) { setActionError(error instanceof Error ? error.message : '设置默认快照失败'); }
     finally { setActivation('idle'); }
   }
@@ -101,11 +103,11 @@ export function DataSourceDrawer({ open, onClose, fixedSnapshotId, fixedSourceId
       {!fixedSnapshotId && snapshots.kind === 'ready' && snapshots.data.length > 0 && <label>预览快照<Select aria-label="预览快照" value={snapshotId} onChange={setSnapshotId} style={{ width: '100%' }} options={snapshots.data.map(s => ({ value: s.id, label: `${s.period ?? (s.periods ?? []).join('、')} · ${s.row_count.toLocaleString()} 行 · ${new Date(s.created_at).toLocaleString()} · ${s.id.slice(-8)}` }))} /></label>}
       {actionError && <Alert type="error" message={actionError} />}
       {selected && <>
-        {selected.period === null && <Alert type="info" message="多月快照已登记；跨月调查尚未接入，暂不能设为默认版本" />}
-        {!fixedSnapshotId && <Button type="primary" loading={activation === 'saving'} disabled={selected.period === null || source?.current_snapshot_id === snapshotId} onClick={() => void activate()}>{source?.current_snapshot_id === snapshotId ? '已是默认快照' : '设为默认快照'}</Button>}
+        {!fixedSnapshotId && <><Button type="primary" loading={activation === 'saving'} disabled={source?.current_snapshot_id === snapshotId} onClick={() => void activate()}>{source?.current_snapshot_id === snapshotId ? '已是默认快照' : '设为默认快照'}</Button><p>默认版本只用于后续新调查的初始选择；已有调查和报告保持原版本与范围。</p></>}
+        <SnapshotSummary snapshot={selected} />
         <Descriptions bordered size="small" column={1} items={[
           { key: 'period', label: '月份', children: selected.period ?? (selected.periods ?? []).join('、') },
-          { key: 'rows', label: '公开记录数', children: selected.row_count.toLocaleString() },
+          { key: 'rows', label: '完整快照记录数', children: selected.row_count.toLocaleString() },
           { key: 'id', label: '快照 ID', children: <code style={{ overflowWrap: 'anywhere' }}>{selected.id}</code> },
           { key: 'hash', label: selected.period === null ? '原件集合 SHA-256' : '原文件 SHA-256', children: <code style={{ overflowWrap: 'anywhere' }}>{selected.file_hash}</code> },
         ]} />

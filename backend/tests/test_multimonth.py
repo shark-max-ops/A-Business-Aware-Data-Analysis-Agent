@@ -117,12 +117,9 @@ def test_multimonth_lineage_query_and_legacy_immutability(workspace):
     assert catalog.sources()[0].current_snapshot_id == old.id
     assert before == {p.name: checksum(p) for p in old_folder.iterdir()}
     assert catalog.snapshot(old.id).periods == ["2026-01"]
-    for action in (
-        lambda: catalog.activate(snapshot.source_id, snapshot.id),
-        lambda: catalog.require_single_month(snapshot.id),
-    ):
-        with pytest.raises(DataError, match="MULTIMONTH_INVESTIGATION_NOT_READY"):
-            action()
+    assert catalog.activate(snapshot.source_id, snapshot.id).current_snapshot_id == snapshot.id
+    assert before == {p.name: checksum(p) for p in old_folder.iterdir()}
+    assert query.read_artifact("old", artifact["artifact"]["id"]) == artifact
 
 
 @pytest.mark.parametrize(
@@ -364,7 +361,7 @@ def test_multimonth_blocks_downgrade_and_investigation(workspace, monkeypatch):
             },
         )
         assert response.status_code == 409
-        assert response.json()["error"]["code"] == "MULTIMONTH_INVESTIGATION_NOT_READY"
+        assert response.json()["error"]["code"] == "DATE_RANGE_REQUIRED"
 
 
 def test_forged_coverage_does_not_bypass_actual_check(workspace):

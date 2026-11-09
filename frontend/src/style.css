@@ -276,6 +276,12 @@
 .investigation-footnote { margin: 18px 0 0; font-size: 12px; }
 .investigation-form { display: grid; gap: 16px; }
 .investigation-form label { display: grid; gap: 8px; }
+.date-range-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; font-size: 12px; }
+.date-range-fields label { display: grid; gap: 4px; min-width: 0; }
+.date-range-fields input { min-width: 0; width: 100%; }
+.date-range-fields > p, .date-range-fields > .ant-alert { grid-column: 1 / -1; margin: 0; }
+.date-range-fields > p { color: var(--text-muted, #82786a); font-size: 11px; }
+.fixed-date-range { font-size: 12px; margin: 0 0 8px; overflow-wrap: anywhere; }
 .finding-evidence { overflow-wrap: anywhere; }
 .finding-evidence details { border-top: 1px solid #e7e9e6; padding: 14px 0; }
 .finding-evidence summary { cursor: pointer; }

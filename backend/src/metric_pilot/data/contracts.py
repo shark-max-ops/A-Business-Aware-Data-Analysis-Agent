@@ -6,6 +6,7 @@ from typing import Any, Literal
 from pydantic import Field
 
 from metric_pilot.contracts import StrictDTO
+from metric_pilot.data.ranges import DateRange
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,7 @@ class RunContext:
     snapshot_id: str
     knowledge_snapshot_id: str
     deadline_monotonic: float
+    date_range: DateRange | None = None
 
 
 class ToolResult(StrictDTO):
@@ -175,6 +177,8 @@ class QueryArtifact(StrictDTO):
     ordered: bool
     external_snapshot_id: str | None = None
     external_evidence_ids: list[str] = Field(default_factory=list)
+    date_range: DateRange | None = None
+    scope_sql: str | None = None
 
 
 class ArtifactPage(StrictDTO):

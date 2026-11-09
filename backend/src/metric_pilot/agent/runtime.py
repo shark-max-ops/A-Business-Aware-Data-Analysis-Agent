@@ -21,6 +21,7 @@ from metric_pilot.data.common import DataError, digest
 from metric_pilot.data.contracts import RunContext, ToolResult
 from metric_pilot.data.executor import QueryExecutor
 from metric_pilot.data.query import QueryService
+from metric_pilot.data.ranges import run_range
 from metric_pilot.reports.service import ReportService
 
 
@@ -52,6 +53,7 @@ class AgentRuntime:
             run["snapshot_id"],
             run["knowledge_snapshot_id"],
             time.monotonic() + budget["timeout_seconds"],
+            date_range=run_range(self.store.engine, run),
         )
         query = QueryService(
             Catalog(self.store.engine, self.settings.storage_dir),
@@ -92,6 +94,7 @@ class AgentRuntime:
                         )
                     )
                     phase = "investigate"
+                    needs_checkpoint = False
                     if closing:
                         phase = (
                             "finalize"
@@ -100,8 +103,18 @@ class AgentRuntime:
                             or (remaining <= 2 and registry.recorded_count)
                             else "prepare"
                         )
+                        needs_checkpoint = (
+                            phase == "finalize"
+                            and not registry.recorded_count
+                            and remaining > 0
+                            and turns_left > 1
+                        )
                         allowed &= (
-                            {"read_artifact", "record_finding"} if phase == "prepare" else set()
+                            {"read_artifact", "record_finding"}
+                            if phase == "prepare"
+                            else {"record_finding"}
+                            if needs_checkpoint
+                            else set()
                         )
                     registry.progress = {
                         "remaining_turns": turns_left,
@@ -110,7 +123,11 @@ class AgentRuntime:
                         "successful_queries": len(registry.query_summaries),
                         "recorded_findings": registry.recorded_count,
                         "instruction": (
-                            "现在只提交最终报告或如实说明缺少的关键条件，不再调用工具。"
+                            "收尾前尚缺本轮记录；当前仅允许record_finding保存已核实发现或真实限制。"
+                            "statement必须含type=text、id、text_template、values、evidence_ids；"
+                            "不能新增查询或把未来计划冒充已完成事实，保存后立即提交报告。"
+                            if needs_checkpoint
+                            else "现在只提交最终报告或如实说明缺少的关键条件，不再调用工具。"
                             "报告只用已有成功产物与 ValueRef；未完成核查写入限制，不编造结论。"
                             if phase == "finalize"
                             else "收尾准备：不得新增查询或检索。读取已有证据，"

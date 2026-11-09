@@ -133,3 +133,59 @@ class MetricService:
             if len(matches) != 1:
                 raise DataError("METRIC_CONFLICT" if matches else "METRIC_NOT_APPLICABLE")
             return matches[0]
+
+    def resolve_range(self, snapshot_id, key, selected):
+        """
+        作用：按全部生效边界核对整段范围，拒绝空档、冲突及跨版本静默拼接
+        输入：固定知识快照、指标键和服务端日期范围
+        输出：覆盖整段范围的同一已审核修订
+        """
+        from metric_pilot.data.ranges import DateRange
+
+        selected = DateRange.model_validate(selected)
+        with self.store.engine.connect() as c:
+            snapshot = self.store.get(c, m.snapshots, snapshot_id)["payload"]
+            rows = [
+                self.store.get(c, m.metric_revisions, ident)
+                for ident in snapshot["metric_revision_ids"]
+            ]
+            rows = [
+                row
+                for row in rows
+                if row["definition"]["key"] == key
+                and row["definition"]["review_state"] == "approved"
+            ]
+            boundaries = {selected.start, selected.end_exclusive}
+            for row in rows:
+                for name in ("effective_from", "effective_to"):
+                    day = row["definition"].get(name)
+                    if day and selected.start < day < selected.end_exclusive:
+                        boundaries.add(day)
+            chosen = None
+            for day in sorted(boundaries)[:-1]:
+                matches = [
+                    row
+                    for row in rows
+                    if row["definition"]["effective_from"] <= day
+                    and (
+                        not row["definition"].get("effective_to")
+                        or day < row["definition"]["effective_to"]
+                    )
+                ]
+                if len(matches) != 1:
+                    raise DataError("METRIC_CONFLICT" if matches else "METRIC_NOT_APPLICABLE")
+                if chosen is not None and matches[0]["id"] != chosen["id"]:
+                    raise DataError("METRIC_VERSION_CHANGED_IN_RANGE")
+                chosen = matches[0]
+            # 已知资料适用期不得被指标定义越过；未知日期仍保持未知，不自动补造。
+            for ident in chosen["definition"]["source_revision_ids"]:
+                source = self.store.get(c, m.revisions, ident)
+                metadata = source["metadata"]
+                if (
+                    metadata.get("effective_from") and metadata["effective_from"] > selected.start
+                ) or (
+                    metadata.get("effective_to")
+                    and metadata["effective_to"] < selected.end_exclusive
+                ):
+                    raise DataError("METRIC_SOURCE_NOT_APPLICABLE")
+            return chosen

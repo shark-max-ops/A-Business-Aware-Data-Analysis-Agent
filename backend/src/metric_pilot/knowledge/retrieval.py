@@ -92,10 +92,20 @@ class Retriever:
                 metadata = revision["metadata"]
                 if request.as_of:
                     day = request.as_of.isoformat()
-                    if metadata.get("effective_from") and day < metadata["effective_from"]:
+                    end = request.end_exclusive.isoformat() if request.end_exclusive else None
+                    if metadata.get("effective_from") and (
+                        metadata["effective_from"] >= end
+                        if end
+                        else day < metadata["effective_from"]
+                    ):
                         continue
                     if metadata.get("effective_to") and day >= metadata["effective_to"]:
                         continue
+                    if end and (
+                        (metadata.get("effective_from") and metadata["effective_from"] > day)
+                        or (metadata.get("effective_to") and metadata["effective_to"] < end)
+                    ):
+                        warnings.append("部分命中资料只覆盖所选范围的一部分，不能当作全范围规则。")
                 if not metadata.get("effective_from"):
                     warnings.append("部分资料未声明历史生效期；命中不代表已验证其适用于所选日期。")
                 allowed.append(ident)

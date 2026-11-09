@@ -6,6 +6,7 @@ from pydantic import Field, model_validator
 
 from metric_pilot.contracts import StrictDTO
 from metric_pilot.data.contracts import ExplorationScope
+from metric_pilot.data.ranges import DateRange
 from metric_pilot.external.weather import WeatherRequest
 from metric_pilot.reports.contracts import ReportCandidate, ReportResult, TextBlock, ValueRef
 
@@ -38,6 +39,7 @@ class CreateRun(StrictDTO):
     context_run_ids: list[str] = Field(default_factory=list, max_length=4)
     investigation_id: str | None = None
     expected_investigation_version: int | None = Field(default=None, ge=1)
+    date_range: DateRange | None = None
 
 
 class QueryResult(StrictDTO):
@@ -95,6 +97,7 @@ class RunDTO(StrictDTO):
     usage: dict[str, int]
     investigation_id: str | None = None
     expected_investigation_version: int | None = None
+    date_range: DateRange | None = None
 
 
 class EventDTO(StrictDTO):
@@ -267,6 +270,7 @@ class CreateInvestigation(StrictDTO):
     scope: str = Field(min_length=1, max_length=1200)
     snapshot_id: str
     parent_id: str | None = None
+    date_range: DateRange | None = None
 
 
 class RecordFinding(StrictDTO):
@@ -339,3 +343,4 @@ class InvestigationDTO(StrictDTO):
     active_run_id: str | None
     run_ids: list[str]
     findings: list[FindingDTO]
+    date_range: DateRange | None = None

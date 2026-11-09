@@ -1,10 +1,10 @@
 """显式工具注册；快照、日期、权限和证据归属均由服务端决定。"""
 
 import asyncio
-import calendar
 import json
 import time
-from datetime import date
+from dataclasses import replace
+from datetime import date, timedelta
 
 from pydantic import ValidationError
 
@@ -15,6 +15,7 @@ from metric_pilot.agent.external_tools import ExternalTools
 from metric_pilot.agent.investigations import InvestigationStore, read_evidence_artifact
 from metric_pilot.data.common import DataError
 from metric_pilot.data.contracts import ToolResult
+from metric_pilot.data.ranges import run_range, snapshot_range
 from metric_pilot.external.advisories import AdvisorySearch
 from metric_pilot.knowledge import models as km
 from metric_pilot.knowledge.contracts import SearchRequest
@@ -43,12 +44,16 @@ SPECS = {
         "在固定知识快照中关键词检索原文与已发布 Wiki 导航；返回逐字摘录和来源",
     ),
     "read_wiki_page": (a.WikiArgs, "读取固定知识快照内已发布的 Wiki 及引用，不读取草稿"),
-    "resolve_metric": (a.MetricArgs, "获取适用于整个数据月份的已审核指标；未审核或冲突会报错"),
+    "resolve_metric": (
+        a.MetricArgs,
+        "获取覆盖整个固定日期范围的同一已审核指标；空档、冲突或换版报错",
+    ),
     "list_tables": (a.EmptyArgs, "列出当前固定数据快照允许查询的业务表"),
     "describe_table": (a.TableArgs, "查看允许表的字段、类型、语义、关联键和少量样本"),
     "query_sql": (
         a.SQLArgs,
         "受限只读SQL。exploratory须给范围、计算、缺失说明，不绑指标；reviewed_metric须已解析修订。"
+        "航班表由服务端限制到固定date_range，参数不能扩大范围。"
         "天气填external_snapshot_id，不跨库连接。",
     ),
     "read_artifact": (
@@ -57,6 +62,29 @@ SPECS = {
         "避免反复小分页；大结果需要进一步SQL聚合。",
     ),
 }
+
+
+def invalid_arguments(error, summary):
+    """
+    作用：只暴露可修复的字段位置和类型，不回传输入值或敏感异常正文
+    输入：Pydantic校验错误与固定说明
+    输出：统一工具失败结果
+    """
+    return ToolResult(
+        ok=False,
+        summary=summary,
+        error_code="INVALID_ARGUMENT",
+        retryable=True,
+        data={
+            "fields": [
+                {
+                    "location": [str(part)[:80] for part in item["loc"][:6]],
+                    "type": item["type"],
+                }
+                for item in error.errors(include_input=False)[:12]
+            ]
+        },
+    )
 
 
 class ToolRegistry:
@@ -75,11 +103,22 @@ class ToolRegistry:
         self.run, self.ctx, self.query, self.cancel = run, ctx, query, cancel
         self.store = KnowledgeStore(query.catalog.engine)
         self.retriever = Retriever(self.store, KnowledgeProvider(settings))
-        snapshot = query.catalog.require_single_month(ctx.snapshot_id)
+        snapshot = query.catalog.snapshot(ctx.snapshot_id)
         self.schema = query.catalog.schema(snapshot.source_id, snapshot.id)
-        year, month = map(int, snapshot.period.split("-"))
-        self.first = date(year, month, 1)
-        self.last = date(year, month, calendar.monthrange(year, month)[1])
+        self.date_range = run_range(query.catalog.engine, run)
+        if ctx.date_range is not None and ctx.date_range != self.date_range:
+            raise DataError("RUN_DATE_RANGE_MISMATCH")
+        self.ctx = replace(ctx, date_range=self.date_range)
+        self.first = date.fromisoformat(self.date_range.start)
+        self.last = date.fromisoformat(self.date_range.end_exclusive) - timedelta(days=1)
+        if self.date_range != snapshot_range(snapshot):
+            self.schema = self.schema.model_copy(
+                update={
+                    "tables": [
+                        table.model_copy(update={"sample": []}) for table in self.schema.tables
+                    ]
+                }
+            )
         self.resolved = set(run["metric_revision_ids"])
         self.definitions = {}
         with self.store.engine.connect() as c:
@@ -94,7 +133,7 @@ class ToolRegistry:
         self.known_columns, self.query_summaries, self.progress = {}, [], {}
         self.source_summaries = {}
         self.recorded_count = 0
-        self.external = ExternalTools(run, ctx, query, settings, cancel)
+        self.external = ExternalTools(run, self.ctx, query, settings, cancel)
 
     async def invoke_async(self, call):
         """
@@ -106,13 +145,8 @@ class ToolRegistry:
             return await asyncio.to_thread(self.invoke, call)
         try:
             args = self.specs()[call.name][0].model_validate(call.arguments)
-        except ValidationError:
-            return ToolResult(
-                ok=False,
-                summary="外部工具参数不符合契约，请按签名修正",
-                error_code="INVALID_ARGUMENT",
-                retryable=True,
-            )
+        except ValidationError as error:
+            return invalid_arguments(error, "外部工具参数不符合契约，请按签名修正")
         return await self.external.invoke(call.name, args, call_id=call.id)
 
     def schemas(self):
@@ -157,16 +191,12 @@ class ToolRegistry:
 
     def metric(self, key):
         """
-        作用：验证指标覆盖整个月份
+        作用：验证同一已审核指标修订覆盖整段调查范围
         输入：指标键
         输出：已审核固定修订
         """
         service = MetricService(self.store)
-        start = service.resolve(self.ctx.knowledge_snapshot_id, key, self.first.isoformat())
-        end = service.resolve(self.ctx.knowledge_snapshot_id, key, self.last.isoformat())
-        if start["id"] != end["id"]:
-            raise DataError("METRIC_PERIOD_CONFLICT")
-        return start
+        return service.resolve_range(self.ctx.knowledge_snapshot_id, key, self.date_range)
 
     def invoke(self, call):
         """
@@ -183,13 +213,8 @@ class ToolRegistry:
             if isinstance(data, ToolResult):
                 return data
             return ToolResult(ok=True, summary=specs[call.name][1], data=data)
-        except ValidationError:
-            return ToolResult(
-                ok=False,
-                summary="参数不符合工具契约，请按签名修正",
-                error_code="INVALID_ARGUMENT",
-                retryable=True,
-            )
+        except ValidationError as error:
+            return invalid_arguments(error, "参数不符合工具契约，请按签名修正")
         except DataError as exc:
             blocked = exc.code == "METRIC_REVIEW_OR_CLARIFICATION_REQUIRED"
             return ToolResult(
@@ -283,6 +308,7 @@ class ToolRegistry:
                 "sources": prepared["sources"],
                 "metrics": prepared["metrics"],
                 "data_snapshot": prepared["data_snapshot"],
+                "date_range": prepared["date_range"],
                 "knowledge_snapshot_id": self.run["knowledge_snapshot_id"],
                 "external_snapshots": prepared.get("external_snapshots", {}),
             }
@@ -312,7 +338,7 @@ class ToolRegistry:
                         self.known_columns[table.name] = {
                             column.name: column.type for column in table.columns
                         }
-                    return {"table": table.model_dump()}
+                    return {"table": table.model_dump(), "date_range": self.date_range.model_dump()}
             raise DataError("TABLE_NOT_ALLOWED")
         if name == "resolve_metric":
             try:
@@ -331,6 +357,7 @@ class ToolRegistry:
                     query=args.query,
                     mode="text",
                     as_of=self.first,
+                    end_exclusive=date.fromisoformat(self.date_range.end_exclusive),
                 )
             )
             items = []

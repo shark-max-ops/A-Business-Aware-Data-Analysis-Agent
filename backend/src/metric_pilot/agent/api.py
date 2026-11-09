@@ -21,6 +21,7 @@ from metric_pilot.agent.store import TERMINAL, RunStore
 from metric_pilot.data.api import get_catalog
 from metric_pilot.data.common import DataError
 from metric_pilot.data.contracts import Page
+from metric_pilot.data.ranges import resolve_range
 from metric_pilot.knowledge import models as km
 from metric_pilot.knowledge.metrics import MetricService
 from metric_pilot.knowledge.store import KnowledgeStore
@@ -106,7 +107,9 @@ def create_run(body: CreateRun, request: Request):
         raise DataError("ANALYSIS_WORKER_NOT_READY")
     if not settings.integration_configured("llm"):
         raise DataError("MODEL_NOT_CONFIGURED")
-    snapshot = get_catalog(request).require_single_month(body.snapshot_id)
+    get_catalog(request).snapshot(body.snapshot_id)
+    selected = store.date_range(body)
+    body = body.model_copy(update={"date_range": selected})
     knowledge = KnowledgeStore(store.engine)
     fixed = (
         knowledge.snapshot()
@@ -119,22 +122,17 @@ def create_run(body: CreateRun, request: Request):
     )
     with store.engine.connect() as c:
         fixed = {"id": fixed["id"], **knowledge.get(c, km.snapshots, fixed["id"])["payload"]}
-    # 用户选中的指标必须属于服务端刚冻结的已审核清单，且覆盖整月。
+    # 用户选中的指标必须属于固定知识快照，且在整段范围内没有空档或版本冲突。
     if not set(body.metric_revision_ids) <= set(fixed["metric_revision_ids"]):
         raise DataError("METRIC_NOT_IN_SNAPSHOT")
-    import calendar
-    from datetime import date
-
-    year, month = map(int, snapshot.period.split("-"))
     with store.engine.connect() as c:
         for ident in body.metric_revision_ids:
             metric = knowledge.get(c, km.metric_revisions, ident)
-            for day in (1, calendar.monthrange(year, month)[1]):
-                found = MetricService(knowledge).resolve(
-                    fixed["id"], metric["metric_key"], date(year, month, day).isoformat()
-                )
-                if found["id"] != ident:
-                    raise DataError("METRIC_NOT_APPLICABLE")
+            found = MetricService(knowledge).resolve_range(
+                fixed["id"], metric["metric_key"], selected
+            )
+            if found["id"] != ident:
+                raise DataError("METRIC_NOT_APPLICABLE")
     return store.create(
         body,
         fixed["id"],
@@ -162,7 +160,14 @@ def create_investigation(body: CreateInvestigation, request: Request):
     输出：调查记录
     """
     store = store_for(request)
-    get_catalog(request).require_single_month(body.snapshot_id)
+    get_catalog(request).snapshot(body.snapshot_id)
+    body = body.model_copy(
+        update={
+            "date_range": resolve_range(
+                store.engine, body.snapshot_id, body.date_range, require_explicit=True
+            )
+        }
+    )
     config = request.app.state.settings
     fixed = KnowledgeStore(store.engine).snapshot()
     return InvestigationStore(store.engine).create(

@@ -92,15 +92,7 @@ uv run python -m metric_pilot.data.ingest --input ./fixtures/synthetic_flight_re
 uv run python -m metric_pilot.data.ingest --input ./data/bts/2026-01.csv --period 2026-01 --activate
 ```
 
-月度原件统一放在 `data/bts/YYYY-MM.csv`，已有一月为 `2026-01.csv`；后续下载二月、三月分别保存为 `2026-02.csv`、`2026-03.csv`。下载时的 29 字段勾选清单见 [BTS 下载说明](docs/design/03-data-and-sql.md#bts-download)。当前命令仍只导入单月，多个文件就位不代表已能跨月分析，不要将多月拼成一个文件传给旧入口。字段要求和数据口径见 [数据接入说明](docs/design/03-data-and-sql.md)。缺少基线字段会明确拒绝，不会填零补齐。可选 `--carriers`、`--airports` 需提供经过核对的真实代码表；不要将合成维表用于真实数据。每次成功导入创建新快照，`--activate` 将其显式设为默认版本。
-
-阶段 6.A 已提供一至四月原件的离线核验入口。它只生成来源与质量清单，不导入或激活数据；输出目录必须尚不存在，复跑时换新目录：
-
-```powershell
-uv run python -m metric_pilot.data.audit --input-dir data/bts --periods 2026-01 2026-02 2026-03 2026-04 --output-dir storage/validation/bts-6a/my-audit
-```
-
-结果为 `manifest.json` 和 `summary.md`；退出码 0 表示本次技术检查无阻断，2 表示输入/结构/日期等有阻断，不代表来源已认证或质量无异常。下载时间未知就留空；只有用户明确确认这些文件的表口径与地理选项时，才追加 `--user-confirmed-reporting-all`，登记用户声明而非独立认证。详细检查、独立复核命令及 6.B 入口见 [数据准备说明](docs/design/03-data-and-sql.md#多月-bts-数据准备阶段-6a-已实现)。
+月度原件统一放在 `data/bts/YYYY-MM.csv`，已有一月为 `2026-01.csv`；后续下载二月、三月分别保存为 `2026-02.csv`、`2026-03.csv`。下载时的 29 字段勾选清单见 [BTS 下载说明](docs/design/03-data-and-sql.md#bts-download)。上方命令只导入单月；多月使用下方独立入口，多个文件就位不代表已登记快照，不要将多月拼成一个文件传给旧入口。字段要求和数据口径见 [数据接入说明](docs/design/03-data-and-sql.md)。缺少基线字段会明确拒绝，不会填零补齐。可选 `--carriers`、`--airports` 需提供经过核对的真实代码表；不要将合成维表用于真实数据。每次成功导入创建新快照，`--activate` 将其显式设为默认版本。
 
 阶段 6.A 已提供一至四月原件的离线核验入口。它只生成来源与质量清单，不导入或激活数据；输出目录必须尚不存在，复跑时换新目录：
 
@@ -118,17 +110,13 @@ uv run alembic upgrade head
 uv run python -m metric_pilot.data.multimonth --input-dir data/bts --periods 2026-01 2026-02 2026-03 2026-04 --audit-manifest storage/validation/bts-6a/20261108-confirmed/manifest.json --timeout-seconds 600
 ```
 
-清单路径请替换为本机实际核验结果。命令要求月份连续、原件哈希与清单一致；全部成功后登记新快照，不设为默认。Ctrl+C 会取消实际导入。6.B 只交付数据层，多月快照暂不能用于调查或默认切换；6.C—6.E 将接通范围、口径与页面。原工作区升级代码后也需先执行 `uv run alembic upgrade head`；本次真实验收只迁移隔离存储，未迁移用户主库。
+清单路径请替换为本机实际核验结果。命令要求月份连续、原件哈希与清单一致；全部成功后登记新快照，不设为默认。Ctrl+C 会取消实际导入。6.C/6.D 已接通日期范围的后端调查、页面选择与报告；6.E已完成有限真实月度/分组续查/缩小范围验收，复杂语义失败仍保留。6.B结构需要迁移至`0008_multimonth`，已处于该版本的工作区无需额外6.C/6.D迁移；范围字段存入既有JSON，不改写旧记录。
 
-阶段 6.B 已提供不可变多月快照导入，建议在专用终端使用隔离存储（该终端后续命令均使用此存储）：
+新调查的API可提交 `date_range: {start, end_exclusive}`，开始日包含、结束日不包含；多月快照必须明确选择，续查继承原范围，改变范围需新建调查或分支。正式指标须覆盖整个范围且已人工审核，一月定义不会自动扩期。详细契约和验收入口见 [固定日期范围与跨期口径](docs/design/03-data-and-sql.md#6c固定日期范围与跨期口径)。
 
-```powershell
-$env:STORAGE_DIR = Join-Path (Get-Location) 'storage/dev-multimonth'
-uv run alembic upgrade head
-uv run python -m metric_pilot.data.multimonth --input-dir data/bts --periods 2026-01 2026-02 2026-03 2026-04 --audit-manifest storage/validation/bts-6a/20261108-confirmed/manifest.json --timeout-seconds 600
-```
+页面试用：在分析页选择已登记的单月或多月快照，核对并选择“开始日期（含）”“结束日期（不含）”，再发送问题或通过“新调查”固定目标与范围。例如一至三月选择 `2026-01-01` 至 `2026-04-01`。创建后日期固定；续查沿用原范围，修改时用“新调查”或“新建分支”。缺月、越界或空范围不能提交；取消创建弹窗不会改变当前调查。数据源抽屉展示逐月实际记录日期、全版本质量、来源清单和原件哈希；预览不会切换默认，点击“设为默认快照”只影响后续新调查的初始选择。旧调查和旧报告不重算。真实多月验收数据仍在隔离存储，页面只显示当前后端存储已登记的快照；启动后端须使用与导入相同的 `STORAGE_DIR`，不要期待主工作区自动出现隔离版本。
 
-清单路径请替换为本机实际核验结果。命令要求月份连续、原件哈希与清单一致；全部成功后登记新快照，不设为默认。Ctrl+C 会取消实际导入。6.B 只交付数据层，多月快照暂不能用于调查或默认切换；6.C—6.E 将接通范围、口径与页面。原工作区升级代码后也需先执行 `uv run alembic upgrade head`；本次真实验收只迁移隔离存储，未迁移用户主库。
+6.E已按所列有限案例完成第六阶段：真实月度总览、OH承运人续查及一月按天分支有独立CSV核对；复杂分组仍出现标签/引用含义错误，结果需人工复核，下一步阶段7处理解释错位。仅本机6.E隔离库批准一至四月项目取消率，主库旧草稿与默认版本不变。已有验收服务可访问 **http://127.0.0.1:5176**；固定报告、拒绝案例、上下文48000的实测配置及重启命令见本机[验收记录](storage/validation/bts-6e/acceptance-20261109/ACCEPTANCE.md)。该忽略目录不随Git分发，新环境需按前述流程准备自己的数据和审核，不能依赖本机记录。
 
 需要完整的初始业务资料时，先按 [知识材料说明](knowledge_seed/README.md) 准备本地原件及整理材料，再运行：
 

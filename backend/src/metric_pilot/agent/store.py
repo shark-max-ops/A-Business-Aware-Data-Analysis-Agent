@@ -7,6 +7,7 @@ from sqlalchemy import literal_column, select
 from metric_pilot.agent import models as m
 from metric_pilot.agent.titles import clean_title
 from metric_pilot.data.common import DataError, new_id, utc_now
+from metric_pilot.data.ranges import resolve_range, run_range
 from metric_pilot.knowledge.store import KnowledgeStore
 
 TERMINAL = {"completed", "failed", "cancelled", "interrupted"}
@@ -108,6 +109,24 @@ class RunStore(KnowledgeStore):
                 ).mappings()
             ]
 
+    def date_range(self, body):
+        """
+        作用：新运行显式固定范围，续查省略范围时仅继承原调查
+        输入：严格运行请求
+        输出：服务端规范范围，禁止续查偷偷改变范围
+        """
+        if body.investigation_id:
+            from metric_pilot.agent.investigations import InvestigationStore
+
+            investigation = InvestigationStore(self.engine).read(body.investigation_id)
+            inherited = run_range(self.engine, investigation)
+            if body.snapshot_id != investigation["snapshot_id"]:
+                raise DataError("INVESTIGATION_BOUNDARY_MISMATCH")
+            if body.date_range is not None and body.date_range != inherited:
+                raise DataError("INVESTIGATION_BOUNDARY_MISMATCH")
+            return inherited
+        return resolve_range(self.engine, body.snapshot_id, body.date_range, require_explicit=True)
+
     def create(self, body, knowledge_id, budget, model=""):
         """
         作用：绑定运行输入并排队
@@ -115,8 +134,9 @@ class RunStore(KnowledgeStore):
         输出：运行
         """
         ident = new_id("run")
+        body = body.model_copy(update={"date_range": self.date_range(body)})
         payload = {
-            **body.model_dump(),
+            **body.model_dump(mode="json"),
             "knowledge_snapshot_id": knowledge_id,
             "budget": budget,
             "result": None,
@@ -137,6 +157,10 @@ class RunStore(KnowledgeStore):
                     raise DataError("INVALID_CONTEXT_RUN")
                 if old["snapshot_id"] != body.snapshot_id:
                     raise DataError("CONTEXT_SNAPSHOT_MISMATCH")
+                if old["knowledge_snapshot_id"] != knowledge_id:
+                    raise DataError("CONTEXT_KNOWLEDGE_MISMATCH")
+                if run_range(self.engine, old) != body.date_range:
+                    raise DataError("CONTEXT_DATE_RANGE_MISMATCH")
             c.execute(
                 m.runs.insert().values(
                     id=ident,

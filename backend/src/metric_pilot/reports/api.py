@@ -113,7 +113,13 @@ def markdown(report, query_evidence=None):
         "",
         escape_markdown(report.scope),
         "",
-        f"数据月份：{report.data_snapshot.period} · 版本 {report.version}",
+        (
+            f"调查日期：{report.date_range.start} 至 "
+            f"{report.date_range.end_exclusive}（不含结束日）"
+            if report.date_range
+            else f"数据月份：{report.data_snapshot.period}"
+        )
+        + f" · 版本 {report.version}",
         "",
     ]
     refs = {}

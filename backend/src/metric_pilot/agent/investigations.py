@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from metric_pilot.agent import models as m
 from metric_pilot.data.common import DataError, digest, new_id, utc_now
 from metric_pilot.data.models import ArtifactRecord
+from metric_pilot.data.ranges import resolve_range, run_range
 from metric_pilot.knowledge.store import KnowledgeStore
 
 
@@ -38,9 +39,13 @@ class InvestigationStore(KnowledgeStore):
         输出：调查
         """
         ident = new_id("inv")
+        selected = resolve_range(
+            self.engine, body.snapshot_id, body.date_range, require_explicit=True
+        )
         payload = {
             "goal": body.goal.strip(),
             "scope": body.scope.strip(),
+            "date_range": selected.model_dump(),
             "snapshot_id": body.snapshot_id,
             "knowledge_snapshot_id": knowledge_id,
             "parent_id": body.parent_id,
@@ -83,6 +88,7 @@ class InvestigationStore(KnowledgeStore):
             row["conversation_id"] != body.conversation_id
             or p["snapshot_id"] != body.snapshot_id
             or p["knowledge_snapshot_id"] != knowledge_id
+            or run_range(self.engine, p) != body.date_range
         ):
             raise DataError("INVESTIGATION_BOUNDARY_MISMATCH")
         if self.active(c, row["id"]):
@@ -297,6 +303,7 @@ def authorized_runs(engine, run):
             inv["conversation_id"] != run["conversation_id"]
             or p["snapshot_id"] != run["snapshot_id"]
             or p["knowledge_snapshot_id"] != run["knowledge_snapshot_id"]
+            or run_range(engine, p) != run_range(engine, run)
         ):
             raise DataError("INVESTIGATION_BOUNDARY_MISMATCH")
         linked = list(
@@ -316,6 +323,7 @@ def authorized_runs(engine, run):
                 old["snapshot_id"] == run["snapshot_id"]
                 and old["knowledge_snapshot_id"] == run["knowledge_snapshot_id"]
                 and row["conversation_id"] == run["conversation_id"]
+                and run_range(engine, old) == run_range(engine, run)
             ):
                 allowed.add(row["id"])
     return allowed
@@ -335,6 +343,12 @@ def read_evidence_artifact(query, run, ident, offset=0, limit=20):
     page = query.read_artifact(owner, ident, offset, limit)
     if page["artifact"]["snapshot_id"] != run["snapshot_id"]:
         raise DataError("REPORT_SNAPSHOT_MISMATCH")
+    selected = run_range(query.catalog.engine, run)
+    artifact_range = resolve_range(
+        query.catalog.engine, run["snapshot_id"], page["artifact"].get("date_range")
+    )
+    if artifact_range != selected:
+        raise DataError("ARTIFACT_DATE_RANGE_MISMATCH")
     if page["artifact"].get("external_snapshot_id"):
         from metric_pilot.external.evidence import ExternalEvidenceService
 

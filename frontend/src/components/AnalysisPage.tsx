@@ -10,6 +10,10 @@ import { ConversationItem } from './ConversationItem';
 import { RunTurn } from './RunTurn';
 import { InvestigationPanel, InvestigationInfo } from './InvestigationPanel';
 import type { Investigation } from './InvestigationPanel';
+import { dateRangeError, dateRangeLabel, snapshotRange } from '../api/data';
+import type { DateRange } from '../api/data';
+import { DateRangeFields } from './DateRangeFields';
+import { SnapshotSummary } from './SnapshotSummary';
 
 type Source = components['schemas']['SourceDTO'];
 type Snapshot = components['schemas']['SnapshotDTO'];
@@ -26,6 +30,10 @@ export function AnalysisPage() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [snapshotId, setSnapshotId] = useState('');
+  const [defaultSnapshotId, setDefaultSnapshotId] = useState('');
+  const [dateRange, setDateRange] = useState<DateRange>();
+  const [formSnapshotId, setFormSnapshotId] = useState('');
+  const [formDateRange, setFormDateRange] = useState<DateRange>();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [investigationError, setInvestigationError] = useState('');
@@ -33,6 +41,7 @@ export function AnalysisPage() {
   const [busy, setBusy] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
   const [infoOpen, setInfoOpen] = useState(false);
   const [findingsOpen, setFindingsOpen] = useState(false);
   const [pendingFollowUp, setPendingFollowUp] = useState<string | null>(null);
@@ -65,6 +74,13 @@ export function AnalysisPage() {
   const onActivity = useCallback(() => setActivity(value => value + 1), []);
   const onUpdate = useCallback((updated: Run) => setRuns(current => current.map(item => item.id === updated.id ? updated : item)), []);
   const currentCount = investigation ? investigation.findings.filter(item => !investigation.findings.some(next => next.supersedes === item.id)).length : 0;
+  const selectedSnapshot = snapshots.find(item => item.id === snapshotId);
+  const formSnapshot = snapshots.find(item => item.id === formSnapshotId);
+  const rangeError = dateRangeError(selectedSnapshot, dateRange);
+  const formRangeError = dateRangeError(formSnapshot, formDateRange);
+
+  // 快照变更时重置候选范围；已创建调查始终展示服务端冻结范围。
+  useEffect(() => { setDateRange(snapshotRange(selectedSnapshot)); }, [selectedSnapshot]);
 
   // 工具进度只更新调查内容，不改变用户选中的调查。
   useEffect(() => {
@@ -95,11 +111,13 @@ export function AnalysisPage() {
       setConversations(sessions.items);
       const available = lists.flatMap(list => list.items);
       setSnapshots(available);
-      setSnapshotId(current => current || sources.items.find(source => source.source_kind === 'official_bts')?.current_snapshot_id || sources.items[0]?.current_snapshot_id || available.find(item => item.period !== null)?.id || '');
+      const initial = sources.items.find(source => source.source_kind === 'official_bts')?.current_snapshot_id || sources.items.find(source => source.current_snapshot_id)?.current_snapshot_id || available[0]?.id || '';
+      setDefaultSnapshotId(initial);
+      setSnapshotId(current => current || initial);
       setConfigured((health.kind === 'ready' || health.kind === 'degraded') && health.health.llm === 'configured_unverified' && health.health.analysis === 'ready');
     }).catch(e => { if (alive) setError(String(e.message)); });
     return () => { alive = false; };
-  }, [attempt]);
+  }, [attempt, catalogAttempt]);
 
   useEffect(() => {
     if (!conversationId) { setRuns([]); setInvestigation(null); setInvestigations([]); setRestored(''); return; }
@@ -178,13 +196,14 @@ export function AnalysisPage() {
 
   /** 作用：排队真实分析；输入：表单条件；输出：新运行状态。 */
   async function submit() {
+    if (!investigation && rangeError) { setError(rangeError); return; }
     setBusy(true); setError('');
     try {
       const id = conversationId || await newConversation(question);
       setBusy(true);
       let current = investigation;
       if (!current) {
-        current = await analysisApi<Investigation>('/investigations', jsonRequest({ conversation_id: id, goal: question.trim().slice(0, 1200), scope: '在所选固定数据与知识版本内核查用户目标；重要歧义需澄清', snapshot_id: snapshotId }));
+        current = await analysisApi<Investigation>('/investigations', jsonRequest({ conversation_id: id, goal: question.trim().slice(0, 1200), scope: '在所选固定数据与知识版本内核查用户目标；重要歧义需澄清', snapshot_id: snapshotId, date_range: dateRange }));
         setDrafts(items => ({ ...items, [`${id}:${current!.id}`]: question }));
         selectionVersion.current++; setInvestigation(current); setInvestigations(items => [...items, current!]);
       }
@@ -197,14 +216,24 @@ export function AnalysisPage() {
 
   /** 作用：显式创建调查或版本分支；输入：目标、范围与所选快照；输出：固定调查。 */
   async function createInvestigation() {
+    if (formRangeError) { setError(formRangeError); return; }
     setBusy(true); setError('');
     try {
       const id = conversationId || await newConversation();
       setBusy(true);
-      const created = await analysisApi<Investigation>('/investigations', jsonRequest({ conversation_id: id, goal: goal.trim(), scope: scope.trim(), snapshot_id: snapshotId, parent_id: branch ? investigation?.id : undefined }));
-      selectionVersion.current++; setInvestigations(items => [...items, created]); setInvestigation(created); setLegacy(false); setCreatingInvestigation(false);
+      const created = await analysisApi<Investigation>('/investigations', jsonRequest({ conversation_id: id, goal: goal.trim(), scope: scope.trim(), snapshot_id: formSnapshotId, date_range: formDateRange, parent_id: branch ? investigation?.id : undefined }));
+      selectionVersion.current++; setInvestigations(items => [...items, created]); setInvestigation(created); setSnapshotId(created.snapshot_id); setLegacy(false); setCreatingInvestigation(false);
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
+  }
+
+  /** 作用：隔离新调查草稿与当前固定范围；输入：是否分支；输出：创建弹窗。 */
+  function openInvestigation(asBranch: boolean) {
+    setBranch(asBranch); setGoal(asBranch ? investigation?.goal ?? '' : ''); setScope(asBranch ? investigation?.scope ?? '' : '');
+    const id = asBranch ? investigation?.snapshot_id || snapshotId : investigation ? defaultSnapshotId || snapshotId : snapshotId;
+    setFormSnapshotId(id);
+    setFormDateRange(asBranch ? investigation?.date_range ?? snapshotRange(snapshots.find(item => item.id === id)) : snapshotRange(snapshots.find(item => item.id === id)));
+    setCreatingInvestigation(true);
   }
 
   /** 作用：显式停止实际后端执行；输入：当前运行；输出：取消状态。 */
@@ -216,7 +245,7 @@ export function AnalysisPage() {
 
   return <>
     {sidebarSlot && createPortal(<section className="analysis-history" aria-label="分析会话">
-      <Button className="new-conversation" block disabled={blocked} onClick={() => { void newConversation().catch(e => setError(e.message)); }}><span aria-hidden="true">＋</span> 新会话</Button>
+      <Button className="new-conversation" block disabled={blocked} onClick={() => { setSnapshotId(defaultSnapshotId); setDateRange(snapshotRange(snapshots.find(item => item.id === defaultSnapshotId))); void newConversation().catch(e => setError(e.message)); }}><span aria-hidden="true">＋</span> 新会话</Button>
       <div className="session-section-title"><h2>最近会话</h2><span>{conversations.length}</span></div>
       {conversations.length > 8 && <Input aria-label="搜索会话" placeholder="搜索会话" value={sessionFilter} onChange={event => setSessionFilter(event.target.value)} allowClear />}
       <div className="session-list">{conversations.filter(item => item.title.toLowerCase().includes(sessionFilter.toLowerCase())).map(item => <ConversationItem title={item.title} selected={conversationId === item.id} disabled={blocked} key={item.id} onClick={() => setConversationId(item.id)} />)}
@@ -230,8 +259,9 @@ export function AnalysisPage() {
       {!snapshots.length && <Alert className="analysis-alert" type="info" message="暂无可分析的数据，请先导入数据快照" />}
       <div className="analysis-main">
         <div className="analysis-status-bar">
-          <div className="analysis-data-bar"><label htmlFor="snapshot">分析数据</label><Select id="snapshot" aria-label="本次数据快照" value={investigation?.snapshot_id || snapshotId || undefined} disabled={blocked || !!investigation || legacy} onChange={setSnapshotId} options={snapshots.map(item => ({ value: item.id, disabled: item.period === null, label: `${item.manifest?.source_kind === 'synthetic' ? '合成测试数据' : 'BTS Reporting'} · ${item.period ?? '多月快照（调查待接入）'} · ${item.row_count.toLocaleString()} 条` }))} /></div>
-          <div className="investigation-controls"><Select aria-label="切换调查" value={legacy ? 'legacy' : investigation?.id} placeholder="首次提问会建立调查" disabled={blocked} onChange={selectInvestigation} options={[...investigations.map(item => ({ value: item.id, label: item.goal })), ...(runs.some(item => !item.investigation_id) ? [{ value: 'legacy', label: '历史独立运行' }] : [])]} /><Button type="text" disabled={blocked} onClick={() => { setGoal(''); setScope(''); setBranch(false); setCreatingInvestigation(true); }}>新调查</Button>{investigation && <Button type="text" disabled={blocked} onClick={() => { setGoal(investigation.goal); setScope(investigation.scope); setSnapshotId(investigation.snapshot_id); setBranch(true); setCreatingInvestigation(true); }}>新建分支</Button>}</div>
+          <div className="analysis-data-bar"><label htmlFor="snapshot">分析数据</label><Select id="snapshot" aria-label="本次数据快照" value={investigation?.snapshot_id || snapshotId || undefined} disabled={blocked || !!investigation || legacy} onChange={setSnapshotId} options={snapshots.map(item => ({ value: item.id, label: `${item.manifest?.source_kind === 'synthetic' ? '合成测试数据' : 'BTS Reporting'} · ${item.period ?? (item.periods ?? []).join('、')} · ${item.row_count.toLocaleString()} 条（完整快照） · ${item.id.slice(-8)}` }))} /></div>
+          <div className="investigation-controls"><Select aria-label="切换调查" value={legacy ? 'legacy' : investigation?.id} placeholder="首次提问会建立调查" disabled={blocked} onChange={selectInvestigation} options={[...investigations.map(item => ({ value: item.id, label: item.goal })), ...(runs.some(item => !item.investigation_id) ? [{ value: 'legacy', label: '历史独立运行' }] : [])]} /><Button type="text" disabled={blocked} onClick={() => openInvestigation(false)}>新调查</Button>{investigation && <Button type="text" disabled={blocked} onClick={() => openInvestigation(true)}>新建分支</Button>}</div>
+          {investigation ? <p className="fixed-date-range">固定日期范围：{dateRangeLabel(investigation.date_range ?? snapshotRange(snapshots.find(item => item.id === investigation.snapshot_id)))}。修改数据或日期请新建调查或分支。</p> : !legacy && <DateRangeFields snapshot={selectedSnapshot} value={dateRange} onChange={setDateRange} disabled={blocked} />}
           {investigation && <p className="investigation-status">{investigation.status === 'running' ? '核查中' : investigation.status === 'budget_exhausted' ? '累计额度已用完' : '可继续调查'}</p>}
           {visibleRuns.length > 0 && <Select<string> aria-label="定位轮次" className="run-history-select" placeholder="定位到历史问题" value={undefined} onChange={locateRun} options={visibleRuns.map(item => ({ value: item.id, label: `${item.question} · ${statusText[item.status]}` }))} />}
         </div>
@@ -243,16 +273,16 @@ export function AnalysisPage() {
         </div></div>
         {away && <Button className="return-latest" onClick={() => { follow.current = true; setAway(false); if (thread.current) thread.current.scrollTop = thread.current.scrollHeight; }}>回到最新</Button>}
         {legacy && <Alert type="info" message="历史独立运行仅供查看，继续分析请选择或新建调查" />}
-        <div className="composer"><label htmlFor="question">分析问题{investigation ? ' · 继续调查' : ''}</label><Input.TextArea aria-label="分析问题" id="question" rows={2} maxLength={4000} value={question} onChange={e => setQuestion(e.target.value)} placeholder="描述你想了解的问题，或继续追问…" disabled={blocked || legacy} /><div className="composer-bottom"><span>{investigation?.status === 'budget_exhausted' ? '累计运行额度已分配完，历史发现仍可查看' : '关闭页面后运行会继续'}</span><Space>{active && <Button danger onClick={() => { void cancel(); }} disabled={run?.cancel_requested}>停止分析</Button>}<Button type="primary" loading={busy} disabled={blocked || legacy || investigation?.status === 'budget_exhausted' || !configured || !snapshotId || !question.trim()} onClick={() => { void submit(); }}>发送问题</Button></Space></div></div>
+        <div className="composer"><label htmlFor="question">分析问题{investigation ? ' · 继续调查' : ''}</label><Input.TextArea aria-label="分析问题" id="question" rows={2} maxLength={4000} value={question} onChange={e => setQuestion(e.target.value)} placeholder="描述你想了解的问题，或继续追问…" disabled={blocked || legacy} /><div className="composer-bottom"><span>{investigation?.status === 'budget_exhausted' ? '累计运行额度已分配完，历史发现仍可查看' : '关闭页面后运行会继续'}</span><Space>{active && <Button danger onClick={() => { void cancel(); }} disabled={run?.cancel_requested}>停止分析</Button>}<Button type="primary" loading={busy} disabled={blocked || legacy || investigation?.status === 'budget_exhausted' || !configured || !snapshotId || (!investigation && !!rangeError) || !question.trim()} onClick={() => { void submit(); }}>发送问题</Button></Space></div></div>
 
         {!visibleRuns.length && !loading && !legacy && <div className="starter-prompts" aria-label="问题示例">{['这份数据覆盖哪些日期？', '看看各日期的记录分布', '哪些地方值得进一步核查？'].map(prompt => <button key={prompt} disabled={blocked} onClick={() => setQuestion(prompt)}>{prompt}<span aria-hidden="true">↗</span></button>)}</div>}
         <p className="workspace-disclaimer">分析可能存在局限，请结合引用依据复核。数据与知识版本在调查创建时固定。</p>
       </div>
     </section>
-    <Suspense fallback={<p>正在加载数据源…</p>}>{drawer && <DataSourceDrawer open={drawer} onClose={() => setDrawer(false)} />}</Suspense>
+    <Suspense fallback={<p>正在加载数据源…</p>}>{drawer && <DataSourceDrawer open={drawer} onClose={() => setDrawer(false)} onActivated={() => { if (!investigation) setSnapshotId(''); setCatalogAttempt(value => value + 1); }} />}</Suspense>
     <Drawer title="调查信息" open={infoOpen} onClose={() => setInfoOpen(false)} width="min(560px, 100vw)">{investigation && <InvestigationInfo investigation={investigation} />}</Drawer>
     <Modal title="替换当前草稿？" open={pendingFollowUp !== null} onCancel={() => setPendingFollowUp(null)} onOk={() => { if (pendingFollowUp !== null) fillFollowUp(pendingFollowUp); }} okText="替换" cancelText="保留草稿">输入框中已有内容，是否替换为建议问题？</Modal>
     <Drawer title="调查发现" open={findingsOpen} onClose={() => setFindingsOpen(false)} width="min(680px, 100vw)" destroyOnClose>{investigation && <InvestigationPanel key={investigation.id} investigation={investigation} disabled={blocked} onFollowUp={followUp} onError={setError} />}</Drawer>
-    <Modal title={branch ? '新建调查分支' : '新建调查'} open={creatingInvestigation} onCancel={() => setCreatingInvestigation(false)} onOk={() => { void createInvestigation(); }} confirmLoading={busy} okText="固定范围并创建" okButtonProps={{ disabled: !goal.trim() || !scope.trim() || !snapshotId }}><div className="investigation-form"><label>调查目标<Input.TextArea aria-label="调查目标" value={goal} maxLength={1200} onChange={e => setGoal(e.target.value)} rows={2} /></label><label>范围与已确认条件<Input.TextArea aria-label="调查范围" value={scope} maxLength={1200} onChange={e => setScope(e.target.value)} rows={3} /></label><label>数据快照<Select aria-label="新调查数据快照" value={snapshotId} onChange={setSnapshotId} options={snapshots.map(item => ({ value: item.id, disabled: item.period === null, label: `${item.period ?? '多月快照（调查待接入）'} · ${item.row_count.toLocaleString()} 条` }))} /></label><p>创建时固定当前知识版本。分支记录来源调查，证据需在新调查中重新核查；不会自动继承旧结论或重置原调查额度。</p></div></Modal>
+    <Modal title={branch ? '新建调查分支' : '新建调查'} open={creatingInvestigation} onCancel={() => setCreatingInvestigation(false)} onOk={() => { void createInvestigation(); }} cancelText={"取消"} confirmLoading={busy} okText="固定范围并创建" okButtonProps={{ disabled: !goal.trim() || !scope.trim() || !formSnapshotId || !!formRangeError }}><div className="investigation-form"><label>调查目标<Input.TextArea aria-label="调查目标" value={goal} maxLength={1200} onChange={e => setGoal(e.target.value)} rows={2} /></label><label>范围与已确认条件<Input.TextArea aria-label="调查范围" value={scope} maxLength={1200} onChange={e => setScope(e.target.value)} rows={3} /></label><label>数据快照<Select aria-label="新调查数据快照" value={formSnapshotId} onChange={id => { setFormSnapshotId(id); setFormDateRange(snapshotRange(snapshots.find(item => item.id === id))); }} options={snapshots.map(item => ({ value: item.id, label: `${item.period ?? (item.periods ?? []).join('、')} · ${item.row_count.toLocaleString()} 条 · ${item.id.slice(-8)}` }))} /></label><DateRangeFields snapshot={formSnapshot} value={formDateRange} onChange={setFormDateRange} />{formSnapshot && <SnapshotSummary snapshot={formSnapshot} />}<p>创建时固定当前知识版本。分支记录来源调查，证据需在新调查中重新核查；不会自动继承旧结论或重置原调查额度。</p></div></Modal>
   </>;
 }

@@ -6,6 +6,7 @@ from pydantic import Field
 
 from metric_pilot.contracts import StrictDTO
 from metric_pilot.data.contracts import QueryArtifact, SnapshotDTO
+from metric_pilot.data.ranges import DateRange
 
 ValueFormat = Literal["integer", "decimal_2", "percent_2", "minutes_2"]
 
@@ -208,7 +209,8 @@ class ReportSummary(StrictDTO):
     title: str
     question: str
     scope: str
-    period: str
+    period: str | None
+    date_range: DateRange | None = None
     source_kind: str
     created_at: str
 
@@ -238,6 +240,7 @@ class ReportDTO(StrictDTO):
     draft: ReportDraft
     content_hash: str
     external_snapshots: list[dict[str, Any]] = Field(default_factory=list)
+    date_range: DateRange | None = None
 
 
 class EvidenceDTO(StrictDTO):
@@ -256,6 +259,7 @@ class EvidenceDTO(StrictDTO):
     metrics: list[dict[str, Any]]
     validation_level: Literal["references_validated"] = "references_validated"
     external_snapshots: list[dict[str, Any]] = Field(default_factory=list)
+    date_range: DateRange | None = None
 
 
 class ReportRevisionWrite(StrictDTO):

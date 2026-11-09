@@ -32,19 +32,80 @@ async function select(page: Page, label: string) {
   await page.locator('.ant-select-item-option-content').getByText(label, { exact: true }).click();
 }
 
-test('multimonth snapshots remain readable but cannot activate or start an investigation', async ({ page }) => {
+test('multimonth snapshot quality and explicit default activation stay separate from preview', async ({ page }) => {
   await setup(page, []);
+  await select(page, '目标 second');
   await page.route('**/api/v1/sources/source/snapshots', route => route.fulfill({ json: { items: [
-    { id: 'multi', period: null, periods: ['2026-01', '2026-02'], row_count: 6, created_at: timestamp, file_hash: 'collection', manifest: { source_kind: 'synthetic' }, quality_report: {} },
+    { id: 'multi', period: null, periods: ['2026-01', '2026-02'], coverage_start: '2026-01-01', coverage_end_exclusive: '2026-03-01', row_count: 6, created_at: timestamp, file_hash: 'collection', manifest: { source_kind: 'synthetic', sources: [{ period: '2026-01', rows: 3, date_min: '2026-01-01', date_max: '2026-01-03' }] }, quality_report: { negative_duration_counts: { scheduled_elapsed: 9 }, null_counts: { scheduled_elapsed: 1 } } },
     { id: 'snap', period: '2026-01', row_count: 3, created_at: timestamp, file_hash: 'original', manifest: { source_kind: 'synthetic' }, quality_report: {} },
   ] } }));
   await page.route('**/api/v1/sources/source/schema?*', route => route.fulfill({ json: { snapshot_id: 'multi', tables: [] } }));
+  let activations = 0;
+  await page.route('**/api/v1/sources/source/activate', async route => {
+    activations++;
+    expect(route.request().postDataJSON()).toEqual({ snapshot_id: 'multi' });
+    if (activations === 1) await route.fulfill({ status: 409, json: { error: { code: 'TEST_FAILURE', message: '合成切换失败' } } });
+    else await route.fulfill({ json: { id: 'source', name: '合成来源', source_kind: 'synthetic', current_snapshot_id: 'multi' } });
+  });
   await page.getByRole('button', { name: '工作区数据源 ↗' }).click();
   const drawer = page.getByRole('dialog', { name: '数据源与固定快照' });
   await expect(drawer).toContainText('2026-01、2026-02');
-  await expect(drawer).toContainText('跨月调查尚未接入');
-  await expect(drawer.getByRole('button', { name: '设为默认快照', exact: true })).toBeDisabled();
+  await expect(drawer.getByRole('button', { name: '设为默认快照', exact: true })).toBeEnabled();
   await expect(drawer).toContainText('原件集合 SHA-256');
+  await expect(drawer.getByRole('region', { name: '快照覆盖与质量摘要' })).toContainText('计划时长：9');
+  expect(activations).toBe(0);
+  await drawer.getByRole('button', { name: '设为默认快照', exact: true }).click();
+  await expect(drawer).toContainText('合成切换失败');
+  await expect(drawer.getByRole('button', { name: /设为默认快照$/ })).toBeEnabled();
+  expect(activations).toBe(1);
+  await drawer.getByRole('button', { name: /设为默认快照$/ }).click();
+  await expect(drawer.getByRole('button', { name: /已是默认快照$/ })).toBeDisabled();
+  await drawer.getByRole('button', { name: '关闭', exact: true }).click();
+  await expect(page.locator('.workspace-toolbar-title')).toContainText('目标 second');
+  await expect(page.locator('.fixed-date-range')).toContainText('2026-01-01 至 2026-02-01');
+  expect(activations).toBe(2);
+});
+
+test('new investigation refuses a missing month and outside dates without changing the current scope', async ({ page }) => {
+  await setup(page, [run(1)]);
+  await page.route('**/api/v1/sources/source/snapshots', route => route.fulfill({ json: { items: [
+    { id: 'snap', period: '2026-01', row_count: 3, manifest: { source_kind: 'synthetic' } },
+    { id: 'gap', period: null, periods: ['2026-01', '2026-03'], coverage_start: '2026-01-01', coverage_end_exclusive: '2026-04-01', row_count: 6, manifest: { source_kind: 'synthetic' }, quality_report: {} },
+  ] } }));
+  await page.reload();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: '新调查', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '新建调查', exact: true });
+  await dialog.getByLabel('调查目标', { exact: true }).fill('缺月边界检查');
+  await dialog.getByLabel('调查范围', { exact: true }).fill('明确合成测试');
+  await dialog.getByRole('combobox', { name: '新调查数据快照', exact: true }).press('ArrowDown');
+  await page.locator('.ant-select-item-option-content').filter({ hasText: '2026-01、2026-03' }).click();
+  await expect(dialog).toContainText('所选范围缺少 2026-02 数据');
+  await expect(dialog.getByRole('button', { name: '固定范围并创建', exact: true })).toBeDisabled();
+  await dialog.getByLabel('结束日期（不含）', { exact: true }).fill('2026-02-01');
+  await expect(dialog.getByRole('button', { name: '固定范围并创建', exact: true })).toBeEnabled();
+  await dialog.getByLabel('开始日期（含）', { exact: true }).fill('2025-12-31');
+  await expect(dialog).toContainText('日期范围超出所选快照覆盖');
+  await expect(dialog.getByRole('button', { name: '固定范围并创建', exact: true })).toBeDisabled();
+  await dialog.getByRole('button', { name: /取\s*消/ }).click();
+  await expect(page.locator('.fixed-date-range')).toContainText('2026-01-01 至 2026-02-01');
+});
+
+test('frozen investigation and turn show the exact partial date range', async ({ page }) => {
+  const date_range = { start: '2026-01-02', end_exclusive: '2026-01-03' };
+  await setup(page, [run(1)]);
+  await page.route('**/api/v1/conversations/history-session', route => route.fulfill({ json: {
+    items: [{ ...run(1), date_range }],
+  } }));
+  await page.route('**/api/v1/investigations?*', route => route.fulfill({ json: {
+    items: [{ ...investigation('first'), date_range }],
+  } }));
+  await page.reload();
+  await page.getByRole('button', { name: '调查信息', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: '调查信息', exact: true })).toContainText('2026-01-02 至 2026-01-03（不含结束日）');
+  await page.keyboard.press('Escape');
+  await page.locator('.run-result').getByText('本轮信息', { exact: true }).click();
+  await expect(page.locator('.run-result')).toContainText('2026-01-02 至 2026-01-03（不含结束日）');
 });
 
 test('continuous history, investigation isolation, drafts, drawers and mobile layout', async ({ page }) => {
