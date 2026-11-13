@@ -22,7 +22,7 @@
 
 - [manifest.json](manifest.json)：相对路径、SHA-256、来源、适用期、处理方式、原文定位及校验摘要。
 - [metrics.draft.json](metrics.draft.json)：与蓝图 MetricDefinition 对齐的八个草稿；source_revision_ids 留空，另用材料 ID 指明未来绑定来源。材料 ID 不是数据库修订 ID。
-- [validation.json](../data/knowledge_prepared/validation.json)：真实文件检查结果。13 个承运人、342 个机场 ID 全部匹配；尚未执行新的 DuckDB 导入。
+- [validation.json](../data/knowledge_prepared/validation.json)：真实文件检查结果。13 个航司、342 个机场 ID 全部匹配；尚未执行新的 DuckDB 导入。
 - [source_locators.json](../data/knowledge_prepared/source_locators.json)：字段单元格/PDF 页码与摘录哈希。
 - `data/knowledge_prepared/dim_carriers.csv` 与 `dim_airports.csv`：按现有导入器列名规范化的 UTF-8 代码表候选。当前快照不变；如需接入，后续创建新快照。
 

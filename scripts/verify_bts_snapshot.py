@@ -91,7 +91,7 @@ def profile_csv(path, period):
     """
     作用：只用 csv、datetime 与 Decimal 直接计算输入基线
     输入：BTS 数据库导出 CSV 和月份
-    输出：原始行数、日期、质量与逐承运人基线
+    输出：原始行数、日期、质量与逐航司基线
     """
     raw_rows, nulls, carriers, dates, months = (
         0,

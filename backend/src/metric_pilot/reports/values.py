@@ -119,6 +119,16 @@ def text_segments(block, artifacts):
                 "unused_refs": sorted(set(block["values"]) - {match[1] for match in slots}),
             },
         )
+    # 绑定只使用已展示的引用键，核对分组和值属于同一冻结结果行。
+    for binding in block.get("row_bindings", []):
+        keys = binding["dimensions"] + binding["measures"]
+        if len(keys) != len(set(keys)) or not set(keys) <= set(block["values"]):
+            raise DataError("REPORT_ROW_BINDING_KEYS")
+        refs = [block["values"][key] for key in keys]
+        if len({(ref["artifact_id"], ref["row"]) for ref in refs}) != 1:
+            raise DataError("REPORT_ROW_BINDING_MISMATCH")
+        for key in binding["measures"]:
+            cell(artifacts, block["values"][key], require_numeric=True)
     result, position = [], 0
     for match in slots:
         if match.start() > position:

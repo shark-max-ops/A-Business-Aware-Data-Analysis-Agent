@@ -601,3 +601,52 @@ def test_investigation_api_preserves_knowledge_and_explicit_branch(agent_workspa
         )
     with store.engine.connect() as c:
         assert c.execute(select(func.count()).select_from(m.investigations)).scalar_one() == 2
+
+
+def test_row_binding_survives_record_finding(agent_workspace):
+    """
+    作用：验证真实工具路径保存并公开分组同行绑定
+    输入：隔离调查和合成查询
+    输出：无
+    """
+    inv = investigation(agent_workspace)
+
+    def bound_finding(messages):
+        """
+        作用：根据实际查询产物构造带同行绑定的发现
+        输入：工具消息
+        输出：发现工具调用
+        """
+        ident = final_from_query(messages)["artifact_ids"][0]
+        return calls(
+            (
+                "record_finding",
+                {
+                    "kind": "fact",
+                    "check": "按日期核查",
+                    "statement": {
+                        "type": "text",
+                        "id": "bound",
+                        "text_template": "{{day}} 有 {{count}} 条。",
+                        "values": {
+                            "day": {"artifact_id": ident, "row": 0, "column": "day"},
+                            "count": {"artifact_id": ident, "row": 0, "column": "record_count"},
+                        },
+                        "row_bindings": [{"dimensions": ["day"], "measures": ["count"]}],
+                    },
+                },
+            )
+        )
+
+    run, _ = run_steps(
+        agent_workspace,
+        inv,
+        [
+            calls(("query_sql", {"sql": SQL})),
+            bound_finding,
+            report_candidate,
+        ],
+    )
+    assert run["status"] == "completed"
+    entries = InvestigationStore(agent_workspace[1].engine).read(inv["id"])["findings"]
+    assert entries[0]["row_bindings"] == [{"dimensions": ["day"], "measures": ["count"]}]

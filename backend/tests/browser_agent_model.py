@@ -210,7 +210,7 @@ class BrowserModel(FakeLLM):
                     "report": {
                         "schema_version": "1",
                         "title": "合成跨月趋势与分组比较",
-                        "scope": "固定部分月范围内按月份与承运人计数",
+                        "scope": "固定部分月范围内按月份与航司计数",
                         "metric_revision_ids": [],
                         "limitations": [
                             "明确合成数据；两端为部分月，总量不能解释为完整月环比或季节规律。"
@@ -237,12 +237,12 @@ class BrowserModel(FakeLLM):
                             {
                                 "type": "table",
                                 "id": "grouped",
-                                "title": "按承运人分组的月度记录",
+                                "title": "按航司分组的月度记录",
                                 "artifact_id": grouped_artifact,
                                 "columns": ["month", "carrier_code", "n"],
                                 "column_labels": {
                                     "month": "月份",
-                                    "carrier_code": "承运人",
+                                    "carrier_code": "航司",
                                     "n": "记录数",
                                 },
                             },
@@ -275,7 +275,7 @@ class BrowserModel(FakeLLM):
                         "record_finding",
                         {
                             "kind": "fact",
-                            "check": "核对所选范围的承运人月度分布",
+                            "check": "核对所选范围的航司月度分布",
                             "statement": {
                                 "type": "text",
                                 "id": "monthly_observed",

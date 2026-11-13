@@ -49,7 +49,7 @@ FIELDS = [
     ("AirTime", "air_time", "DOUBLE", "空中时间分钟"),
     ("CRSElapsedTime", "scheduled_elapsed", "DOUBLE", "计划时长分钟"),
     ("ActualElapsedTime", "actual_elapsed", "DOUBLE", "实际时长分钟"),
-    ("CarrierDelay", "delay_carrier", "DOUBLE", "已上报承运人原因分钟"),
+    ("CarrierDelay", "delay_carrier", "DOUBLE", "已上报航司原因分钟"),
     ("WeatherDelay", "delay_weather", "DOUBLE", "已上报天气原因分钟"),
     ("NASDelay", "delay_nas", "DOUBLE", "已上报 NAS 原因分钟"),
     ("SecurityDelay", "delay_security", "DOUBLE", "已上报安全原因分钟"),

@@ -50,9 +50,9 @@ def save(path, payload):
 
 def baseline(api, snapshot_id, input_dir, store):
     """
-    作用：独立读取BTS原始列，累计日期与承运人计数并绑定快照原件哈希
+    作用：独立读取BTS原始列，累计日期与航司计数并绑定快照原件哈希
     输入：真实目录API、快照ID、原件目录、隔离存储
-    输出：可按月/日/承运人重新汇总的基线
+    输出：可按月/日/航司重新汇总的基线
     """
     snapshots = [
         item
@@ -116,7 +116,7 @@ def baseline(api, snapshot_id, input_dir, store):
 def groups(reference, selected, grain, carrier=None):
     """
     作用：从独立日粒度基线重新汇总请求范围，不执行模型SQL作为正确答案
-    输入：原CSV基线、范围、分组键和可选承运人
+    输入：原CSV基线、范围、分组键和可选航司
     输出：分组计数与百分比
     """
     result = defaultdict(lambda: [0] * len(FIELDS))
@@ -556,7 +556,7 @@ def main():
                             "parent_id": parent["id"],
                             "date_range": parent["date_range"],
                             "goal": (
-                                "6.E真实验收：一至四月修复后月度与承运人调查"
+                                "6.E真实验收：一至四月修复后月度与航司调查"
                                 f"（恢复分支{recovery_number}）"
                             ),
                             "scope": parent["scope"]
@@ -574,7 +574,7 @@ def main():
                         json={
                             "conversation_id": conversation["id"],
                             "snapshot_id": preparation["snapshot_id"],
-                            "goal": "6.E真实验收：一至四月项目取消率及月份/承运人差异调查",
+                            "goal": "6.E真实验收：一至四月项目取消率及月份/航司差异调查",
                             "scope": (
                                 "仅Reporting Carrier已核验固定数据；项目取消率按已审核定义，"
                                 "其他计数为明确基础探索。无外部因果证据，不调用天气/公告。"
@@ -589,7 +589,7 @@ def main():
                     "先查阅字段与已审核口径，分母含取消和备降，不把到达延误缺失排除。"
                     "用于逐项核对的月度表请用 month、record_count、cancelled_count、"
                     "cancellation_rate（百分数）列名；可用折线图辅助。"
-                    "本轮仅完成月度表，选择值得下一轮核查的月份；承运人分组留待下一轮，不在本轮展开。"
+                    "本轮仅完成月度表，选择值得下一轮核查的月份；航司分组留待下一轮，不在本轮展开。"
                     "不要求显著异常，不自造航空公司名称。"
                     "保存本轮发现和限制，给出简洁中文报告。不要调用外部工具，不判断天气因果或季节规律。"
                 )
@@ -612,12 +612,12 @@ def main():
                         + "继续同一调查：先read_investigation回顾，"
                         "再read_artifact复核上一轮月度证据。"
                         "报告引用上一轮已核实的月度证据及其ValueRef，不要重算替代旧证据。"
-                        "根据真实前序核查中的承运人线索，本轮只聚焦OH代码，用同一已审核项目取消率"
-                        "补充该承运人四个月的分组比较；查询与表格只保留OH，每月一行。"
+                        "根据真实前序核查中的航司线索，本轮只聚焦OH代码，用同一已审核项目取消率"
+                        "补充该航司四个月的分组比较；查询与表格只保留OH，每月一行。"
                         "分组核对表使用 month、carrier_code、record_count、"
                         "cancelled_count、cancellation_rate（百分数）。"
                         "同时披露各组分母，说明航线构成与天数差可能影响比较，现有证据不证明原因。"
-                        "本轮不查询机场数、航线数或其他派生统计，不用重复横轴的承运人柱图冒充月度图。"
+                        "本轮不查询机场数、航线数或其他派生统计，不用重复横轴的航司柱图冒充月度图。"
                         "保存本轮发现或修正，给出包含旧证据和新增分组结果的简洁报告，不调用外部工具。"
                     )
                 else:

@@ -46,7 +46,11 @@ def render_blocks(draft, artifacts, sources):
         elif b["type"] == "text":
             if not set(b["evidence_ids"]) <= set(artifacts) | set(sources):
                 raise DataError("REPORT_EVIDENCE_NOT_ALLOWED")
-            out.update(segments=text_segments(b, artifacts), evidence_ids=b["evidence_ids"])
+            out.update(
+                segments=text_segments(b, artifacts),
+                evidence_ids=b["evidence_ids"],
+                row_bindings=b["row_bindings"],
+            )
         else:
             record = artifacts[b["artifact_id"]]
             ordered = record["artifact"]["ordered"]
@@ -86,6 +90,11 @@ def render_blocks(draft, artifacts, sources):
                         raise DataError("REPORT_CHART_VALUE_TOO_LARGE")
                     values.append(value)
                 rows.append(values)
+            if b["type"] == "chart":
+                # 每个横轴值只能对应一行，避免跨月或分组结果被画成同一分类。
+                axis = [row[0]["raw"] for row in rows]
+                if len({canonical_bytes(key) for key in axis}) != len(axis):
+                    raise DataError("REPORT_CHART_AXIS_AMBIGUOUS")
             if b["type"] == "chart" and b["kind"] == "line":
                 # 折线只连接唯一、按升序排列的真实横轴，不能把任意行序画成趋势。
                 keys = [row[0]["raw"] for row in rows]

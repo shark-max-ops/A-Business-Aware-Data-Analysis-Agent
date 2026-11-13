@@ -44,7 +44,9 @@ table 的 columns、chart 的 x/y 都是真实列名；column_labels、x_label�
 percent_2 仅用于 SQL 返回0至100的 *_pct 列，不能再次乘百；integer 只能用于整数。
 标题、scope 和解释用自然中文，不堆快照 ID、表名或 SQL 表达式；技术信息由依据抽屉提供。
 默认简短：一到三项关键数字、必要的表格或图、短解释和实际限制，不为凑布局重复同一结果。
-图表最多60行、最多3个数值系列；折线横轴必须唯一升序并有 ORDER BY。
+图表最多60行、最多3个数值系列；所有图表横轴必须唯一，折线还须升序并有 ORDER BY。
+同一航司跨月或同月多航司不能丢失分组维度；横轴重复时改用完整表格，
+或查询包含月份和航司的唯一分类列，不得只改标签或丢行绕过校验。
 截断结果不能提交报告，必须先重新聚合或限制到有明确范围且完整的查询。
 报告声明的指标修订必须与其引用的成功产物绑定指标的并集完全一致。无已审核指标的自由探索不能写成正式项目指标。
 无法支撑结论时返回 clarification；不以表面引用完整代替业务语义判断。
@@ -103,9 +105,12 @@ table: type,id,title,artifact_id,columns（原始列名数组）,column_labels�
 chart: type,id,title,artifact_id,kind（bar/line）,x（原列名）,y（数值列名数组）、
 x_label,series_labels,format。
 ValueRef 只含 artifact_id、row（零基整数）、column（原列名），不提交原始值或格式化值。
+分组陈述使用 row_bindings：每项 dimensions 和 measures 分别列出文字占位键；
+航司、月份与数字均用 values 引用同一产物同一行，比较多组时分别绑定。
+合计和差值先经成功查询生成；同行校验不证明自由文字语义正确。
 如无必要图表，用简短文字及引用数值即可。字符串或名称也可用 ValueRef 引用，不能猜测。
-原文文字无需ValueRef，例如已读来源说“仅限指定承运人”，可用：
-{"type":"text","id":"notice_scope","text_template":"公告注明仅限指定承运人，不能推广到全部航班。",
+原文文字无需ValueRef，例如已读来源说“仅限指定航司”，可用：
+{"type":"text","id":"notice_scope","text_template":"公告注明仅限指定航司，不能推广到全部航班。",
 "values":{},"evidence_ids":["实际读到的xe_来源ID"]}。
 不要为原文句子、名称或限制建立占位符再填入无关的航班计数。无数字结论时values可以为空。
 多个覆盖数量或测量极值优先用table块直接展示一行整体聚合，列标签对应真实列名；

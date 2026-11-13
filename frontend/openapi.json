@@ -3818,6 +3818,13 @@
             "type": "object",
             "title": "Value Refs"
           },
+          "row_bindings": {
+            "items": {
+              "$ref": "#/components/schemas/RowBinding"
+            },
+            "type": "array",
+            "title": "Row Bindings"
+          },
           "source_run_status": {
             "type": "string",
             "enum": [
@@ -5141,6 +5148,13 @@
             "type": "array",
             "title": "Segments"
           },
+          "row_bindings": {
+            "items": {
+              "$ref": "#/components/schemas/RowBinding"
+            },
+            "type": "array",
+            "title": "Row Bindings"
+          },
           "evidence_ids": {
             "items": {
               "type": "string"
@@ -5503,6 +5517,36 @@
         ],
         "title": "ReportSummary",
         "description": "作用：展示实际已提交报告列表\n输入：服务端报告记录\n输出：摘要卡片"
+      },
+      "RowBinding": {
+        "properties": {
+          "dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Dimensions"
+          },
+          "measures": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Measures"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "dimensions",
+          "measures"
+        ],
+        "title": "RowBinding",
+        "description": "作用：声明同一结果行上的分组身份和数值\n输入：文字占位键列表\n输出：待校验的同行绑定"
       },
       "RunDTO": {
         "properties": {
@@ -6112,6 +6156,14 @@
             "type": "array",
             "maxItems": 24,
             "title": "Evidence Ids"
+          },
+          "row_bindings": {
+            "items": {
+              "$ref": "#/components/schemas/RowBinding"
+            },
+            "type": "array",
+            "maxItems": 24,
+            "title": "Row Bindings"
           }
         },
         "additionalProperties": false,

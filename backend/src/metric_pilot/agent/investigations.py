@@ -180,6 +180,7 @@ class InvestigationStore(KnowledgeStore):
             "source_run_status": "running",
             "artifact_ids": sorted(p["frozen"]["artifacts"]),
             "evidence_ids": p["block"]["evidence_ids"],
+            "row_bindings": p["block"].get("row_bindings", []),
             "value_refs": {
                 s["key"]: s["value"]["value_ref"] for s in p["block"]["segments"] if s.get("value")
             },

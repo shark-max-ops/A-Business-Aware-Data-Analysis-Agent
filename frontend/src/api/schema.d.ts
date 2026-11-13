@@ -1448,6 +1448,8 @@ export interface components {
             value_refs: {
                 [key: string]: components["schemas"]["ValueRef"];
             };
+            /** Row Bindings */
+            row_bindings?: components["schemas"]["RowBinding"][];
             /**
              * Source Run Status
              * @enum {string}
@@ -1972,6 +1974,8 @@ export interface components {
             kind?: ("bar" | "line") | null;
             /** Segments */
             segments?: components["schemas"]["TextSegment"][];
+            /** Row Bindings */
+            row_bindings?: components["schemas"]["RowBinding"][];
             /** Evidence Ids */
             evidence_ids?: string[];
             /**
@@ -2120,6 +2124,18 @@ export interface components {
             source_kind: string;
             /** Created At */
             created_at: string;
+        };
+        /**
+         * RowBinding
+         * @description 作用：声明同一结果行上的分组身份和数值
+         *     输入：文字占位键列表
+         *     输出：待校验的同行绑定
+         */
+        RowBinding: {
+            /** Dimensions */
+            dimensions: string[];
+            /** Measures */
+            measures: string[];
         };
         /**
          * RunDTO
@@ -2385,6 +2401,8 @@ export interface components {
             };
             /** Evidence Ids */
             evidence_ids?: string[];
+            /** Row Bindings */
+            row_bindings?: components["schemas"]["RowBinding"][];
         };
         /**
          * TextSegment

@@ -16,7 +16,7 @@
 | 7a | [6.A 原件核验](../../backend/src/metric_pilot/data/audit.py)、[独立复核](../../scripts/verify_bts_audit.py) | 只读原 CSV，登记哈希、字段、日期、质量与用户来源声明，不创建或激活快照 |
 | 7b | [6.B 多月快照](../../backend/src/metric_pilot/data/multimonth.py)、[独立验收](../../scripts/verify_multimonth.py) | 复用单月规范化，校验6.A哈希，逐月来源与范围、实际取消及原子发布；范围调查见6.C，页面见6.D |
 | 7c | [6.C 日期范围](../../backend/src/metric_pilot/data/ranges.py)、[范围测试](../../backend/tests/test_date_ranges.py)、[真实核验](../../scripts/verify_date_ranges.py) | 左闭右开范围贯穿调查、只读子进程、指标和报告；证据复用须范围相同，日期选择页面见6.D |
-| 7e | [6.E验收器](../../scripts/verify_multimonth_investigation.py)、[反例测试](../../backend/tests/test_multimonth_verification.py)、[真实页面](../../frontend/tests/multimonth-live.spec.ts) | 独立CSV日/承运人基线、正式口径与探索、旧证据及范围核对；语义人工审查，失败记录不覆盖 |
+| 7e | [6.E验收器](../../scripts/verify_multimonth_investigation.py)、[反例测试](../../backend/tests/test_multimonth_verification.py)、[真实页面](../../frontend/tests/multimonth-live.spec.ts) | 独立CSV日/航司基线、正式口径与探索、旧证据及范围核对；语义人工审查，失败记录不覆盖 |
 | 7d | [6.D 日期表单](../../frontend/src/components/DateRangeFields.tsx)、[覆盖与质量](../../frontend/src/components/SnapshotSummary.tsx)、[页面范围检查](../../frontend/src/api/data.ts) | 新调查显式选择，续查只读继承，新调查/分支草稿隔离；默认版本只影响后续初始选择 |
 | 8 | [资料管理](../../backend/src/metric_pilot/knowledge/documents.py)、[检索](../../backend/src/metric_pilot/knowledge/retrieval.py)、[Wiki](../../backend/src/metric_pilot/knowledge/wiki.py)、[指标](../../backend/src/metric_pilot/knowledge/metrics.py) | 原文修订、来源定位、草稿发布与指标审核 |
 | 9 | [外部 HTTP](../../backend/src/metric_pilot/external/http.py)、[证据冻结](../../backend/src/metric_pilot/external/evidence.py) | 允许来源、真实请求取消、原件哈希与外部版本 |

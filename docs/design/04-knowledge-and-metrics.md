@@ -16,7 +16,7 @@
 
 1. [BTS 字段字典](https://www.transtats.bts.gov/Fields.asp?gnoyr_VQ=FGJ)：只摘录选用字段的说明。
 2. [2026 年技术报告指引 #40](https://www.bts.gov/explore-topics-and-geography/modes/aviation/number-40-technical-directive-reporting-time)：使用适合本项目的章节，标明生效期。
-3. 实际下载的承运人/机场代码表及字段说明。
+3. 实际下载的航司/机场代码表及字段说明。
 4. 自写《项目指标口径 v1》：明确所有自定义分母和过滤规则。
 5. 自写《数据范围与限制》：数据表类型、月份、空值、不能计算的利润等。
 6. 自写《分析使用说明》：产品功能与操作步骤。

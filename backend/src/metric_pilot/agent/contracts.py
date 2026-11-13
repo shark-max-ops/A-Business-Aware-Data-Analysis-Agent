@@ -8,7 +8,13 @@ from metric_pilot.contracts import StrictDTO
 from metric_pilot.data.contracts import ExplorationScope
 from metric_pilot.data.ranges import DateRange
 from metric_pilot.external.weather import WeatherRequest
-from metric_pilot.reports.contracts import ReportCandidate, ReportResult, TextBlock, ValueRef
+from metric_pilot.reports.contracts import (
+    ReportCandidate,
+    ReportResult,
+    RowBinding,
+    TextBlock,
+    ValueRef,
+)
 
 RunStatus = Literal["queued", "running", "completed", "failed", "cancelled", "interrupted"]
 
@@ -318,6 +324,7 @@ class FindingDTO(StrictDTO):
     artifact_ids: list[str]
     evidence_ids: list[str]
     value_refs: dict[str, ValueRef]
+    row_bindings: list[RowBinding] = Field(default_factory=list)
     source_run_status: RunStatus
 
 

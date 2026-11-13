@@ -185,7 +185,8 @@ class ToolRegistry:
             "record_finding": (
                 a.RecordFinding,
                 "保存核查发现：fact/candidate/counterevidence/limitation/recommendation；"
-                "数字用 statement.values 的 ValueRef；supersedes 指向被修正的发现。",
+                "数字用 statement.values 的 ValueRef；分组身份和数值用 "
+                "statement.row_bindings 同行绑定；supersedes 指向被修正的发现。",
             ),
         }
 

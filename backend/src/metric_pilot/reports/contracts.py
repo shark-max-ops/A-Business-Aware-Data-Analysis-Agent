@@ -71,6 +71,17 @@ class ChartBlock(StrictDTO):
     format: ValueFormat = "decimal_2"
 
 
+class RowBinding(StrictDTO):
+    """
+    作用：声明同一结果行上的分组身份和数值
+    输入：文字占位键列表
+    输出：待校验的同行绑定
+    """
+
+    dimensions: list[str] = Field(min_length=1, max_length=8)
+    measures: list[str] = Field(min_length=1, max_length=8)
+
+
 class TextBlock(StrictDTO):
     """
     作用：让文字中的数量通过受限占位符取值
@@ -83,6 +94,7 @@ class TextBlock(StrictDTO):
     text_template: str = Field(min_length=1, max_length=2400)
     values: dict[str, ValueRef] = Field(default_factory=dict, max_length=24)
     evidence_ids: list[str] = Field(default_factory=list, max_length=24)
+    row_bindings: list[RowBinding] = Field(default_factory=list, max_length=24)
 
 
 Block = Annotated[KPIBlock | TableBlock | ChartBlock | TextBlock, Field(discriminator="type")]
@@ -177,6 +189,7 @@ class RenderedBlock(StrictDTO):
     rows: list[list[FrozenValue]] = Field(default_factory=list)
     kind: Literal["bar", "line"] | None = None
     segments: list[TextSegment] = Field(default_factory=list)
+    row_bindings: list[RowBinding] = Field(default_factory=list)
     evidence_ids: list[str] = Field(default_factory=list)
     ordered: bool = False
 

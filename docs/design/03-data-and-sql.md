@@ -13,7 +13,7 @@
 ### 下载和存放月度文件
 
 1. 打开上方 Reporting Carrier 官方下载页，确认表名为 **Reporting Carrier On-Time Performance**，不要选择 Marketing Carrier。
-2. `Filter Year` 选 `2026`，`Filter Period` 分别选需要的月份（本轮为一至四月），地理范围保持全部；逐月下载，不混合两种承运人口径。
+2. `Filter Year` 选 `2026`，`Filter Period` 分别选需要的月份（本轮为一至四月），地理范围保持全部；逐月下载，不混合两种航司口径。
 3. 按下面 29 个字段勾选后点击 Download。下载 ZIP 后解压 CSV；表头可能导出为 FL_DATE、OP_UNIQUE_CARRIER、ARR_DELAY_NEW 等，已有导入器处理别名，不需手动改表头。
 4. 文件统一放入下列路径。一月已经归位；用户提供的新月份文件需另行核验，不创建空占位文件：
 
@@ -44,7 +44,7 @@ data/bts/
 
 | BTS 字段组 | 内部列示例 | 用途 |
 | --- | --- | --- |
-| FlightDate / Reporting_Airline / DOT_ID_Reporting_Airline | flight_date / carrier_code / carrier_id | 运行日期和承运人身份 |
+| FlightDate / Reporting_Airline / DOT_ID_Reporting_Airline | flight_date / carrier_code / carrier_id | 运行日期和航司身份 |
 | Flight_Number_Reporting_Airline / Tail_Number | flight_number / tail_number | 航班标识和辅助诊断；不能单独用航班号作主键 |
 | OriginAirportID / DestAirportID / Origin / Dest | origin_airport_id / dest_airport_id / origin_code / dest_code | 出发、到达机场关联 |
 | CRSDepTime / CRSArrTime / DepTime / ArrTime | scheduled_dep_local / scheduled_arr_local / actual_dep_local / actual_arr_local | 保留地方时 HHMM 原义 |
@@ -261,7 +261,7 @@ uv run python scripts/verify_bts_audit.py --manifest storage/validation/bts-6a/m
 - 一个业务分析引擎 DuckDB，SQLite 仅保存目录和执行审计。导入连接可写，只写新临时目录；分析连接只读且禁止外部访问、自动扩展安装/加载，内存与临时磁盘预算固定。锁定版本必须实际支持全部设置。
 - 原始输入先复制并计算哈希，后续解析读取复制件。发布前保留 CSV、DuckDB、manifest、quality 和 schema，关闭写连接后原子重命名，最后在事务中登记。登记失败可能留下不被引用的文件，但不能发布不完整快照。
 - 合成和用户声明的官方 BTS 来源分开登记。出现 Marketing 字段就拒绝混用。未知或缺失基线字段不默认为零；当前版本要求完整基线字段，列不全则明确拒绝整个导入。
-- 日期越月记录留在 raw_flights 和源 CSV，v_flights 按所选月过滤，质量报告显示数量。重复候选不删除。机场/承运人表必须唯一键，逐条验证 JOIN 前后事实数量。
+- 日期越月记录留在 raw_flights 和源 CSV，v_flights 按所选月过滤，质量报告显示数量。重复候选不删除。机场/航司表必须唯一键，逐条验证 JOIN 前后事实数量。
 - RunContext、ToolResult、QueryArtifact 沿用蓝图契约，以组合服务实现。阶段 1 只有手动 CLI 查询作用域和 QueryExecution 审计，run_id 由服务端生成；并未提前实现 Agent Run 状态机、工具选择或 SSE。knowledge_empty_v1 表示尚无知识快照，证据中的规则引用列表为空，不声称口径已自动验证。
 - 外层 AST 限制最多预算+1 行，不改写内部聚合。达到行/字节上限明确标记 truncated。Decimal 与超过 JavaScript 安全整数范围的值用类型标签和十进制字符串冻结，null 不转为零，非有限数值拒绝。
 - 先写内容寻址产物，再事务提交成功执行与 QueryArtifact。失败、超时、取消均只保留执行审计，不生成成功证据。产物读取验证 run 关联、成功状态、内容哈希，且不重新执行 SQL。
