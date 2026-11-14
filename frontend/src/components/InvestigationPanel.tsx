@@ -47,7 +47,7 @@ export function InvestigationPanel({ investigation: inv, disabled, onFollowUp, r
   /** 作用：展示已物化的发现；输入：发现及历史标记；输出：可核对卡片。 */
   function findingView(item: Finding, historical = false) {
     return <article className={`investigation-finding${historical ? ' historical' : ''}`} key={item.id}>
-      <div className="finding-heading"><Tag color={item.kind === 'counterevidence' ? 'gold' : item.kind === 'fact' ? 'green' : undefined}>{kindText[item.kind] ?? item.kind}</Tag>{historical && <span>已有后续修正</span>}{['failed', 'cancelled', 'interrupted'].includes(item.source_run_status) && <span>来源运行未完成 · 复用前需重新核查</span>}</div>
+      <div className="finding-heading"><Tag color={item.verification === 'unverified' ? undefined : item.kind === 'counterevidence' ? 'gold' : item.kind === 'fact' ? 'green' : undefined}>{item.verification === 'unverified' ? '未核实解释' : item.verification === 'result_values' ? '已核对取值' : kindText[item.kind] ?? item.kind}</Tag>{historical && <span>已有后续修正</span>}{['failed', 'cancelled', 'interrupted'].includes(item.source_run_status) && <span>来源运行未完成 · 复用前需重新核查</span>}</div>
       <p>{item.text}</p>{(item.row_bindings ?? []).length > 0 && <small>已校验所声明的分组与数值来自同一行；文字解释仍需复核。</small>}<div className="finding-footer"><span>核查：{item.check}</span><Button size="small" type="link" loading={loading === item.id} onClick={() => { void showEvidence(item); }}>查看依据</Button></div>
       {historical && onLocateRun && supersededBy.get(item.id) && <Button type="link" size="small" onClick={() => onLocateRun(supersededBy.get(item.id)!.run_id)}>定位后续修正轮次</Button>}
     </article>;

@@ -111,3 +111,19 @@ def test_old_text_without_binding_still_renders():
     del draft["blocks"][0]["row_bindings"]
     blocks, _ = render_blocks(ReportDraft.model_validate(draft), artifacts, {})
     assert blocks[0]["row_bindings"] == []
+
+
+def test_mismatch_feedback_locates_each_group_reference():
+    """
+    作用：错行反馈明确指出各键的位置，支持模型修正相同月份的不同组
+    输入：合成跨行绑定
+    输出：无
+    """
+    draft, artifacts = sample()
+    draft["blocks"][0]["values"]["count"]["row"] = 1
+    with pytest.raises(DataError) as caught:
+        render_blocks(ReportDraft.model_validate(draft), artifacts, {})
+    assert caught.value.code == "REPORT_ROW_BINDING_MISMATCH"
+    assert caught.value.details["references"]["carrier"]["row"] == 0
+    assert caught.value.details["references"]["count"]["row"] == 1
+    assert "月份" in caught.value.details["instruction"]

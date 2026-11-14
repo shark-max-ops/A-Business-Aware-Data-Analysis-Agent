@@ -39,8 +39,8 @@ export function ExecutionTrace({ run, events, connection, recordsState = 'comple
   const timeline = [...steps, ...modelSteps(scopedEvents)].sort((a, b) => (a.startedAt ?? a.finishedAt ?? '').localeCompare(b.startedAt ?? b.finishedAt ?? ''));
   const complete = recordsState === 'complete' || recordsState === 'live';
   const summary = complete ? executionSummary(run, scopedEvents, steps) : {
-    tone: run.status === 'failed' ? 'error' as const : 'neutral' as const,
-    title: run.status === 'completed' ? (run.result?.kind === 'report' ? '报告已生成' : run.result?.kind === 'clarification' ? '需要补充条件' : '查询已完成') : run.status === 'cancelled' ? '分析已取消' : '分析未完成',
+    tone: run.status === 'failed' ? 'error' as const : run.result?.kind === 'report' && run.result.partial ? 'warning' as const : 'neutral' as const,
+    title: run.status === 'completed' ? (run.result?.kind === 'report' && run.result.partial ? '部分完成，已保留核查结果' : run.result?.kind === 'report' && run.result.has_unverified_explanations ? '结果已保存，附有未核实解释' : run.result?.kind === 'report' ? '报告已生成' : run.result?.kind === 'clarification' ? '需要补充条件' : '查询已完成') : run.status === 'cancelled' ? '分析已取消' : '分析未完成',
     info: recordsState === 'loading' ? '正在读取执行记录…' : recordsState === 'partial' ? '仅已读取部分记录' : '执行记录按需读取',
   };
   const resultIds = run.result?.kind === 'query_result' ? run.result.artifact_ids : [];

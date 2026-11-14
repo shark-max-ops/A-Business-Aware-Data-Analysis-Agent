@@ -243,7 +243,7 @@ def run_case(api, investigation, question, metric_id, output):
             "investigation_id": current["id"],
             "expected_investigation_version": current["version"],
             "question": question,
-            "metric_revision_ids": [metric_id],
+            "metric_revision_ids": [metric_id] if metric_id is not None else [],
         },
     )
     case = {"created_at": utc_now(), "run": run, "passed": False}

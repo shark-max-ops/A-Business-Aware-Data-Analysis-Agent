@@ -139,7 +139,7 @@ def test_report_real_sql_values_events_and_evidence(agent_workspace):
     assert types[-2:] == ["report.ready", "run.completed"]
     assert [e["seq"] for e in events] == list(range(1, len(events) + 1))
     assert report.validation_level == "references_validated"
-    assert report.blocks[4].columns[1].label == "航班记录"
+    assert report.blocks[4].columns[1].label == "记录数"
     assert "业务" in report.limitations[-1]
 
 

@@ -279,6 +279,54 @@ class CreateInvestigation(StrictDTO):
     date_range: DateRange | None = None
 
 
+class FindingObservation(StrictDTO):
+    """
+    作用：选择成功产物中的真实记录，避免模型手写占位符和同行绑定
+    输入：产物、绝对零基行号及要展示的列
+    输出：待授权核对的行选择
+    """
+
+    artifact_id: str = Field(min_length=1, max_length=100)
+    row: int = Field(ge=0, strict=True)
+    columns: list[Annotated[str, Field(min_length=1, max_length=200)]] = Field(
+        min_length=1, max_length=6
+    )
+
+    @model_validator(mode="after")
+    def distinct_columns(self):
+        """作用：拒绝重复列；输入：行选择；输出：有效行选择。"""
+        if len(self.columns) != len(set(self.columns)):
+            raise ValueError("columns不能重复")
+        return self
+
+
+class RecordFindingInput(StrictDTO):
+    """
+    作用：向模型开放简短的发现输入，由服务端构造规范引用文字
+    输入：分类、核查问题、最多四行真实记录及可选待复核说明
+    输出：尚未保存的发现选择
+    """
+
+    kind: Literal["fact", "candidate", "counterevidence", "limitation", "recommendation"]
+    check: str = Field(min_length=1, max_length=400)
+    observations: list[FindingObservation] = Field(default_factory=list, max_length=4)
+    note: str = Field(default="", max_length=800)
+    evidence_ids: list[str] = Field(default_factory=list, max_length=8)
+    questions: list[Annotated[str, Field(min_length=1, max_length=400)]] = Field(
+        default_factory=list, max_length=6
+    )
+    supersedes: str | None = None
+
+    @model_validator(mode="after")
+    def meaningful_content(self):
+        """作用：拒绝空记录与说明中的伪占位符；输入：发现选择；输出：有效输入。"""
+        if not self.observations and not self.note.strip():
+            raise ValueError("至少选择一行observations，或用note说明限制")
+        if "{{" in self.note or "}}" in self.note:
+            raise ValueError("note只写普通说明，数字通过observations引用，不填写占位符")
+        return self
+
+
 class RecordFinding(StrictDTO):
     """
     作用：记录核查后的发现与待解决问题
@@ -326,6 +374,7 @@ class FindingDTO(StrictDTO):
     value_refs: dict[str, ValueRef]
     row_bindings: list[RowBinding] = Field(default_factory=list)
     source_run_status: RunStatus
+    verification: Literal["result_values", "checked_relation", "unverified"] | None = None
 
 
 class InvestigationDTO(StrictDTO):

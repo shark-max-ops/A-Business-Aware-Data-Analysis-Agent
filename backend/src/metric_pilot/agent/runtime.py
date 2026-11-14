@@ -67,6 +67,9 @@ class AgentRuntime:
         seen, previous_failure, repeated = set(), None, 0
         usage = {}
         closing = False
+        forced_finalization, finding_rejections = False, 0
+        checkpoint_records, observed_rows = 0, set()
+        report_limits = []
         last_phase = "investigate"
         try:
             previous = [
@@ -86,6 +89,7 @@ class AgentRuntime:
                     reserve = min(5, max(1, budget["max_turns"] // 3))
                     closing = (
                         closing
+                        or forced_finalization
                         or turns_left <= reserve
                         or remaining <= 4
                         or (
@@ -98,7 +102,8 @@ class AgentRuntime:
                     if closing:
                         phase = (
                             "finalize"
-                            if turns_left <= min(3, reserve)
+                            if forced_finalization
+                            or turns_left <= min(3, reserve)
                             or remaining == 0
                             or (remaining <= 2 and registry.recorded_count)
                             else "prepare"
@@ -123,8 +128,12 @@ class AgentRuntime:
                         "successful_queries": len(registry.query_summaries),
                         "recorded_findings": registry.recorded_count,
                         "instruction": (
-                            "收尾前尚缺本轮记录；当前仅允许record_finding保存已核实发现或真实限制。"
-                            "statement必须含type=text、id、text_template、values、evidence_ids；"
+                            "已关闭工具，使用已有成功查询和已保存记录提交报告。"
+                            "同一批证据最多保存两条记录后收尾，不反复拆分候选；"
+                            "失败候选不能当作已核实事实，未完成目标写入限制和下一步。"
+                            if forced_finalization
+                            else "尚缺本轮记录；仅record_finding保存已核实发现或真实限制。"
+                            "使用observations选择已有产物行与列，由服务端生成引用；无数据时用note说明限制。"
                             "不能新增查询或把未来计划冒充已完成事实，保存后立即提交报告。"
                             if needs_checkpoint
                             else "现在只提交最终报告或如实说明缺少的关键条件，不再调用工具。"
@@ -136,7 +145,8 @@ class AgentRuntime:
                             else "已有成功核查但尚无记录时，"
                             "先 record_finding 保存观察或限制，再继续核查。"
                             if registry.query_summaries and not registry.recorded_count
-                            else "按已有结果选择有价值的核查；不要重复已完成的结构与范围查询。"
+                            else "已有成功查询和本轮记录时，若本轮目标已满足即提交报告；"
+                            "可选扩展留作下一步，不重复结构、结果读取或为排序重算汇总。"
                         ),
                     }
                     if phase != last_phase:
@@ -189,7 +199,10 @@ class AgentRuntime:
                                 run["id"], "run.progress", {"summary": "正在核对报告数字与依据"}
                             )
                             prepared = await asyncio.to_thread(
-                                ReportService(query).prepare, run, candidate.report
+                                ReportService(query).prepare,
+                                run,
+                                candidate.report,
+                                runtime_warnings=report_limits,
                             )
                         self.check(ctx, cancel)
                         self.observer.on_finish(
@@ -246,8 +259,50 @@ class AgentRuntime:
                                 fields=details.get("fields", []),
                             ),
                         )
+                        display_error = code in {
+                            "REPORT_STRUCTURE_INVALID",
+                            "REPORT_CHART_AXIS_AMBIGUOUS",
+                            "REPORT_TEMPLATE_KEYS",
+                            "REPORT_ROW_BINDING_KEYS",
+                            "REPORT_ROW_BINDING_MISMATCH",
+                        }
                         if repairs > 2:
+                            # 已有成功发现和查询时保留可追溯部分结果，明确解释未完成。
+                            if (
+                                display_error
+                                and registry.recorded_count
+                                and registry.query_summaries
+                            ):
+                                self.check(ctx, cancel)
+                                prepared = await asyncio.to_thread(
+                                    ReportService(query).table_fallback,
+                                    run,
+                                    [item["artifact_id"] for item in registry.query_summaries],
+                                    report_limits,
+                                )
+                                if prepared is not None:
+                                    self.check(ctx, cancel)
+                                    self.observer.on_finish(
+                                        run["id"],
+                                        "completed",
+                                        None,
+                                        usage=usage,
+                                        prepared_report=prepared,
+                                        deadline=ctx.deadline_monotonic,
+                                        cancel=cancel,
+                                    )
+                                    return
                             raise DataError("FINAL_CANDIDATE_INVALID") from None
+                        repair_draft = None
+                        if display_error and registry.recorded_count and registry.query_summaries:
+                            example = await asyncio.to_thread(
+                                ReportService(query).table_fallback,
+                                run,
+                                [item["artifact_id"] for item in registry.query_summaries],
+                            )
+                            if example:
+                                repair_draft = example["draft"]
+                                repair_draft["title"] = "已核查结果"
                         groups.append(
                             [
                                 {
@@ -266,6 +321,7 @@ class AgentRuntime:
                                         {
                                             "error_code": code,
                                             "details": details,
+                                            "valid_table_draft": repair_draft,
                                             "instruction": (
                                                 "按报告契约修正；仅引用本次或服务端允许的同调查成功产物。"
                                                 "只输出JSON对象，不加Markdown围栏；外层kind=report与report，"
@@ -275,6 +331,10 @@ class AgentRuntime:
                                                 "INVESTIGATION_RECORD_REQUIRED 时"
                                                 "先核查并 record_finding。"
                                                 "截断需重新聚合查询。"
+                                                "REPORT_SCOPE_*时核对可见维度、人群与固定日期；"
+                                                "valid_table_draft非空时可直接用其真实表格字段，"
+                                                "再简要说明已核实发现和限制，无需添加图表。"
+                                                "需要筛选则先查询成功产物，不得删除声明掩盖不符或换无关引用。"
                                             ),
                                         },
                                         ensure_ascii=False,
@@ -349,6 +409,15 @@ class AgentRuntime:
                         }
                     )
                     signature = digest({"name": call.name, "arguments": call.arguments})
+                    if result.ok and result.data.get("artifact"):
+                        artifact = result.data["artifact"]
+                        indices = result.data.get("row_indices", [])
+                        actual_rows = {(artifact["id"], row) for row in indices}
+                        if not actual_rows:
+                            actual_rows = {(artifact["id"], None)}
+                        if actual_rows - observed_rows:
+                            checkpoint_records = 0
+                            observed_rows.update(actual_rows)
                     if not result.ok and not pending_clarification:
                         repeated = repeated + 1 if signature == previous_failure else 1
                         previous_failure = signature
@@ -377,7 +446,30 @@ class AgentRuntime:
                                 stop_code = "QUERY_TIMEOUT_REPAIR_EXCEEDED"
                     else:
                         previous_failure, repeated = None, 0
+                    if call.name == "record_finding":
+                        if result.ok:
+                            finding_rejections = 0
+                            checkpoint_records += 1
+                            if checkpoint_records >= 2:
+                                forced_finalization = True
+                        elif result.error_code in {
+                            "INVALID_ARGUMENT",
+                            "REPORT_TEMPLATE_KEYS",
+                            "REPORT_ROW_BINDING_KEYS",
+                            "REPORT_ROW_BINDING_MISMATCH",
+                        }:
+                            finding_rejections += 1
+                            # 可选记录修正不应丢弃成功证据；无本轮成功发现时仍按原规则失败。
+                            if finding_rejections >= 2 and registry.recorded_count:
+                                forced_finalization = True
+                                stop_code = "REPEATED_TOOL_FAILURE"
+                                report_limits = [
+                                    "部分候选发现未通过引用校验，未作为已核实发现保存；"
+                                    "报告使用成功查询和已保存记录，未完成部分仍需后续核查。"
+                                ]
                 groups.append(group)
+                if forced_finalization and stop_code == "REPEATED_TOOL_FAILURE":
+                    stop_code = None
                 if stop_code:
                     raise DataError(stop_code)
                 if pending_clarification:

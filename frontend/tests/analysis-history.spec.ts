@@ -1,5 +1,62 @@
 import { test, expect, type Page } from '@playwright/test';
 
+test('report keeps fixed main range separate from declared population and subrange', async ({ page }) => {
+  const range = { start: '2026-01-01', end_exclusive: '2026-03-01' };
+  const report = { report_id: 'scope-test', revision_id: 'v1', version: 1, title: '合成范围报告',
+    question: '合成问题', scope: '范围说明', date_range: range, created_at: '2026-01-01T00:00:00Z',
+    data_snapshot: { id: 'synthetic', period: null, manifest: { source_kind: 'synthetic' } },
+    limitations: ['仅合成展示验收'], draft: { limitations: [] }, blocks: [{
+      id: 'groups', type: 'table', title: '指定航司', artifact_id: 'qa_test',
+      columns: [{ name: 'carrier', label: '航司' }, { name: 'day', label: '日期' }],
+      rows: [[{ raw: 'OH', display: 'OH', value_ref: { artifact_id: 'qa_test', row: 0, column: 'carrier' } },
+        { raw: '2026-01-01', display: '2026-01-01', value_ref: { artifact_id: 'qa_test', row: 0, column: 'day' } }]],
+      display_scope: { dimensions: ['carrier', 'day'], population: { carrier: ['OH'] },
+        date_column: 'day', date_range: { start: '2026-01-01', end_exclusive: '2026-01-02' } },
+    }] };
+  await page.route('**/api/v1/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    const health = { llm: 'configured_unverified', analysis: 'ready', status: 'ok', stage: 4,
+      database: 'ready', fts5: 'available', worker: 'ready', embedding: 'not_configured' };
+    return route.fulfill({ json: path.endsWith('/health') ? health : path.endsWith('/v1') ? report : { items: [] } });
+  });
+  await page.goto('/reports/scope-test/revisions/v1');
+  for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    await expect(page.getByText('固定主范围：2026-01-01 至 2026-03-01（不含结束日）')).toBeVisible();
+    await expect(page.getByText('日期子范围：2026-01-01 至 2026-01-02（不含结束日）')).toBeVisible();
+    await expect(page.getByText('分组维度：航司、日期')).toBeVisible();
+    await expect(page.getByText('人群（航司）：OH')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `../.cache/screenshots/stage7c-scope-${viewport.width}.png`, animations: 'disabled' });
+  }
+});
+
+test('unverified ranking prose stays outside checked conclusions and collapsed by default', async ({ page }) => {
+  const report = { report_id: 'claim-policy', revision_id: 'v1', version: 1, title: '合成核对报告',
+    question: '合成排名问题', scope: '模型自由说明', verification_policy: 'checked_relations_v1',
+    has_unverified_explanations: true, created_at: '2026-01-01T00:00:00Z',
+    data_snapshot: { id: 'synthetic', manifest: { source_kind: 'synthetic' } }, limitations: [],
+    draft: { limitations: [] }, blocks: [
+      { id: 'checked', type: 'text', verification: 'checked_relation', proof: { comparison_rows: 52 },
+        segments: [{ text: '服务端核对第三名为 AA，最低组为 B6。' }] },
+      { id: 'unsafe', type: 'text', verification: 'unverified',
+        segments: [{ text: '合成错误解释：YX第三高，AS最低。' }] },
+    ] };
+  await page.route('**/api/v1/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    return route.fulfill({ json: path.endsWith('/health') ? { status: 'ok', llm: 'configured_unverified', analysis: 'ready' }
+      : path.endsWith('/v1') ? report : { items: [] } });
+  });
+  await page.goto(`${process.env.STAGE7_BASE_URL ?? ''}/reports/claim-policy/revisions/v1`);
+  await expect(page.getByText('服务端核对第三名为 AA，最低组为 B6。', { exact: true })).toBeVisible();
+  const pending = page.locator('.report-unverified');
+  await expect(pending.locator('summary')).toContainText('不属于已核对结论');
+  await expect(page.getByText('合成错误解释：YX第三高，AS最低。', { exact: true })).toBeHidden();
+  await pending.locator('summary').click();
+  await expect(page.getByText('合成错误解释：YX第三高，AS最低。', { exact: true })).toBeVisible();
+  await expect(pending).toContainText('可能存在排名、分母或因果错误');
+});
+
 // 全部为浏览器合成响应；不创建真实调查或调用模型。
 const timestamp = '2026-01-01T00:00:00Z';
 function investigation(id: string) {
@@ -394,6 +451,24 @@ test('the source index excludes uncited materials from the frozen report pool', 
   await turn.getByText('本轮数据与依据', { exact: true }).click();
   await expect(turn.locator('.turn-source-index')).toContainText('实际引用资料');
   await expect(turn.locator('.turn-source-index')).not.toContainText('未引用的搜索命中');
+});
+
+test('partial reports stay visibly partial in history and the full report', async ({ page }) => {
+  await setup(page, [Object.assign(run(1), { result: { kind: 'report', report_id: 'partial-report', revision_id: 'rev', partial: true } })]);
+  const report = { report_id: 'partial-report', revision_id: 'rev', run_id: 'history-1',
+    title: '合成部分结果', partial: true, limitations: ['候选解释未通过校验'], sources: [],
+    version: 1, scope: '合成范围', data_snapshot: { id: 'snap', manifest: {} }, created_at: timestamp,
+    draft: { limitations: [] }, blocks: [{ id: 'text', type: 'text', segments: [{ text: '有效结果已保留' }], evidence_ids: [] }] };
+  await page.route('**/api/v1/reports/partial-report/revisions/rev', route => route.fulfill({ json: report }));
+  await page.route('**/api/v1/reports/partial-report/revisions', route => route.fulfill({ json: { items: [] } }));
+  await page.reload();
+  const turn = page.locator('.run-result');
+  await expect(turn.locator('.execution-title')).toHaveText('部分完成，已保留核查结果');
+  await expect(turn.getByText('部分完成：已保留核查结果', { exact: true })).toBeVisible();
+  await expect(turn.getByText('分析已完成', { exact: true })).toHaveCount(0);
+  await turn.getByRole('link', { name: '打开完整报告 ↗' }).click();
+  await expect(page.getByText('部分完成：已保留核查结果，解释仍需复核', { exact: true })).toBeVisible();
+  await expect(page.getByText('候选解释未通过校验', { exact: true })).toBeVisible();
 });
 
 test('investigation refresh failure is not displayed as zero saved findings or no references', async ({ page }) => {

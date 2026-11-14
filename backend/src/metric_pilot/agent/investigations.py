@@ -186,6 +186,7 @@ class InvestigationStore(KnowledgeStore):
             },
             **{key: p[key] for key in ("kind", "check", "questions", "supersedes", "created_at")},
             "text": "".join(s["text"] for s in p["block"]["segments"]),
+            "verification": p["block"].get("verification"),
         }
 
     def record(self, run, args, block, frozen):

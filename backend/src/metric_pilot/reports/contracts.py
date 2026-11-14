@@ -37,6 +37,19 @@ class KPIBlock(StrictDTO):
     format: ValueFormat
 
 
+class DisplayScope(StrictDTO):
+    """
+    作用：声明表图的可核对分组、人群及日期子范围
+    输入：真实维度列、字符串分类集合及可选日期列和区间
+    输出：待服务端逐行核对的声明，不执行筛选
+    """
+
+    dimensions: list[str] = Field(min_length=1, max_length=8)
+    population: dict[str, list[str]] = Field(default_factory=dict, max_length=8)
+    date_range: DateRange | None = None
+    date_column: str | None = Field(default=None, min_length=1, max_length=200)
+
+
 class TableBlock(StrictDTO):
     """
     作用：声明冻结结果表格
@@ -50,6 +63,7 @@ class TableBlock(StrictDTO):
     artifact_id: str
     columns: list[str] = Field(min_length=1, max_length=16)
     column_labels: dict[str, str] = Field(default_factory=dict, max_length=16)
+    display_scope: DisplayScope | None = None
 
 
 class ChartBlock(StrictDTO):
@@ -69,6 +83,7 @@ class ChartBlock(StrictDTO):
     x_label: str = Field(default="分类", max_length=120)
     series_labels: dict[str, str] = Field(default_factory=dict, max_length=3)
     format: ValueFormat = "decimal_2"
+    display_scope: DisplayScope | None = None
 
 
 class RowBinding(StrictDTO):
@@ -97,7 +112,42 @@ class TextBlock(StrictDTO):
     row_bindings: list[RowBinding] = Field(default_factory=list, max_length=24)
 
 
-Block = Annotated[KPIBlock | TableBlock | ChartBlock | TextBlock, Field(discriminator="type")]
+class RankingBlock(StrictDTO):
+    """
+    作用：声明由服务端在完整冻结结果集内计算的排名
+    输入：产物、身份列、数值列、方向与名次上限
+    输出：待核对的排名请求，不接受模型提供名次或结论
+    """
+
+    type: Literal["ranking"]
+    id: str = Field(min_length=1, max_length=80)
+    artifact_id: str
+    dimensions: list[str] = Field(min_length=1, max_length=6)
+    measure: str
+    direction: Literal["descending", "ascending"] = "descending"
+    top_k: int = Field(default=3, ge=1, le=10, strict=True)
+
+
+class ComparisonBlock(StrictDTO):
+    """
+    作用：声明同一结果集同一字段两行之间的数值关系
+    输入：产物、完整身份列、数值列与两行位置
+    输出：待服务端计算的关系，不接受模型提供升降或差值
+    """
+
+    type: Literal["comparison"]
+    id: str = Field(min_length=1, max_length=80)
+    artifact_id: str
+    dimensions: list[str] = Field(min_length=1, max_length=6)
+    measure: str
+    left_row: int = Field(ge=0, strict=True)
+    right_row: int = Field(ge=0, strict=True)
+
+
+Block = Annotated[
+    KPIBlock | TableBlock | ChartBlock | TextBlock | RankingBlock | ComparisonBlock,
+    Field(discriminator="type"),
+]
 
 
 class ReportDraft(StrictDTO):
@@ -110,6 +160,7 @@ class ReportDraft(StrictDTO):
     schema_version: Literal["1"]
     title: str = Field(min_length=1, max_length=160)
     scope: str = Field(min_length=1, max_length=1000)
+    date_range: DateRange | None = None
     metric_revision_ids: list[str] = Field(default_factory=list, max_length=16)
     blocks: list[Block] = Field(min_length=1, max_length=20)
     limitations: list[str] = Field(default_factory=list, max_length=12)
@@ -136,6 +187,8 @@ class ReportResult(StrictDTO):
     kind: Literal["report"]
     report_id: str
     revision_id: str
+    partial: bool = False
+    has_unverified_explanations: bool = False
 
 
 class FrozenValue(StrictDTO):
@@ -192,6 +245,9 @@ class RenderedBlock(StrictDTO):
     row_bindings: list[RowBinding] = Field(default_factory=list)
     evidence_ids: list[str] = Field(default_factory=list)
     ordered: bool = False
+    display_scope: DisplayScope | None = None
+    verification: Literal["result_values", "checked_relation", "unverified"] | None = None
+    proof: dict[str, Any] | None = None
 
 
 class FrozenSource(StrictDTO):
@@ -254,6 +310,9 @@ class ReportDTO(StrictDTO):
     content_hash: str
     external_snapshots: list[dict[str, Any]] = Field(default_factory=list)
     date_range: DateRange | None = None
+    partial: bool = False
+    verification_policy: str | None = None
+    has_unverified_explanations: bool = False
 
 
 class EvidenceDTO(StrictDTO):
@@ -273,6 +332,7 @@ class EvidenceDTO(StrictDTO):
     validation_level: Literal["references_validated"] = "references_validated"
     external_snapshots: list[dict[str, Any]] = Field(default_factory=list)
     date_range: DateRange | None = None
+    proof: dict[str, Any] | None = None
 
 
 class ReportRevisionWrite(StrictDTO):

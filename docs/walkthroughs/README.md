@@ -1,6 +1,6 @@
 ﻿# 各阶段代码讲解
 
-更新日期：2026-11-09（Asia/Shanghai）。项目名称：**A Business-Aware Data Analysis Agent**；内部 Python 包名：`metric_pilot`。
+更新日期：2026-11-14（Asia/Shanghai）。项目名称：**A Business-Aware Data Analysis Agent**；内部 Python 包名：`metric_pilot`。
 
 这里保存各阶段的代码讲解，说明这一阶段解决什么问题、一次操作如何经过不同模块，以及关键文件分别负责什么。每篇统一包含：阶段目标、执行流程、代码文件讲解、具体例子、验证与限制。
 
@@ -13,8 +13,10 @@
 | 4：调查与可追溯报告 | [报告与数字取证](stage-4-reports.md)、[持续调查与证据复用](stage-4-investigations.md) | 已完成 Windows 与真实模型调查、续查案例验收，边界见实施记录 |
 | 5：外部来源与调查工具 | [5.A 天气](stage-5a-weather.md)、[5.B 公告](stage-5b-advisories.md)、[5.C 证据](stage-5c-external-evidence.md)、[5.D 调查与页面](stage-5d-investigation-tools.md) | 5.A—5.D 完成 Windows 工程案例验收；用户可试用 |
 | 6：多月 BTS 数据与跨月调查 | [6.A 原件核验](../design/03-data-and-sql.md#多月-bts-数据准备阶段-6a-已实现)、[6.B 多月快照](../design/03-data-and-sql.md#6b不可变多月数据快照)、[6.C 固定范围](../design/03-data-and-sql.md#6c固定日期范围与跨期口径) | 6.A—6.E按所列范围完成；真实月度/OH续查/日粒度分支有独立核对，复杂分组失败保留；下一步阶段7 |
-| 7：工具条件与分析扩展 | 尚未建立实施导读，设计见蓝图 07 | 尚未实施 |
-| 8：整体评估与交付 | 尚未建立实施导读 | 尚未实施，不预填准确率或费用 |
+| 7：解释错位优化 | [身份、范围与真实核查](stage-7-explanations.md) | 所列有限路径完成；保留失败和人工语义边界 |
+| 8：上下文容量 | [上下文与调查摘要设计](../../compact.md) | 设计已补充，实现未开始 |
+| 9：工具条件与分析扩展 | 设计见蓝图07 | 尚未实施 |
+| 10：整体评估与交付 | 设计见蓝图07 | 尚未实施，不预填准确率或费用 |
 
 ## 这些文档与其他文档的区别
 

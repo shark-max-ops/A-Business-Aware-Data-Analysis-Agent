@@ -131,9 +131,10 @@ export function executionSummary(run: Run, events: RunEvent[], steps: ToolStep[]
     case 'queued': title = '分析已排队'; tone = 'running'; break;
     case 'running': title = run.cancel_requested ? '正在停止分析' : running ? runningLabels[running.name] ?? '正在执行工具' : '正在处理分析请求'; tone = 'running'; break;
     case 'completed':
-      title = run.result?.kind === 'clarification' ? '需要补充条件' : run.result?.kind === 'report' ? '报告已生成' : '查询已完成';
-      if (run.result?.kind === 'report' && pendingWeather) title = '报告已生成，天气核查未完成';
-      tone = run.result?.kind === 'clarification' || failed ? 'warning' : 'success';
+      title = run.result?.kind === 'report' && run.result.partial ? '部分完成，已保留核查结果' : run.result?.kind === 'clarification' ? '需要补充条件' : run.result?.kind === 'report' ? '报告已生成' : '查询已完成';
+      if (run.result?.kind === 'report' && !run.result.partial && pendingWeather) title = '报告已生成，天气核查未完成';
+      if (run.result?.kind === 'report' && !run.result.partial && run.result.has_unverified_explanations) title = '结果已保存，附有未核实解释';
+      tone = (run.result?.kind === 'report' && (run.result.partial || run.result.has_unverified_explanations)) || run.result?.kind === 'clarification' || failed ? 'warning' : 'success';
       break;
     case 'failed': title = '分析未完成'; tone = 'error'; break;
     case 'cancelled': title = '分析已取消'; tone = 'neutral'; break;
@@ -163,6 +164,8 @@ export function stepDescription(step: ToolStep): string {
     const messages: Record<string, string> = {
       EXTERNAL_TIMEOUT: '外部核查超时，本次未完成', EXTERNAL_CONNECTION_FAILED: '外部来源暂时连接失败', EXTERNAL_HTTP_ERROR: '外部来源未能读取', WEATHER_STATION_NOT_FOUND: '尚无已核对的气象站', EXTERNAL_SOURCE_NOT_GRANTED: '来源未获本轮授权', EXTERNAL_REQUEST_LIMIT: '外部请求额度已用完', EXTERNAL_BYTE_BUDGET_EXCEEDED: '外部资料读取量达到上限',
       REPORT_TEMPLATE_KEYS: '发现文字与数值引用不匹配，需修正', EXTERNAL_TOOL_NOT_SUCCEEDED: '来源对应工具未成功，需重新核查',
+      REPORT_ROW_BINDING_KEYS: '发现的分组引用需要修正', REPORT_ROW_BINDING_MISMATCH: '分组身份与数值不在同一行，需修正',
+      REPORT_COLUMN_NOT_FOUND: '选择的结果列不存在，需按实际列名修正', REPORT_ROW_NOT_FOUND: '选择的结果行不存在，需按实际行号修正',
       METRIC_NOT_APPLICABLE: '没有适用的已审核指标', METRIC_CONFLICT: '指标口径存在冲突',
       SQL_EXECUTION_FAILED: '查询未成功，未生成证据', INVALID_ARGUMENT: '工具参数需要修正',
       RUN_CANCELLED: '执行已取消', QUERY_CANCELLED: '查询已取消', RUN_INTERRUPTED: '服务中断',

@@ -1123,6 +1123,7 @@ export interface components {
              * @enum {string}
              */
             format: "integer" | "decimal_2" | "percent_2" | "minutes_2";
+            display_scope?: components["schemas"]["DisplayScope"] | null;
         };
         /**
          * ChunkDTO
@@ -1198,6 +1199,31 @@ export interface components {
             description: string;
         };
         /**
+         * ComparisonBlock
+         * @description 作用：声明同一结果集同一字段两行之间的数值关系
+         *     输入：产物、完整身份列、数值列与两行位置
+         *     输出：待服务端计算的关系，不接受模型提供升降或差值
+         */
+        ComparisonBlock: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "comparison";
+            /** Id */
+            id: string;
+            /** Artifact Id */
+            artifact_id: string;
+            /** Dimensions */
+            dimensions: string[];
+            /** Measure */
+            measure: string;
+            /** Left Row */
+            left_row: number;
+            /** Right Row */
+            right_row: number;
+        };
+        /**
          * ConversationDTO
          * @description 作用：描述会话
          *     输入：服务端记录
@@ -1264,6 +1290,23 @@ export interface components {
             start: string;
             /** End Exclusive */
             end_exclusive: string;
+        };
+        /**
+         * DisplayScope
+         * @description 作用：声明表图的可核对分组、人群及日期子范围
+         *     输入：真实维度列、字符串分类集合及可选日期列和区间
+         *     输出：待服务端逐行核对的声明，不执行筛选
+         */
+        DisplayScope: {
+            /** Dimensions */
+            dimensions: string[];
+            /** Population */
+            population?: {
+                [key: string]: string[];
+            };
+            date_range?: components["schemas"]["DateRange"] | null;
+            /** Date Column */
+            date_column?: string | null;
         };
         /**
          * DocumentMetadata
@@ -1402,6 +1445,10 @@ export interface components {
                 [key: string]: unknown;
             }[];
             date_range?: components["schemas"]["DateRange"] | null;
+            /** Proof */
+            proof?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * ExplorationScope
@@ -1455,6 +1502,8 @@ export interface components {
              * @enum {string}
              */
             source_run_status: "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
+            /** Verification */
+            verification?: ("result_values" | "checked_relation" | "unverified") | null;
         };
         /**
          * FrozenSource
@@ -1945,6 +1994,38 @@ export interface components {
             artifact_ids: string[];
         };
         /**
+         * RankingBlock
+         * @description 作用：声明由服务端在完整冻结结果集内计算的排名
+         *     输入：产物、身份列、数值列、方向与名次上限
+         *     输出：待核对的排名请求，不接受模型提供名次或结论
+         */
+        RankingBlock: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "ranking";
+            /** Id */
+            id: string;
+            /** Artifact Id */
+            artifact_id: string;
+            /** Dimensions */
+            dimensions: string[];
+            /** Measure */
+            measure: string;
+            /**
+             * Direction
+             * @default descending
+             * @enum {string}
+             */
+            direction: "descending" | "ascending";
+            /**
+             * Top K
+             * @default 3
+             */
+            top_k: number;
+        };
+        /**
          * RenderedBlock
          * @description 作用：提供由服务端物化的统一块 DTO
          *     输入：已校验块与冻结数据
@@ -1983,6 +2064,13 @@ export interface components {
              * @default false
              */
             ordered: boolean;
+            display_scope?: components["schemas"]["DisplayScope"] | null;
+            /** Verification */
+            verification?: ("result_values" | "checked_relation" | "unverified") | null;
+            /** Proof */
+            proof?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * ReportColumn
@@ -2046,6 +2134,18 @@ export interface components {
                 [key: string]: unknown;
             }[];
             date_range?: components["schemas"]["DateRange"] | null;
+            /**
+             * Partial
+             * @default false
+             */
+            partial: boolean;
+            /** Verification Policy */
+            verification_policy?: string | null;
+            /**
+             * Has Unverified Explanations
+             * @default false
+             */
+            has_unverified_explanations: boolean;
         };
         /**
          * ReportDraft
@@ -2063,10 +2163,11 @@ export interface components {
             title: string;
             /** Scope */
             scope: string;
+            date_range?: components["schemas"]["DateRange"] | null;
             /** Metric Revision Ids */
             metric_revision_ids?: string[];
             /** Blocks */
-            blocks: (components["schemas"]["KPIBlock"] | components["schemas"]["TableBlock"] | components["schemas"]["ChartBlock"] | components["schemas"]["TextBlock"])[];
+            blocks: (components["schemas"]["KPIBlock"] | components["schemas"]["TableBlock"] | components["schemas"]["ChartBlock"] | components["schemas"]["TextBlock"] | components["schemas"]["RankingBlock"] | components["schemas"]["ComparisonBlock"])[];
             /** Limitations */
             limitations?: string[];
         };
@@ -2086,6 +2187,16 @@ export interface components {
             report_id: string;
             /** Revision Id */
             revision_id: string;
+            /**
+             * Partial
+             * @default false
+             */
+            partial: boolean;
+            /**
+             * Has Unverified Explanations
+             * @default false
+             */
+            has_unverified_explanations: boolean;
         };
         /**
          * ReportRevisionWrite
@@ -2360,6 +2471,7 @@ export interface components {
             column_labels?: {
                 [key: string]: string;
             };
+            display_scope?: components["schemas"]["DisplayScope"] | null;
         };
         /**
          * TableDTO

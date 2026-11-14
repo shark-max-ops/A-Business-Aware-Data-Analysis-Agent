@@ -35,11 +35,23 @@ describe('execution presentation uses actual evidence', () => {
   });
   it('distinguishes a saved report from an unfinished weather check', () => {
     const events = [event(1, 'run.started', {}), event(2, 'tool.started', { tool_execution_id: 'weather', tool: 'query_historical_weather', arguments: { airport: 'ATL', start: '2026-01-24' } }), event(3, 'tool.finished', { tool_execution_id: 'weather', tool: 'query_historical_weather', status: 'failed', ok: false, error_code: 'EXTERNAL_TIMEOUT' }), event(5, 'run.completed', {})];
-    const report: Run = { ...run, result: { kind: 'report', report_id: 'synthetic', revision_id: 'synthetic' } };
+    const report: Run = { ...run, result: { kind: 'report', report_id: 'synthetic', revision_id: 'synthetic', partial: false, has_unverified_explanations: false } };
     const steps = executionSteps(events);
     expect(executionSummary(report, events, steps).title).toBe('报告已生成，天气核查未完成');
     expect(stepDescription(steps[0])).toContain('本次未完成');
     expect(executionSummary(report, history, executionSteps(history)).title).toBe('报告已生成');
+  });
+  it('labels retained results as partial instead of full analysis success', () => {
+    const partial: Run = { ...run, result: { kind: 'report', report_id: 'synthetic', revision_id: 'synthetic', partial: true, has_unverified_explanations: false } };
+    const summary = executionSummary(partial, history, executionSteps(history));
+    expect(summary.title).toBe('部分完成，已保留核查结果');
+    expect(summary.tone).toBe('warning');
+  });
+  it('does not imply unverified narrative is a checked conclusion', () => {
+    const value: Run = { ...run, result: { kind: 'report', report_id: 'synthetic', revision_id: 'synthetic', partial: false, has_unverified_explanations: true } };
+    const summary = executionSummary(value, history, executionSteps(history));
+    expect(summary.title).toBe('结果已保存，附有未核实解释');
+    expect(summary.tone).toBe('warning');
   });
   it('explains model failures without blaming successful SQL or inventing old diagnostics', () => {
     const failed = { ...run, status: 'failed' as const, error_code: 'MODEL_REQUEST_FAILED' };
@@ -92,5 +104,7 @@ describe('execution presentation uses actual evidence', () => {
     const steps = executionSteps(history);
     expect(stepDescription({ ...steps[1], result: { data: { artifact: { returned_rows: 20, truncated: true } } } })).toContain('结果已截断');
     expect(stepDescription({ ...steps[0], result: { error_code: 'METRIC_NOT_APPLICABLE' } })).toBe('没有适用的已审核指标');
+    expect(stepDescription({ ...steps[0], result: { error_code: 'REPORT_ROW_BINDING_MISMATCH' } })).toContain('不在同一行');
+    expect(stepDescription({ ...steps[0], result: { error_code: 'REPORT_ROW_NOT_FOUND' } })).toContain('结果行不存在');
   });
 });

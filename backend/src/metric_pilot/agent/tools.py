@@ -7,14 +7,21 @@ from dataclasses import replace
 from datetime import date, timedelta
 
 from pydantic import ValidationError
+from sqlalchemy import select
 
 from metric_pilot.agent import contracts as a
 from metric_pilot.agent.context import compact_schema
 from metric_pilot.agent.external_tools import NAMES as EXTERNAL_NAMES
 from metric_pilot.agent.external_tools import ExternalTools
-from metric_pilot.agent.investigations import InvestigationStore, read_evidence_artifact
+from metric_pilot.agent.findings import canonical_finding
+from metric_pilot.agent.investigations import (
+    InvestigationStore,
+    authorized_runs,
+    read_evidence_artifact,
+)
 from metric_pilot.data.common import DataError
 from metric_pilot.data.contracts import ToolResult
+from metric_pilot.data.models import ArtifactRecord
 from metric_pilot.data.ranges import run_range, snapshot_range
 from metric_pilot.external.advisories import AdvisorySearch
 from metric_pilot.knowledge import models as km
@@ -52,7 +59,8 @@ SPECS = {
     "describe_table": (a.TableArgs, "查看允许表的字段、类型、语义、关联键和少量样本"),
     "query_sql": (
         a.SQLArgs,
-        "受限只读SQL。exploratory须给范围、计算、缺失说明，不绑指标；reviewed_metric须已解析修订。"
+        "受限只读SQL。exploratory须给范围、计算、缺失说明，不绑指标；"
+        "reviewed_metric须已解析修订且不传exploration_scope。"
         "航班表由服务端限制到固定date_range，参数不能扩大范围。"
         "天气填external_snapshot_id，不跨库连接。",
     ),
@@ -64,12 +72,22 @@ SPECS = {
 }
 
 
-def invalid_arguments(error, summary):
+def invalid_arguments(error, summary, tool_name=None):
     """
     作用：只暴露可修复的字段位置和类型，不回传输入值或敏感异常正文
-    输入：Pydantic校验错误与固定说明
+    输入：Pydantic校验错误、固定说明与工具名
     输出：统一工具失败结果
     """
+    instructions = {
+        "query_sql": "按fields修正。purpose=reviewed_metric必须绑定metric_revision_ids，"
+        "且exploration_scope须省略或为null；purpose=exploratory必须提供exploration_scope，"
+        "且metric_revision_ids必须为空；standard不能带exploration_scope。"
+        "保持用户目标和正式指标绑定，不删除指标或改成探索来绕过审核。",
+        "record_finding": "优先使用observations选择真实行，每次最多4行、每行最多6列；"
+        "不用statement、values或row_bindings；note只写普通待复核说明。"
+        "历史statement输入按constraints修正；values过多须减少叙述组数，"
+        "完整比较放表格，不删除必要身份引用来绕过校验。",
+    }
     return ToolResult(
         ok=False,
         summary=summary,
@@ -80,9 +98,18 @@ def invalid_arguments(error, summary):
                 {
                     "location": [str(part)[:80] for part in item["loc"][:6]],
                     "type": item["type"],
+                    "constraints": {
+                        key: value
+                        for key, value in item.get("ctx", {}).items()
+                        if key in {"max_length", "min_length", "actual_length", "ge", "le"}
+                        and type(value) in {int, float}
+                    },
                 }
                 for item in error.errors(include_input=False)[:12]
-            ]
+            ],
+            "instruction": instructions.get(
+                tool_name, "按fields位置与constraints修正参数，使用该工具公开签名中的字段。"
+            ),
         },
     )
 
@@ -130,10 +157,30 @@ class ToolRegistry:
         self.blocked_metrics = set()
         self.artifact_ids = set()
         self.knowledge_ids = set()
-        self.known_columns, self.query_summaries, self.progress = {}, [], {}
+        # 固定快照目录已加载，模型可直接使用列名，不重复调用结构发现工具。
+        self.known_columns = {
+            table.name: {column.name: column.type for column in table.columns}
+            for table in self.schema.tables
+        }
+        self.query_summaries, self.progress = [], {}
         self.source_summaries = {}
         self.recorded_count = 0
         self.external = ExternalTools(run, self.ctx, query, settings, cancel)
+        self.prior_artifacts = self.previous_artifacts() if run.get("investigation_id") else []
+        # 旧成功产物已绑定且在当前固定范围仍适用的口径可直接复用，不重复模型检索。
+        with self.store.engine.connect() as connection:
+            for item in self.prior_artifacts:
+                for ident in item.get("metric_revision_ids", []):
+                    if ident in self.resolved:
+                        continue
+                    row = self.store.get(connection, km.metric_revisions, ident)
+                    try:
+                        actual = self.metric(row["metric_key"])
+                    except DataError:
+                        continue
+                    if actual["id"] == ident:
+                        self.resolved.add(ident)
+                        self.definitions[ident] = actual["definition"]
 
     async def invoke_async(self, call):
         """
@@ -146,7 +193,7 @@ class ToolRegistry:
         try:
             args = self.specs()[call.name][0].model_validate(call.arguments)
         except ValidationError as error:
-            return invalid_arguments(error, "外部工具参数不符合契约，请按签名修正")
+            return invalid_arguments(error, "外部工具参数不符合契约，请按签名修正", call.name)
         return await self.external.invoke(call.name, args, call_id=call.id)
 
     def schemas(self):
@@ -183,12 +230,57 @@ class ToolRegistry:
                 "用 detail_offset 与 limit=1 读取单项完整文字和 ValueRef，读取后核对发现 ID",
             ),
             "record_finding": (
-                a.RecordFinding,
+                a.RecordFindingInput,
                 "保存核查发现：fact/candidate/counterevidence/limitation/recommendation；"
-                "数字用 statement.values 的 ValueRef；分组身份和数值用 "
-                "statement.row_bindings 同行绑定；supersedes 指向被修正的发现。",
+                "observations选择成功产物的artifact_id、绝对零基row和columns（含分组身份列）；"
+                "最多4行，每行最多6列。服务端生成引用和同行绑定，不填statement/values/row_bindings。"
+                "note只写待复核解释或限制，不手写数值；完整比较留在报告表格。"
+                "默认保存一条关键发现后提交报告，新核查或修正才追加；supersedes 指向被修正的发现。",
             ),
         }
+
+    def previous_artifacts(self):
+        """
+        作用：列出最近授权本地查询，避免续查重跑已有结果
+        输入：当前固定调查和既有证据权限
+        输出：最多六项经归属、成功和哈希核对的产物定位，不含数值
+        """
+        allowed = authorized_runs(self.store.engine, self.run) - {self.run["id"]}
+        if not allowed:
+            return []
+        with self.store.engine.connect() as connection:
+            ids = (
+                connection.execute(
+                    select(ArtifactRecord.id)
+                    .where(
+                        ArtifactRecord.run_id.in_(allowed),
+                        ArtifactRecord.payload["external_snapshot_id"].as_string().is_(None),
+                    )
+                    .order_by(ArtifactRecord.payload["created_at"].as_string().desc())
+                    .limit(6)
+                )
+                .scalars()
+                .all()
+            )
+        result = []
+        for ident in ids:
+            try:
+                metadata = read_evidence_artifact(self.query, self.run, ident, 0, 1)["artifact"]
+            except DataError as exc:
+                result.append({"artifact_id": ident, "unavailable": exc.code})
+                continue
+            result.append(
+                {
+                    "artifact_id": ident,
+                    "run_id": metadata["run_id"],
+                    "columns": [c["name"] for c in metadata["columns"]],
+                    "rows": metadata["returned_rows"],
+                    "truncated": metadata["truncated"],
+                    "query_purpose": metadata["query_purpose"],
+                    "metric_revision_ids": metadata["metric_revision_ids"],
+                }
+            )
+        return result
 
     def metric(self, key):
         """
@@ -209,13 +301,22 @@ class ToolRegistry:
         if call.name not in specs:
             return ToolResult(ok=False, summary="未知工具", error_code="UNKNOWN_TOOL")
         try:
-            args = specs[call.name][0].model_validate(call.arguments)
-            data = self.execute(call.name, args)
+            model = specs[call.name][0]
+            # 历史工具输入保留严格校验；当前模型只看到行选择签名。
+            if call.name == "record_finding" and "statement" in call.arguments:
+                model = a.RecordFinding
+            args = model.model_validate(call.arguments)
+            selected_rows = isinstance(args, a.RecordFindingInput)
+            if selected_rows:
+                args = canonical_finding(args, self.query, self.run)
+            data = self.execute(call.name, args, observation=selected_rows)
             if isinstance(data, ToolResult):
                 return data
+            if selected_rows:
+                data["report_block"] = args.statement.model_dump(exclude_defaults=True)
             return ToolResult(ok=True, summary=specs[call.name][1], data=data)
         except ValidationError as error:
-            return invalid_arguments(error, "参数不符合工具契约，请按签名修正")
+            return invalid_arguments(error, "参数不符合工具契约，请按签名修正", call.name)
         except DataError as exc:
             blocked = exc.code == "METRIC_REVIEW_OR_CLARIFICATION_REQUIRED"
             return ToolResult(
@@ -246,9 +347,13 @@ class ToolRegistry:
                 else {
                     "error_details": exc.details,
                     "instruction": "text_template中的{{key}}必须与values的键一致；"
+                    "unused_refs须在模板中显示或从values移除；绑定中的身份键必须显示，"
+                    "不同组即使月份相同也分别显示自己的月份占位符。"
                     "数量用对应占位符和真实ValueRef，不直接写死数字，不换成无关引用。",
                 }
                 if exc.code == "REPORT_TEMPLATE_KEYS"
+                else {"error_details": exc.details}
+                if exc.code in {"REPORT_ROW_BINDING_KEYS", "REPORT_ROW_BINDING_MISMATCH"}
                 else {},
                 error_code=exc.code,
                 retryable=exc.code
@@ -257,13 +362,17 @@ class ToolRegistry:
                     "QUERY_TIMEOUT",
                     "INVALID_PARAMETERS",
                     "REPORT_TEMPLATE_KEYS",
+                    "REPORT_ROW_BINDING_KEYS",
+                    "REPORT_ROW_BINDING_MISMATCH",
+                    "REPORT_COLUMN_NOT_FOUND",
+                    "REPORT_ROW_NOT_FOUND",
                 },
             )
 
-    def execute(self, name, args):
+    def execute(self, name, args, *, observation=False):
         """
         作用：分发显式工具
-        输入：名称及已验证参数
+        输入：名称、已验证参数及服务端行选择标记
         输出：实际服务结果
         """
         if name == "read_investigation":
@@ -279,6 +388,7 @@ class ToolRegistry:
                 else None,
                 "external_sources": self.external.index(),
                 "external_checks": self.external.failed_checks(),
+                "available_artifacts": self.previous_artifacts(),
             }
         if name == "record_finding":
             if args.kind in {"fact", "counterevidence"} and not (
@@ -302,7 +412,12 @@ class ToolRegistry:
                 metadata = read_evidence_artifact(self.query, self.run, ident, 0, 1)["artifact"]
                 metrics.update(metadata["metric_revision_ids"])
             draft.metric_revision_ids = sorted(metrics)
-            prepared = ReportService(self.query).prepare(self.run, draft, require_query=False)
+            prepared = ReportService(self.query).prepare(
+                self.run,
+                draft,
+                require_query=False,
+                observation_text=args.statement if observation and args.statement.values else None,
+            )
             frozen = {
                 "block": prepared["blocks"][0],
                 "artifacts": prepared["artifacts"],
@@ -312,6 +427,7 @@ class ToolRegistry:
                 "date_range": prepared["date_range"],
                 "knowledge_snapshot_id": self.run["knowledge_snapshot_id"],
                 "external_snapshots": prepared.get("external_snapshots", {}),
+                "observation_texts": prepared.get("observation_texts", {}),
             }
             if self.cancel.is_set():
                 raise DataError("RUN_CANCELLED")
@@ -321,7 +437,11 @@ class ToolRegistry:
                 self.run, args, prepared["blocks"][0], frozen
             )
             self.recorded_count += 1
-            return finding
+            return {
+                **finding,
+                "next_step_hint": "已有本轮记录；若所需比较已在成功结果中，"
+                "请直接提交表格与简短解释，额外核查列为下一步。",
+            }
         if name == "list_tables":
             return {"tables": [t.name for t in self.schema.tables]}
         if name == "describe_table":
@@ -414,6 +534,8 @@ class ToolRegistry:
             page = read_evidence_artifact(
                 self.query, self.run, args.artifact_id, args.offset, args.limit
             )
+            # 绝对零基行号与当前页一一对应，避免模型按分组排序猜测行号。
+            page["row_indices"] = list(range(args.offset, args.offset + len(page["rows"])))
             if self.run.get("investigation_id"):
                 metadata = page["artifact"]
                 summary = dict(
@@ -500,6 +622,7 @@ class ToolRegistry:
             )
             self.artifact_ids.update(result.artifact_ids)
             if result.ok:
+                result.data["row_indices"] = list(range(len(result.data["preview"])))
                 if self.run.get("investigation_id"):
                     metadata = result.data["artifact"]
                     self.query_summaries.append(

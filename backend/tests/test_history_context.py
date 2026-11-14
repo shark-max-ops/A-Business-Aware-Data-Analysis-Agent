@@ -6,8 +6,9 @@ import json
 import threading
 import time
 
+import pytest
 import test_agent
-from metric_pilot.agent.context import fit_context, initial_messages
+from metric_pilot.agent.context import compact_group, fit_context, initial_messages
 from metric_pilot.agent.contracts import ToolCall
 from metric_pilot.agent.investigations import InvestigationStore
 from metric_pilot.agent.runtime import AgentRuntime
@@ -18,6 +19,104 @@ from test_investigations import enqueue, investigation
 from test_reports import SQL, service
 
 agent_workspace = test_agent.agent_workspace
+
+
+@pytest.mark.parametrize("status", ["completed", "failed"])
+def test_previous_index_only_exposes_completed_authorized_artifacts(agent_workspace, status):
+    """
+    作用：复用未写入发现的成功查询，同时拒绝失败运行及其他调查的产物
+    输入：隔离调查与真实查询
+    输出：无
+    """
+    inv = investigation(agent_workspace)
+    old = enqueue(agent_workspace, inv)
+    agent_workspace[1].claim()
+    registry = registry_for(agent_workspace, old)
+    result = registry.invoke(ToolCall(id="q", name="query_sql", arguments={"sql": SQL}))
+    assert result.ok
+    ident = result.artifact_ids[0]
+    agent_workspace[1].finish(
+        old["id"],
+        status,
+        {"kind": "query_result", "artifact_ids": [ident]} if status == "completed" else None,
+    )
+    inv = InvestigationStore(agent_workspace[1].engine).read(inv["id"])
+    current = enqueue(agent_workspace, inv)
+    index = registry_for(agent_workspace, current).previous_artifacts()
+    assert (ident in {item["artifact_id"] for item in index}) == (status == "completed")
+    assert all("rows" not in item or isinstance(item["rows"], int) for item in index)
+    other = enqueue(agent_workspace, investigation(agent_workspace))
+    assert not registry_for(agent_workspace, other).previous_artifacts()
+
+
+@pytest.mark.parametrize("status", ["completed", "failed"])
+def test_cached_metric_keeps_actual_user_selection_and_success_boundary(agent_workspace, status):
+    """
+    作用：只预载授权成功产物仍适用的已审核口径，不冒充用户主动选择
+    输入：隔离合成调查与真实口径绑定查询
+    输出：无
+    """
+    inv = investigation(agent_workspace)
+    old = enqueue(agent_workspace, inv)
+    agent_workspace[1].claim()
+    registry = registry_for(agent_workspace, old)
+    metric = agent_workspace[3]
+    assert registry.invoke(
+        ToolCall(id="metric", name="resolve_metric", arguments={"metric_key": "arrival_delay_rate"})
+    ).ok
+    result = registry.invoke(
+        ToolCall(
+            id="q",
+            name="query_sql",
+            arguments={"sql": SQL, "metric_revision_ids": [metric["id"]]},
+        )
+    )
+    assert result.ok
+    agent_workspace[1].finish(
+        old["id"],
+        status,
+        {"kind": "query_result", "artifact_ids": result.artifact_ids}
+        if status == "completed"
+        else None,
+    )
+    inv = InvestigationStore(agent_workspace[1].engine).read(inv["id"])
+    current = enqueue(agent_workspace, inv)
+    cached = registry_for(agent_workspace, current)
+    assert (metric["id"] in cached.resolved) == (status == "completed")
+    assert (metric["id"] in cached.definitions) == (status == "completed")
+    header = json.loads(initial_messages(current, cached, [])[1]["content"])
+    assert header["selected_metric_revision_ids"] == current["metric_revision_ids"] == []
+
+
+def test_absolute_row_indices_survive_pagination_and_context_excerpt(agent_workspace):
+    """
+    作用：分页与上下文节选仍标明绝对零基行号，不以页内位置替代
+    输入：隔离真实查询
+    输出：无
+    """
+    run = enqueue(agent_workspace, investigation(agent_workspace))
+    registry = registry_for(agent_workspace, run)
+    result = registry.invoke(ToolCall(id="query", name="query_sql", arguments={"sql": SQL}))
+    assert result.ok
+    assert result.data["row_indices"] == list(range(len(result.data["preview"])))
+    raw = registry.invoke(
+        ToolCall(
+            id="page",
+            name="read_artifact",
+            arguments={"artifact_id": result.artifact_ids[0], "offset": 1, "limit": 20},
+        )
+    ).model_dump()
+    assert raw["ok"] and raw["data"]["row_indices"][0] == 1
+    group = [{"role": "tool", "tool_call_id": "page", "content": json.dumps(raw)}]
+    original = copy.deepcopy(group)
+    compact = json.loads(compact_group(group, brief=True)[0]["content"])["data"]
+    assert compact["row_indices"] == [1]
+    assert compact["indexed_rows"] == [[1, raw["data"]["rows"][0]]]
+    complete = json.loads(compact_group(group)[0]["content"])["data"]
+    assert complete["indexed_rows"] == [
+        [index, row] for index, row in zip(raw["data"]["row_indices"], raw["data"]["rows"])
+    ]
+    assert group == original
 
 
 def registry_for(workspace, run):
@@ -35,6 +134,42 @@ def registry_for(workspace, run):
         workspace[0],
         threading.Event(),
     )
+
+
+def test_binding_feedback_reaches_model_and_corrected_finding_succeeds(agent_workspace):
+    """
+    作用：确保工具传递绑定错误详情，修正后可在同权限下保存真实发现
+    输入：隔离合成查询与错键、错行声明
+    输出：无
+    """
+    run = enqueue(agent_workspace, investigation(agent_workspace))
+    agent_workspace[1].claim()
+    registry = registry_for(agent_workspace, run)
+    query = registry.invoke(ToolCall(id="q", name="query_sql", arguments={"sql": SQL}))
+    ident = query.artifact_ids[0]
+    args = {
+        "kind": "fact",
+        "check": "合成日期分组",
+        "statement": {
+            "id": "bound",
+            "type": "text",
+            "text_template": "{{d}} {{n}}",
+            "values": {
+                "d": {"artifact_id": ident, "row": 0, "column": "day"},
+                "n": {"artifact_id": ident, "row": 1, "column": "record_count"},
+            },
+            "row_bindings": [{"dimensions": ["day"], "measures": ["n"]}],
+        },
+    }
+    result = registry.invoke(ToolCall(id="keys", name="record_finding", arguments=args))
+    assert result.error_code == "REPORT_ROW_BINDING_KEYS" and result.retryable
+    assert result.data["error_details"]["available_keys"] == ["d", "n"]
+    args["statement"]["row_bindings"][0]["dimensions"] = ["d"]
+    result = registry.invoke(ToolCall(id="rows", name="record_finding", arguments=args))
+    assert result.error_code == "REPORT_ROW_BINDING_MISMATCH" and result.retryable
+    assert result.data["error_details"]["references"]["n"]["row"] == 1
+    args["statement"]["values"]["n"]["row"] = 0
+    assert registry.invoke(ToolCall(id="fixed", name="record_finding", arguments=args)).ok
 
 
 def history(workspace):

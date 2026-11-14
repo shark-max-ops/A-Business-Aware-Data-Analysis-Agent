@@ -3087,6 +3087,16 @@
             ],
             "title": "Format",
             "default": "decimal_2"
+          },
+          "display_scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DisplayScope"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -3232,6 +3242,61 @@
         ],
         "title": "ColumnDTO",
         "description": "作用：描述结果或视图列\n输入：名称和 DuckDB 类型\n输出：列 DTO"
+      },
+      "ComparisonBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "comparison",
+            "title": "Type"
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "artifact_id": {
+            "type": "string",
+            "title": "Artifact Id"
+          },
+          "dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Dimensions"
+          },
+          "measure": {
+            "type": "string",
+            "title": "Measure"
+          },
+          "left_row": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Left Row"
+          },
+          "right_row": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Right Row"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "artifact_id",
+          "dimensions",
+          "measure",
+          "left_row",
+          "right_row"
+        ],
+        "title": "ComparisonBlock",
+        "description": "作用：声明同一结果集同一字段两行之间的数值关系\n输入：产物、完整身份列、数值列与两行位置\n输出：待服务端计算的关系，不接受模型提供升降或差值"
       },
       "ConversationDTO": {
         "properties": {
@@ -3410,6 +3475,60 @@
         ],
         "title": "DateRange",
         "description": "作用：严格表达包含开始、不包含结束的业务日期范围\n输入：ISO日期字符串\n输出：非空且顺序正确的日期范围"
+      },
+      "DisplayScope": {
+        "properties": {
+          "dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Dimensions"
+          },
+          "population": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "maxProperties": 8,
+            "title": "Population"
+          },
+          "date_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "date_column": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Column"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "dimensions"
+        ],
+        "title": "DisplayScope",
+        "description": "作用：声明表图的可核对分组、人群及日期子范围\n输入：真实维度列、字符串分类集合及可选日期列和区间\n输出：待服务端逐行核对的声明，不执行筛选"
       },
       "DocumentMetadata": {
         "properties": {
@@ -3705,6 +3824,18 @@
                 "type": "null"
               }
             ]
+          },
+          "proof": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proof"
           }
         },
         "additionalProperties": false,
@@ -3836,6 +3967,22 @@
               "interrupted"
             ],
             "title": "Source Run Status"
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "result_values",
+                  "checked_relation",
+                  "unverified"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification"
           }
         },
         "additionalProperties": false,
@@ -5067,6 +5214,65 @@
         "title": "QueryResult",
         "description": "作用：提交查询产物清单\n输入：当前运行产物\n输出：阶段 3 结果"
       },
+      "RankingBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "ranking",
+            "title": "Type"
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "artifact_id": {
+            "type": "string",
+            "title": "Artifact Id"
+          },
+          "dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Dimensions"
+          },
+          "measure": {
+            "type": "string",
+            "title": "Measure"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "descending",
+              "ascending"
+            ],
+            "title": "Direction",
+            "default": "descending"
+          },
+          "top_k": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Top K",
+            "default": 3
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "artifact_id",
+          "dimensions",
+          "measure"
+        ],
+        "title": "RankingBlock",
+        "description": "作用：声明由服务端在完整冻结结果集内计算的排名\n输入：产物、身份列、数值列、方向与名次上限\n输出：待核对的排名请求，不接受模型提供名次或结论"
+      },
       "RenderedBlock": {
         "properties": {
           "type": {
@@ -5166,6 +5372,44 @@
             "type": "boolean",
             "title": "Ordered",
             "default": false
+          },
+          "display_scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DisplayScope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "result_values",
+                  "checked_relation",
+                  "unverified"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification"
+          },
+          "proof": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proof"
           }
         },
         "additionalProperties": false,
@@ -5297,6 +5541,27 @@
                 "type": "null"
               }
             ]
+          },
+          "partial": {
+            "type": "boolean",
+            "title": "Partial",
+            "default": false
+          },
+          "verification_policy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Policy"
+          },
+          "has_unverified_explanations": {
+            "type": "boolean",
+            "title": "Has Unverified Explanations",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -5341,6 +5606,16 @@
             "minLength": 1,
             "title": "Scope"
           },
+          "date_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "metric_revision_ids": {
             "items": {
               "type": "string"
@@ -5363,13 +5638,21 @@
                 },
                 {
                   "$ref": "#/components/schemas/TextBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/RankingBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/ComparisonBlock"
                 }
               ],
               "discriminator": {
                 "propertyName": "type",
                 "mapping": {
                   "chart": "#/components/schemas/ChartBlock",
+                  "comparison": "#/components/schemas/ComparisonBlock",
                   "kpi": "#/components/schemas/KPIBlock",
+                  "ranking": "#/components/schemas/RankingBlock",
                   "table": "#/components/schemas/TableBlock",
                   "text": "#/components/schemas/TextBlock"
                 }
@@ -5414,6 +5697,16 @@
           "revision_id": {
             "type": "string",
             "title": "Revision Id"
+          },
+          "partial": {
+            "type": "boolean",
+            "title": "Partial",
+            "default": false
+          },
+          "has_unverified_explanations": {
+            "type": "boolean",
+            "title": "Has Unverified Explanations",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -6069,6 +6362,16 @@
             "type": "object",
             "maxProperties": 16,
             "title": "Column Labels"
+          },
+          "display_scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DisplayScope"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,

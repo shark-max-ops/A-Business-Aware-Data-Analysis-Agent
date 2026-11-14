@@ -111,6 +111,15 @@ def final_from_query(messages):
             result = json.loads(msg["content"])
             if result.get("artifact_ids"):
                 return {"kind": "query_result", "artifact_ids": result["artifact_ids"]}
+    # 历史工具组可被合法裁剪，测试模型也应读取服务端固定的成功产物索引。
+    for msg in reversed(messages):
+        if msg["role"] == "system":
+            try:
+                memory = json.loads(msg.get("content", ""))
+            except (ValueError, TypeError):
+                continue
+            if isinstance(memory, dict) and memory.get("current_artifact_ids"):
+                return {"kind": "query_result", "artifact_ids": memory["current_artifact_ids"]}
     raise AssertionError("actual artifact missing")
 
 

@@ -3,11 +3,12 @@
 from sqlalchemy import select
 
 from metric_pilot.agent import models as agent_models
-from metric_pilot.agent.investigations import read_evidence_artifact
+from metric_pilot.agent.investigations import authorized_runs, read_evidence_artifact
 from metric_pilot.data.common import DataError, digest, new_id, utc_now
 from metric_pilot.data.ranges import run_range
 from metric_pilot.knowledge.store import KnowledgeStore
 from metric_pilot.reports import models as m
+from metric_pilot.reports.claims import POLICY
 from metric_pilot.reports.contracts import EvidenceDTO, ReportDraft, ReportDTO, ReportSummary
 from metric_pilot.reports.materialize import artifact_ids, content_hash, materialize
 from metric_pilot.reports.sources import freeze_sources
@@ -43,13 +44,35 @@ class ReportService(KnowledgeStore):
         super().__init__(query.catalog.engine)
         self.query = query
 
-    def prepare(self, run, draft, *, require_query=True):
+    def prepare(
+        self, run, draft, *, require_query=True, runtime_warnings=(), observation_text=None
+    ):
         """
         作用：读取本次成功产物并冻结所有报告依据
-        输入：运行与模型草稿
+        输入：运行、模型草稿、运行限制及仅由服务端生成的观察文本
         输出：尚未提交的报告准备数据
         """
         draft = ReportDraft.model_validate(draft)
+        observation_texts = {}
+        if observation_text is not None:
+            observation_texts[observation_text.id] = observation_text.model_dump()
+        if run.get("investigation_id"):
+            allowed = authorized_runs(self.engine, run)
+            with self.engine.connect() as connection:
+                findings = (
+                    connection.execute(
+                        select(agent_models.findings).where(
+                            agent_models.findings.c.investigation_id == run["investigation_id"],
+                            agent_models.findings.c.run_id.in_(allowed),
+                        )
+                    )
+                    .mappings()
+                    .all()
+                )
+            for finding in findings:
+                if digest(finding["payload"]) != finding["content_hash"]:
+                    raise DataError("FINDING_HASH_MISMATCH")
+                observation_texts.update(finding["payload"]["frozen"].get("observation_texts", {}))
         with self.engine.connect() as connection:
             checks = (
                 connection.execute(
@@ -121,6 +144,10 @@ class ReportService(KnowledgeStore):
                 "metrics": metrics,
                 "artifacts": artifacts,
                 "external_snapshots": external_snapshots,
+                "runtime_limitations": list(runtime_warnings),
+                "partial": bool(runtime_warnings),
+                "verification_policy": POLICY,
+                "observation_texts": observation_texts,
             },
             require_query=require_query,
             runtime_warnings=[
@@ -129,6 +156,51 @@ class ReportService(KnowledgeStore):
             if unresolved
             else [],
         )
+
+    def table_fallback(self, run, identifiers, runtime_warnings=()):
+        """
+        作用：解释报告修正耗尽时保留成功查询完整表格，不生成新分析或计算
+        输入：固定运行、服务端已有产物定位和真实未完成限制
+        输出：明确标记解释未完成的报告准备数据；无可展示表格时为空
+        """
+        blocks, metrics = [], set()
+        for ident in list(dict.fromkeys(identifiers))[-3:]:
+            metadata = read_evidence_artifact(self.query, run, ident, 0, 1)["artifact"]
+            names = [column["name"] for column in metadata["columns"]]
+            # 不截列、不改行、不重算；过宽或截断产物仍不能作为完整报告表格。
+            if metadata["truncated"] or not 1 <= len(names) <= 16:
+                continue
+            blocks.append(
+                {
+                    "type": "table",
+                    "id": f"retained_{len(blocks)}",
+                    "title": f"已完成核查表格 {len(blocks) + 1}",
+                    "artifact_id": ident,
+                    "columns": names,
+                }
+            )
+            metrics.update(metadata["metric_revision_ids"])
+        if not blocks:
+            return None
+        selected = run_range(self.engine, run)
+        prepared = self.prepare(
+            run,
+            {
+                "schema_version": "1",
+                "title": "核查表格已保存（解释未完成）",
+                "scope": f"固定范围 {selected.start} 至 {selected.end_exclusive}（不含结束日）",
+                "metric_revision_ids": sorted(metrics),
+                "blocks": blocks,
+                "limitations": [],
+            },
+            runtime_warnings=[
+                *runtime_warnings,
+                "模型报告连续校验未通过，已保留可展示的成功查询完整表格；"
+                "解释与未完成候选发现仍需复核，不表示本轮业务目标已全部完成。",
+            ],
+        )
+        prepared["partial"] = True
+        return prepared
 
     @staticmethod
     def persist(connection, prepared, report_id=None, version=1):
@@ -172,7 +244,17 @@ class ReportService(KnowledgeStore):
                 created_at=created,
             )
         )
-        return {"kind": "report", "report_id": report_id, "revision_id": revision_id}
+        return {
+            "kind": "report",
+            "report_id": report_id,
+            "revision_id": revision_id,
+            **({"partial": True} if prepared.get("partial") else {}),
+            **(
+                {"has_unverified_explanations": True}
+                if prepared.get("has_unverified_explanations")
+                else {}
+            ),
+        }
 
     def frozen(self, report_id, revision_id):
         """
@@ -275,6 +357,8 @@ class ReportService(KnowledgeStore):
         with self.engine.connect() as connection:
             row = self.report_row(connection, report_id)
         old, _ = self.frozen(report_id, row["latest_revision_id"])
+        # 新修订采用当前结论边界，旧冻结报告仍按原内容读取。
+        old = {**old, "verification_policy": POLICY}
         prepared = materialize(request.report, old)
         with self.write() as connection:
             current = self.report_row(connection, report_id)
@@ -336,6 +420,7 @@ class ReportService(KnowledgeStore):
                 break
             source_ids = expanded
         return EvidenceDTO(
+            proof=block.get("proof"),
             block_id=block_id,
             value=value,
             artifact=artifact,

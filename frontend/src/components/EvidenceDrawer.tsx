@@ -45,6 +45,7 @@ export function EvidenceDrawer({ report, selection, close }: { report: Report; s
     {loading && <Spin tip="正在读取固定依据"><div className="evidence-loading" /></Spin>}
     {error && <Alert type="error" message="依据读取失败" description={error} />}
     {evidence && <div className="evidence-content">
+      {evidence.proof && <section><h3>服务端关系核对</h3><p>对完整冻结结果集核对身份、排序或同列关系；不核实SQL业务分母与因果。</p><details><summary>比较范围、空值、并列与核对摘要</summary><pre>{JSON.stringify(evidence.proof, null, 2)}</pre></details></section>}
       {evidence.value && <section className="evidence-highlight"><p>你点击的数值</p><strong>{evidence.value.display}</strong><small>原始值：{typeof evidence.value.raw === 'object' ? JSON.stringify(evidence.value.raw) : String(evidence.value.raw ?? '缺失')}</small></section>}
       <section><h3>数据与统计范围</h3><p>{evidence.artifact?.external_snapshot_id ? '本项数值来自固定天气观测；调查主数据月份：' : evidence.data_snapshot.manifest?.source_kind === 'synthetic' ? '合成测试数据 · ' : '固定航班数据 · '}{dateRangeLabel(evidence.date_range, evidence.data_snapshot.period)}</p><p>来自获授权的已保存查询结果，资料更新不会替换这里的依据。</p>
         {evidence.artifact && <><p>{evidence.artifact.run_id === report.run_id ? '本轮产生的查询' : '引用旧轮次的证据'} · 来源运行：<code>{evidence.artifact.run_id}</code></p><p>结果共 {evidence.artifact.returned_rows} 行 · {evidence.artifact.truncated ? '已截断' : '未截断'}</p></>}

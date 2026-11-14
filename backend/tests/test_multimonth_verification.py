@@ -260,7 +260,7 @@ def test_context_result_excerpt_has_real_cursor_and_is_idempotent():
     second = compact_group(first, brief=True)
     assert first == second and group == original
     data = json.loads(first[1]["content"])["data"]
-    assert data["rows"] == [[5]] and data["next_offset"] == 6
+    assert data["indexed_rows"] == [[5, [5]]] and data["next_offset"] == 6
     assert data["context_rows_omitted"] == 19
     assert data["artifact"]["returned_rows"] == 50 and not data["artifact"]["truncated"]
     assert first[0]["tool_calls"][0]["id"] == first[1]["tool_call_id"]

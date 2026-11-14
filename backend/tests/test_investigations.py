@@ -213,7 +213,7 @@ def test_followup_query_depends_on_real_tool_result(agent_workspace):
         输入：模型收到的工具结果
         输出：下一次查询
         """
-        actual = json.loads(messages[-1]["content"])["data"]["preview"][0][0]
+        actual = json.loads(messages[-1]["content"])["data"]["indexed_rows"][0][1][0]
         assert isinstance(actual, int)
         return calls(
             (

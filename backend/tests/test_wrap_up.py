@@ -1,18 +1,173 @@
 """调查预算内收尾：隔离模型，真实查询、发现和报告验证。"""
 
 import asyncio
+import copy
 import json
 import threading
 
 import test_agent
 from metric_pilot.agent.runtime import AgentRuntime
 from metric_pilot.data.models import QueryExecution
+from metric_pilot.reports.contracts import ReportRevisionWrite
 from sqlalchemy import func, select
 from test_agent import FakeLLM, calls, final_from_query
 from test_investigations import enqueue, finding_call, investigation
-from test_reports import SQL, report_candidate
+from test_reports import SQL, report_candidate, service
 
 agent_workspace = test_agent.agent_workspace
+
+
+def oversized_finding(messages):
+    """
+    作用：复现用户一次提交30个引用超出24上限的记录
+    输入：真实查询消息
+    输出：只用于测试的无效发现调用
+    """
+    ident = final_from_query(messages)["artifact_ids"][0]
+    return calls(
+        (
+            "record_finding",
+            {
+                "kind": "candidate",
+                "check": "过长发现",
+                "statement": {
+                    "type": "text",
+                    "id": "too_many",
+                    "text_template": " ".join("{{n" + str(i) + "}}" for i in range(30)),
+                    "values": {
+                        f"n{i}": {"artifact_id": ident, "row": 0, "column": "record_count"}
+                        for i in range(30)
+                    },
+                },
+            },
+        )
+    )
+
+
+def test_optional_invalid_finding_finalizes_without_losing_success(agent_workspace):
+    """
+    作用：已有成功发现后停止可选记录重试，用成功证据完成真实报告并冻结缺口
+    输入：隔离查询、有效发现和连续过长发现
+    输出：无
+    """
+    run, model, events = execute(
+        agent_workspace,
+        [
+            calls(("query_sql", {"sql": SQL})),
+            finding_call,
+            oversized_finding,
+            oversized_finding,
+            report_candidate,
+        ],
+    )
+    assert run["status"] == "completed", run
+    assert model.toolsets[-1] == set()
+    assert run["result"]["partial"] is True
+    failures = [e for e in events if e["type"] == "tool.finished" and not e["payload"]["ok"]]
+    assert len(failures) == 2
+    details = failures[0]["payload"]["data"]["fields"][0]
+    assert details["constraints"]["max_length"] == 24
+    assert details["constraints"]["actual_length"] == 30
+    assert len([e for e in events if e["type"] == "tool.started"]) == 4
+    svc = service(agent_workspace)
+    report = svc.read(run["result"]["report_id"], run["result"]["revision_id"])
+    assert any("候选发现未通过" in note for note in report.limitations)
+    draft = copy.deepcopy(report.draft)
+    draft.limitations = []
+    revised = svc.revise(report.report_id, ReportRevisionWrite(expected_version=1, report=draft))
+    assert any("候选发现未通过" in note for note in revised.limitations)
+    assert revised.partial is True
+    assert svc.read(report.report_id, report.revision_id).content_hash == report.content_hash
+
+
+def test_unchanged_evidence_records_finish_without_repeated_optional_work(agent_workspace):
+    """
+    作用：同一批证据最多两条记录后收尾，重复读取不能重置计数
+    输入：真实查询、发现、重复读取和第二条发现
+    输出：无
+    """
+    run, model, events = execute(
+        agent_workspace,
+        [
+            calls(("query_sql", {"sql": SQL})),
+            finding_call,
+            read_existing,
+            finding_call,
+            report_candidate,
+        ],
+    )
+    assert run["status"] == "completed" and not run["result"].get("partial", False)
+    assert not model.toolsets[-1]
+    assert len([e for e in events if e["type"] == "tool.started"]) == 4
+
+
+def test_new_query_evidence_allows_further_checkpoints(agent_workspace):
+    """
+    作用：新增实际查询证据重置记录计数，不阻止真正的后续核查
+    输入：两个真实查询与其各自发现
+    输出：无
+    """
+    run, model, _ = execute(
+        agent_workspace,
+        [
+            calls(("query_sql", {"sql": SQL})),
+            finding_call,
+            calls(("query_sql", {"sql": SQL})),
+            finding_call,
+            report_candidate,
+        ],
+    )
+    assert run["status"] == "completed"
+    assert "query_sql" in model.toolsets[-1]
+
+
+def test_invalid_finding_without_success_is_still_failure(agent_workspace):
+    """
+    作用：未保存本轮成功发现时不以收尾降级冒充完成
+    输入：隔离查询与重复无效发现
+    输出：无
+    """
+    run, _, _ = execute(agent_workspace, [calls(("query_sql", {"sql": SQL})), oversized_finding])
+    assert run["status"] == "failed"
+    assert run["error_code"] == "REPEATED_TOOL_FAILURE"
+
+
+def test_bad_report_structure_preserves_tables_as_explicit_partial_result(agent_workspace):
+    """
+    作用：报告结构修正耗尽后只保留原始完整表，不能标成完整分析成功
+    输入：成功查询与发现、持续结构错误
+    输出：无
+    """
+    invalid = {"kind": "report", "report": {"scope": {"not": "a string"}}}
+    run, model, events = execute(
+        agent_workspace, [calls(("query_sql", {"sql": SQL})), finding_call, invalid]
+    )
+    assert run["status"] == "completed" and run["result"]["partial"] is True
+    report = service(agent_workspace).read(run["result"]["report_id"], run["result"]["revision_id"])
+    assert report.partial and "解释未完成" in report.title
+    assert all(b.type == "table" for b in report.blocks)
+    assert any("业务目标已全部完成" in note for note in report.limitations)
+    assert model.index == 5
+    assert len([e for e in events if e["type"] == "tool.started"]) == 2
+
+
+def test_foreign_evidence_error_is_not_a_display_fallback(agent_workspace):
+    """
+    作用：权限错误不能通过保留表格降级掩盖
+    输入：成功发现后引用不存在产物的候选
+    输出：无
+    """
+
+    def foreign(messages):
+        """作用：构造非法引用；输入：工具消息；输出：无效候选。"""
+        candidate = report_candidate(messages)
+        candidate["report"]["blocks"][0]["value_ref"]["artifact_id"] = "qa_foreign"
+        return candidate
+
+    run, _, _ = execute(
+        agent_workspace, [calls(("query_sql", {"sql": SQL})), finding_call, foreign]
+    )
+    assert run["status"] == "failed" and run["error_code"] == "FINAL_CANDIDATE_INVALID"
 
 
 class ClosingModel(FakeLLM):

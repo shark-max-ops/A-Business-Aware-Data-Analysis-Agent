@@ -123,10 +123,25 @@ def text_segments(block, artifacts):
     for binding in block.get("row_bindings", []):
         keys = binding["dimensions"] + binding["measures"]
         if len(keys) != len(set(keys)) or not set(keys) <= set(block["values"]):
-            raise DataError("REPORT_ROW_BINDING_KEYS")
+            raise DataError(
+                "REPORT_ROW_BINDING_KEYS",
+                {
+                    "available_keys": list(block["values"]),
+                    "binding_keys": keys,
+                    "instruction": "dimensions/measures填写values中的占位键，不是原始列名；"
+                    "身份也须在模板和values中引用；每组分别绑定，必要时减少叙述组数。",
+                },
+            )
         refs = [block["values"][key] for key in keys]
         if len({(ref["artifact_id"], ref["row"]) for ref in refs}) != 1:
-            raise DataError("REPORT_ROW_BINDING_MISMATCH")
+            raise DataError(
+                "REPORT_ROW_BINDING_MISMATCH",
+                {
+                    "references": {key: block["values"][key] for key in keys},
+                    "instruction": "每组身份与数量须同产物同行；不同组即使月份相同，"
+                    "也须各自引用对应行的月份键，不共享另一行的键。",
+                },
+            )
         for key in binding["measures"]:
             cell(artifacts, block["values"][key], require_numeric=True)
     result, position = [], 0

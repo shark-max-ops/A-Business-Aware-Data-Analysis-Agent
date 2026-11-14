@@ -4,7 +4,9 @@ import copy
 import hashlib
 
 from metric_pilot.data.common import DataError, canonical_bytes
+from metric_pilot.reports.claims import POLICY, label, render_relation
 from metric_pilot.reports.contracts import RenderedBlock, ReportDraft
+from metric_pilot.reports.scope import validate_display_scope
 from metric_pilot.reports.values import cell, numeric, text_segments
 
 
@@ -18,7 +20,7 @@ def artifact_ids(draft, *, require_query=True):
     for block in draft.blocks:
         if block.type == "kpi":
             result.add(block.value_ref.artifact_id)
-        elif block.type in {"table", "chart"}:
+        elif block.type in {"table", "chart", "ranking", "comparison"}:
             result.add(block.artifact_id)
         else:
             result.update(ref.artifact_id for ref in block.values.values())
@@ -28,7 +30,7 @@ def artifact_ids(draft, *, require_query=True):
     return result
 
 
-def render_blocks(draft, artifacts, sources):
+def render_blocks(draft, artifacts, sources, main_range=None, policy=None, observation_texts=None):
     """
     作用：校验布局和引用并物化所有显示值
     输入：草稿、本次冻结结果与固定来源
@@ -40,9 +42,16 @@ def render_blocks(draft, artifacts, sources):
         if b["id"] in ids:
             raise DataError("REPORT_DUPLICATE_BLOCK")
         ids.add(b["id"])
+        if b["type"] in {"ranking", "comparison"}:
+            blocks.append(RenderedBlock.model_validate(render_relation(b, artifacts)).model_dump())
+            continue
         out = {"type": b["type"], "id": b["id"], "title": b.get("title", "")}
+        if policy == POLICY:
+            out["verification"] = "result_values"
         if b["type"] == "kpi":
             out["value"] = cell(artifacts, b["value_ref"], b["format"], True)
+            if policy == POLICY:
+                out["title"] = label(b["value_ref"]["column"]) + "（所选记录）"
         elif b["type"] == "text":
             if not set(b["evidence_ids"]) <= set(artifacts) | set(sources):
                 raise DataError("REPORT_EVIDENCE_NOT_ALLOWED")
@@ -51,8 +60,14 @@ def render_blocks(draft, artifacts, sources):
                 evidence_ids=b["evidence_ids"],
                 row_bindings=b["row_bindings"],
             )
+            if policy == POLICY:
+                out["verification"] = (
+                    "result_values" if b == (observation_texts or {}).get(b["id"]) else "unverified"
+                )
         else:
             record = artifacts[b["artifact_id"]]
+            validate_display_scope(b, record, main_range)
+            out["display_scope"] = b["display_scope"]
             ordered = record["artifact"]["ordered"]
             names = b["columns"] if b["type"] == "table" else [b["x"], *b["y"]]
             if len(set(names)) != len(names):
@@ -67,6 +82,9 @@ def render_blocks(draft, artifacts, sources):
                 for label in labels.values()
             ):
                 raise DataError("REPORT_COLUMN_LABEL")
+            if policy == POLICY:
+                labels = {name: label(name) for name in names}
+                out["title"] = "完整查询结果" if b["type"] == "table" else "查询结果图"
             available = {column["name"] for column in record["artifact"]["columns"]}
             if not set(names) <= available:
                 raise DataError("REPORT_COLUMN_NOT_FOUND")
@@ -127,6 +145,12 @@ def materialize(draft, frozen, *, require_query=True, runtime_warnings=()):
     输出：含展示值的报告准备数据
     """
     draft = ReportDraft.model_validate(draft)
+    # 模型可声明主范围，但不能覆盖服务端范围；旧草稿省略时沿用原契约。
+    if draft.date_range is not None and draft.date_range.model_dump() != frozen.get("date_range"):
+        raise DataError(
+            "REPORT_SCOPE_MAIN_RANGE",
+            {"instruction": "主范围须等于固定date_range；子范围请声明块display_scope。"},
+        )
     wanted = artifact_ids(draft, require_query=require_query)
     if not wanted <= set(frozen["artifacts"]):
         raise DataError("REPORT_ARTIFACT_NOT_ALLOWED")
@@ -138,8 +162,21 @@ def materialize(draft, frozen, *, require_query=True, runtime_warnings=()):
         raise DataError("REPORT_METRIC_BINDING")
     if not metrics <= set(frozen["metrics"]):
         raise DataError("REPORT_METRIC_NOT_ALLOWED")
-    blocks, warnings = render_blocks(draft, artifacts, frozen["sources"])
+    blocks, warnings = render_blocks(
+        draft,
+        artifacts,
+        frozen["sources"],
+        frozen.get("date_range"),
+        frozen.get("verification_policy"),
+        frozen.get("observation_texts"),
+    )
+    if frozen.get("verification_policy") == POLICY:
+        warnings.append(
+            "已核对结论仅限完整冻结结果集内的排序或同列数值关系；不认证SQL业务分母、总体覆盖、显著性或因果。"
+        )
     warnings.extend(runtime_warnings)
+    # 运行收尾产生的真实未完成事项在人工修订时继续保留，模型不能移除。
+    warnings.extend(frozen.get("runtime_limitations", []))
     # 探索身份由成功产物决定，模型或人工修改报告说明不能删除这条边界。
     if any(item["artifact"].get("query_purpose") == "exploratory" for item in artifacts.values()):
         warnings.append("包含数据探索结果，未绑定已审核项目指标；范围、计算与缺失处理见固定依据。")
@@ -156,6 +193,7 @@ def materialize(draft, frozen, *, require_query=True, runtime_warnings=()):
         "title": draft.title,
         "scope": draft.scope,
         "blocks": blocks,
+        "has_unverified_explanations": any(b.get("verification") == "unverified" for b in blocks),
         "validation_level": "references_validated",
         "limitations": list(
             dict.fromkeys(

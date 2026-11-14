@@ -58,6 +58,7 @@ clarification 是正常结束的结果，表示需要补充字段、口径或审
 | 提示词与上下文管理 | [agent/context.py](../../backend/src/metric_pilot/agent/context.py) | PROMPT、initial_messages、fit_context |
 | 模型通信与协议清理 | [agent/provider.py](../../backend/src/metric_pilot/agent/provider.py) | AgentProvider.next_turn、parse |
 | 工具签名、参数与执行范围 | [agent/tools.py](../../backend/src/metric_pilot/agent/tools.py) | SPECS、ToolRegistry.invoke |
+| 发现行选择与规范引用生成 | [agent/findings.py](../../backend/src/metric_pilot/agent/findings.py) | canonical_finding |
 | 生命周期观测与持久化 | [agent/middleware.py](../../backend/src/metric_pilot/agent/middleware.py)、[agent/store.py](../../backend/src/metric_pilot/agent/store.py) | RuntimeObserver、RunStore |
 | SQL 检查与真实执行 | [data/query.py](../../backend/src/metric_pilot/data/query.py)、[data/guard.py](../../backend/src/metric_pilot/data/guard.py)、[data/executor.py](../../backend/src/metric_pilot/data/executor.py) | QueryService、validate_sql、QueryExecutor |
 | 统一运行、结果与事件契约 | [agent/contracts.py](../../backend/src/metric_pilot/agent/contracts.py)、[data/contracts.py](../../backend/src/metric_pilot/data/contracts.py) | FinalCandidate、RunDTO、EventDTO、RunContext、ToolResult、QueryArtifact |
@@ -75,6 +76,8 @@ clarification 是正常结束的结果，表示需要补充字段、口径或审
 每项发现应区分候选、支持、被削弱或否定，并保存来源和限制；没有显著发现也可正常结束。关键歧义才请求补充；缺数据、查询失败、取消和预算耗尽要保留未完成状态与可靠证据。用户可继续针对发现调查；新运行绑定相同版本或明确开启新上下文。服务端决定 ID、工具权限、快照与预算，保存可审阅的行动说明而非模型内部思维链。
 
 一次调查可包含多个 Run。InvestigationStore 保存固定目标、范围、版本和累计额度，运行创建事务拒绝并发推进与过期版本。调查额外开放 read_investigation、record_finding，合计九个工具；普通历史运行仍使用原工具范围。发现按事实、候选、反证、限制和建议保存，supersedes 追加修正而不覆盖历史。
+
+2026-11-14试用修复：当前模型调用record_finding时使用observations选择产物、绝对行号及列名，最多四行、每行六列；不再编写statement的占位符、values与row_bindings。服务端先按既有权限、成功状态、范围及哈希读取真实行，再生成规范TextBlock与逐行绑定，继续走原报告物化和发现保存路径。返回report_block可原样用于报告；note明确标为待复核说明，不将自由解释自动认证为事实。旧statement调用仍按原严格契约接受，旧记录不迁移。错误行列和未授权产物仍拒绝，不替换为其他值；SQL用途参数冲突提供专属修复提示，不自动移除指标或切换探索。
 
 持续调查在预算内预留收尾：默认 16 轮中，最多先用 11 轮继续核查，随后仅开放 read_artifact / record_finding 来整理已有证据，最后两轮不开放工具，用于提交最终结果及必要的候选修正。模型可提前完成，不要求跑满这些阶段。工具剩余不超过 4 次，或较长运行剩余时间不超过 30 秒时也提前进入收尾，进入后不返回探索阶段。限制由服务端实际工具签名和调用校验共同落实，不只依靠提示词。总轮数、工具次数、时间上限和调查累计额度均不增加；未能生成有效最终结果时仍真实失败，不把部分发现伪装成完整报告。收尾每轮按实际开放的工具签名预留上下文空间，工具缩减后释放的空间仍属于原上下文总预算。
 

@@ -111,7 +111,8 @@ def markdown(report, query_evidence=None):
     lines = [
         f"# {escape_markdown(report.title)}",
         "",
-        escape_markdown(report.scope),
+        ("模型范围说明（未核实）：" if report.verification_policy else "")
+        + escape_markdown(report.scope),
         "",
         (
             f"调查日期：{report.date_range.start} 至 "
@@ -124,6 +125,10 @@ def markdown(report, query_evidence=None):
     ]
     refs = {}
     for block in report.blocks:
+        if block.verification == "unverified":
+            lines.extend(["## 未核实解释（不属于已核实结论）", ""])
+        elif block.verification == "checked_relation":
+            lines.extend(["## 已核对的结果集关系", ""])
         if block.title:
             lines.extend([f"## {escape_markdown(block.title)}", ""])
         if block.type == "kpi":
@@ -136,6 +141,26 @@ def markdown(report, query_evidence=None):
                 if segment.value:
                     refs[str(segment.value.value_ref.model_dump())] = segment.value.value_ref
         else:
+            if block.display_scope:
+                scope = block.display_scope
+                labels = {c.name: c.label for c in block.columns}
+                lines.append(
+                    escape_markdown(
+                        "分组维度：" + "、".join(labels.get(c, c) for c in scope.dimensions)
+                    )
+                )
+                for column, values in scope.population.items():
+                    lines.append(
+                        escape_markdown(
+                            f"人群（{labels.get(column, column)}）：{'、'.join(values)}"
+                        )
+                    )
+                if scope.date_range:
+                    lines.append(
+                        f"日期子范围：{scope.date_range.start} 至 "
+                        f"{scope.date_range.end_exclusive}（不含结束日）"
+                    )
+                lines.append("")
             lines.append("| " + " | ".join(escape_markdown(c.label) for c in block.columns) + " |")
             lines.append("| " + " | ".join("---" for _ in block.columns) + " |")
             for row in block.rows:

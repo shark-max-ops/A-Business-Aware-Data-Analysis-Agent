@@ -9,7 +9,8 @@
 | 1 | [应用入口](../../backend/src/metric_pilot/main.py)、[配置](../../backend/src/metric_pilot/settings.py) | 服务生命周期、配置、后台 worker 与本地部署边界 |
 | 2 | [运行 API](../../backend/src/metric_pilot/agent/api.py)、[运行存储](../../backend/src/metric_pilot/agent/store.py) | 创建运行时固定快照、预算和 ID，状态转换、取消与 SSE 重放 |
 | 3 | [运行循环](../../backend/src/metric_pilot/agent/runtime.py)、[模型适配](../../backend/src/metric_pilot/agent/provider.py) | 原生工具调用、消息配对、失败修正与收尾 |
-| 4 | [工具注册](../../backend/src/metric_pilot/agent/tools.py)、[外部工具](../../backend/src/metric_pilot/agent/external_tools.py) | 工具签名、参数校验、执行权限和共享预算 |
+| 4 | [工具注册](../../backend/src/metric_pilot/agent/tools.py)、[发现行选择](../../backend/src/metric_pilot/agent/findings.py)、[外部工具](../../backend/src/metric_pilot/agent/external_tools.py) | 工具签名、参数校验、服务端引用生成、执行权限和共享预算 |
+| 4a | [关系核对](../../backend/src/metric_pilot/reports/claims.py) | 在完整冻结结果集内计算排名、比较、并列和空值，生成可追溯证明；自由解释不自动认证 |
 | 5 | [上下文](../../backend/src/metric_pilot/agent/context.py)、[生命周期观测](../../backend/src/metric_pilot/agent/middleware.py) | 固定目标、完整工具配对裁剪、审计与事件 |
 | 6 | [调查管理](../../backend/src/metric_pilot/agent/investigations.py) | 发现、限制、累计额度及跨运行证据授权 |
 | 7 | [数据导入](../../backend/src/metric_pilot/data/ingest.py)、[查询服务](../../backend/src/metric_pilot/data/query.py)、[SQL 校验](../../backend/src/metric_pilot/data/guard.py)、[执行器](../../backend/src/metric_pilot/data/executor.py) | 不可变数据快照、AST 允许集、只读连接与查询子进程 |
@@ -27,6 +28,8 @@
 | 14 | [数据抽屉](../../frontend/src/components/DataSourceDrawer.tsx)、[证据抽屉](../../frontend/src/components/EvidenceDrawer.tsx) | 工作区数据管理与逐轮固定快照只读模式、不可变依据的按需读取 |
 
 ## 2. 关键设计问题
+
+阶段7讲解见[身份、范围与真实复验](../walkthroughs/stage-7-explanations.md)，真实验收器为[verify_stage7.py](../../scripts/verify_stage7.py)。工具绝对行号和绑定错误详情用于帮助模型修正，仍保留人工语义边界。阶段7.C的表图声明校验位于[scope.py](../../backend/src/metric_pilot/reports/scope.py)，由报告物化调用；[范围反例与修正测试](../../backend/tests/test_report_scopes.py)覆盖人群、维度、日期及有限修正。它核对所声明范围与冻结行，不证明自由文字或SQL业务语义。
 
 - 模型提出的动作在哪里通过权限、预算和参数检查？运行与快照 ID 是否由服务端决定？
 - 失败、超时和取消是否终止真实操作？失败执行是否可能产生可引用的成功产物？
