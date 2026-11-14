@@ -265,6 +265,7 @@ export function AnalysisPage() {
           {investigation && <p className="investigation-status">{investigation.status === 'running' ? '核查中' : investigation.status === 'budget_exhausted' ? '累计额度已用完' : '可继续调查'}</p>}
           {visibleRuns.length > 0 && <Select<string> aria-label="定位轮次" className="run-history-select" placeholder="定位到历史问题" value={undefined} onChange={locateRun} options={visibleRuns.map(item => ({ value: item.id, label: `${item.question} · ${statusText[item.status]}` }))} />}
         </div>
+        <div className="analysis-thread-frame">
         <div className="analysis-thread" ref={thread} onScroll={() => { const element = thread.current; if (element) { follow.current = element.scrollHeight - element.scrollTop - element.clientHeight <= 80; setAway(!follow.current); } }}><div className="analysis-turns">
           {loading && <p role="status">正在恢复调查与历史…</p>}
           {!loading && !visibleRuns.length && <div className="welcome-state"><span className="welcome-symbol" aria-hidden="true">✳</span><p className="eyebrow">从数据，到有依据的发现</p><h1>今天，想了解什么？</h1><p>提出一个问题，一起查阅数据、核对线索，<br />让每个结论都能找到出处。</p></div>}
@@ -272,6 +273,7 @@ export function AnalysisPage() {
           {!loading && visibleRuns.slice(-shown).map(item => <RunTurn key={`${conversationId}:${item.id}`} run={item} findingCount={investigation?.findings.filter(f => f.run_id === item.id).length ?? 0} onUpdate={onUpdate} onActivity={onActivity} onFindings={() => setFindingsOpen(true)} investigation={investigation ?? undefined} snapshot={snapshots.find(snapshot => snapshot.id === item.snapshot_id)} disabled={blocked} onFollowUp={followUp} onLocateRun={locateRun} investigationError={investigationError} />)}
         </div></div>
         {away && <Button className="return-latest" onClick={() => { follow.current = true; setAway(false); if (thread.current) thread.current.scrollTop = thread.current.scrollHeight; }}>回到最新</Button>}
+        </div>
         {legacy && <Alert type="info" message="历史独立运行仅供查看，继续分析请选择或新建调查" />}
         <div className="composer"><label htmlFor="question">分析问题{investigation ? ' · 继续调查' : ''}</label><Input.TextArea aria-label="分析问题" id="question" rows={2} maxLength={4000} value={question} onChange={e => setQuestion(e.target.value)} placeholder="描述你想了解的问题，或继续追问…" disabled={blocked || legacy} /><div className="composer-bottom"><span>{investigation?.status === 'budget_exhausted' ? '累计运行额度已分配完，历史发现仍可查看' : '关闭页面后运行会继续'}</span><Space>{active && <Button danger onClick={() => { void cancel(); }} disabled={run?.cancel_requested}>停止分析</Button>}<Button type="primary" loading={busy} disabled={blocked || legacy || investigation?.status === 'budget_exhausted' || !configured || !snapshotId || (!investigation && !!rangeError) || !question.trim()} onClick={() => { void submit(); }}>发送问题</Button></Space></div></div>
 
