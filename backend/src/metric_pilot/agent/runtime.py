@@ -14,7 +14,9 @@ from metric_pilot.agent.contracts import FinalCandidate
 from metric_pilot.agent.external_tools import NAMES as EXTERNAL_NAMES
 from metric_pilot.agent.investigations import InvestigationStore
 from metric_pilot.agent.middleware import RuntimeObserver
+from metric_pilot.agent.protocol import bind
 from metric_pilot.agent.provider import AgentProvider
+from metric_pilot.agent.report_repair import RepairGuard
 from metric_pilot.agent.titles import split_title
 from metric_pilot.agent.tools import ToolRegistry
 from metric_pilot.data.catalog import Catalog
@@ -48,6 +50,8 @@ class AgentRuntime:
         输入：已领取任务与取消信号
         输出：持久终态
         """
+        if hasattr(self.provider, "end_protocol"):
+            self.provider.end_protocol()
         budget = run["budget"]
         ctx = RunContext(
             run["id"],
@@ -66,6 +70,7 @@ class AgentRuntime:
         registry = ToolRegistry(run, ctx, query, self.settings, cancel)
         groups, used, repairs, timeout_repairs = [], 0, 0, 0
         compactor = RunCompactor()
+        repair_guard = RepairGuard()
         seen, previous_failure, repeated = set(), None, 0
         usage = {}
         closing = False
@@ -188,6 +193,8 @@ class AgentRuntime:
                         usage,
                         closing,
                     )
+                if hasattr(self.provider, "retain_protocol"):
+                    self.provider.retain_protocol(groups)
                 messages = fit_context(turn_header, groups, registry, available)
                 self.observer.before_model(run["id"], index + 1)
                 turn = await self.wait_model(messages, schemas, ctx, cancel)
@@ -197,6 +204,7 @@ class AgentRuntime:
                 calls = turn["calls"]
                 if not calls:
                     candidate = None
+                    payload = None
                     try:
                         payload, conversation_title = split_title(turn.get("candidate"))
                         candidate = TypeAdapter(FinalCandidate).validate_python(payload)
@@ -205,6 +213,7 @@ class AgentRuntime:
                                 query.read_artifact(run["id"], ident, 0, 1)
                         prepared = None
                         if candidate.kind == "report":
+                            repair_guard.check(payload["report"])
                             if run.get("investigation_id"):
                                 findings = InvestigationStore(self.store.engine).read(
                                     run["investigation_id"]
@@ -238,6 +247,9 @@ class AgentRuntime:
                             "RUN_TIMEOUT",
                         }:
                             raise
+                        await asyncio.to_thread(
+                            repair_guard.capture, payload, ReportService(query), run
+                        )
                         code = (
                             exc.code if isinstance(exc, DataError) else "REPORT_STRUCTURE_INVALID"
                         )
@@ -277,6 +289,7 @@ class AgentRuntime:
                         )
                         display_error = code in {
                             "REPORT_STRUCTURE_INVALID",
+                            "REPORT_REPAIR_CONTENT_LOSS",
                             "REPORT_CHART_AXIS_AMBIGUOUS",
                             "REPORT_TEMPLATE_KEYS",
                             "REPORT_ROW_BINDING_KEYS",
@@ -284,18 +297,24 @@ class AgentRuntime:
                         }
                         if repairs > 2:
                             # 已有成功发现和查询时保留可追溯部分结果，明确解释未完成。
-                            if (
-                                display_error
-                                and registry.recorded_count
-                                and registry.query_summaries
+                            if display_error and (
+                                (registry.recorded_count and registry.query_summaries)
+                                or repair_guard.blocks
                             ):
                                 self.check(ctx, cancel)
                                 prepared = await asyncio.to_thread(
-                                    ReportService(query).table_fallback,
+                                    repair_guard.fallback,
+                                    ReportService(query),
                                     run,
-                                    [item["artifact_id"] for item in registry.query_summaries],
                                     report_limits,
                                 )
+                                if prepared is None and repair_guard.raw is None:
+                                    prepared = await asyncio.to_thread(
+                                        ReportService(query).table_fallback,
+                                        run,
+                                        [item["artifact_id"] for item in registry.query_summaries],
+                                        report_limits,
+                                    )
                                 if prepared is not None:
                                     self.check(ctx, cancel)
                                     self.observer.on_finish(
@@ -310,27 +329,23 @@ class AgentRuntime:
                                     return
                             raise DataError("FINAL_CANDIDATE_INVALID") from None
                         repair_draft = None
-                        if display_error and registry.recorded_count and registry.query_summaries:
-                            example = await asyncio.to_thread(
-                                ReportService(query).table_fallback,
-                                run,
-                                [item["artifact_id"] for item in registry.query_summaries],
-                            )
-                            if example:
-                                repair_draft = example["draft"]
-                                repair_draft["title"] = "已核查结果"
                         groups.append(
                             [
-                                {
-                                    "role": "assistant",
-                                    "content": json.dumps(
-                                        candidate.model_dump(exclude_defaults=True),
-                                        ensure_ascii=False,
-                                        separators=(",", ":"),
-                                    )
-                                    if candidate is not None
-                                    else "最终候选结构无效，请按契约重建。",
-                                },
+                                bind(
+                                    {
+                                        "role": "assistant",
+                                        "content": json.dumps(
+                                            candidate.model_dump(exclude_defaults=True),
+                                            ensure_ascii=False,
+                                            separators=(",", ":"),
+                                        )
+                                        if candidate is not None
+                                        else json.dumps(repair_guard.raw, ensure_ascii=False)
+                                        if repair_guard.raw is not None
+                                        else "Invalid final candidate; rebuild per contract.",
+                                    },
+                                    turn.get("assistant", {}),
+                                ),
                                 {
                                     "role": "user",
                                     "content": json.dumps(
@@ -338,6 +353,7 @@ class AgentRuntime:
                                             "error_code": code,
                                             "details": details,
                                             "valid_table_draft": repair_draft,
+                                            "required_block_ids": repair_guard.required,
                                             "instruction": (
                                                 "按报告契约修正；仅引用本次或服务端允许的同调查成功产物。"
                                                 "只输出JSON对象，不加Markdown围栏；外层kind=report与report，"
@@ -511,6 +527,10 @@ class AgentRuntime:
                 run["id"], "failed", error_code="RUN_INTERNAL_ERROR", usage=usage
             )
 
+        finally:
+            if hasattr(self.provider, "end_protocol"):
+                self.provider.end_protocol()
+
     def check(self, ctx, cancel):
         """
         作用：强制取消及总时间限制
@@ -522,7 +542,7 @@ class AgentRuntime:
         if time.monotonic() >= ctx.deadline_monotonic:
             raise DataError("RUN_TIMEOUT")
 
-    async def wait_model(self, messages, tools, ctx, cancel, *, summary=False):
+    async def wait_model(self, messages, tools, ctx, cancel, *, summary=False, local_timeout=None):
         """
         作用：取消时关闭实际异步 HTTP
         输入：模型请求及运行限制
@@ -535,14 +555,19 @@ class AgentRuntime:
             if summary
             else self.provider.next_turn(messages, tools)
         )
+        local_deadline = time.monotonic() + local_timeout if local_timeout is not None else None
         try:
             while not task.done():
                 self.check(ctx, cancel)
+                if local_deadline is not None and time.monotonic() >= local_deadline:
+                    raise DataError("COMPACT_LOCAL_TIMEOUT")
                 await asyncio.wait({task}, timeout=0.05)
             self.check(ctx, cancel)
+            if local_deadline is not None and time.monotonic() >= local_deadline:
+                raise DataError("COMPACT_LOCAL_TIMEOUT")
             return await task
         except DataError as error:
-            if error.code in {"RUN_TIMEOUT", "RUN_CANCELLED"}:
+            if error.code in {"RUN_TIMEOUT", "RUN_CANCELLED", "COMPACT_LOCAL_TIMEOUT"}:
                 error.details["attempts"] = getattr(self.provider, "current_attempts", 0)
             raise
         finally:

@@ -7,6 +7,7 @@ import httpx
 from pydantic import ValidationError
 
 from metric_pilot.agent.contracts import ToolCall
+from metric_pilot.agent.protocol import ProtocolMessage, State, hydrate
 from metric_pilot.data.common import DataError
 
 
@@ -34,13 +35,45 @@ class AgentProvider:
         """
         self.settings = settings
         self.current_attempts = 0
+        self.protocol_states = []
+
+    def end_protocol(self):
+        for state in self.protocol_states:
+            state.value = None
+            state.active = False
+        self.protocol_states.clear()
+
+    def retain_protocol(self, groups):
+        live = {id(getattr(message, "protocol", None)) for group in groups for message in group}
+        kept = []
+        for state in self.protocol_states:
+            if id(state) in live:
+                kept.append(state)
+            else:
+                state.value = None
+                state.active = False
+        self.protocol_states = kept
+
+    def protocol_message(self, message, raw):
+        value = raw.get("reasoning_content")
+        if value is not None and not isinstance(value, str):
+            raise DataError("MODEL_PROTOCOL_STATE_INVALID")
+        state = State(value)
+        self.protocol_states.append(state)
+        result = ProtocolMessage(message)
+        result.protocol = state
+        return result
 
     async def next_summary(self, messages):
         return await self.next_turn(
-            messages, [], max_attempts=1, output_limit=min(self.settings.run_output_tokens, 4096)
+            messages,
+            [],
+            max_attempts=1,
+            output_limit=min(self.settings.run_output_tokens, 4096),
+            summary=True,
         )
 
-    async def next_turn(self, messages, tools, *, max_attempts=3, output_limit=None):
+    async def next_turn(self, messages, tools, *, max_attempts=3, output_limit=None, summary=False):
         """
         作用：获取白名单响应并有限重试
         输入：消息与工具
@@ -50,6 +83,14 @@ class AgentProvider:
             raise DataError("MODEL_NOT_CONFIGURED")
         base = self.settings.llm_base_url.rstrip("/")
         url = base if base.endswith("/chat/completions") else base + "/chat/completions"
+        self.current_attempts = 0
+        messages = hydrate(messages)
+        from metric_pilot.agent.context import model_message_bytes
+
+        if model_message_bytes(messages) + len(json.dumps(tools, ensure_ascii=False).encode()) > (
+            self.settings.run_context_tokens - self.settings.run_output_tokens - 1024
+        ):
+            raise DataError("MODEL_PROTOCOL_CAPACITY")
         body = {
             "model": self.settings.llm_model,
             "messages": messages,
@@ -101,7 +142,22 @@ class AgentProvider:
                             raise DataError(
                                 "MODEL_RESPONSE_INVALID", {"failure_kind": "invalid_json"}
                             ) from None
-                        return self.parse(raw, attempt + 1)
+                        try:
+                            return (
+                                self.parse(raw, attempt + 1, summary=True)
+                                if summary
+                                else self.parse(raw, attempt + 1)
+                            )
+                        except DataError as error:
+                            if summary and isinstance(raw, dict):
+                                error.details["usage"] = {
+                                    k: v
+                                    for k, v in raw.get("usage", {}).items()
+                                    if k in {"prompt_tokens", "completion_tokens", "total_tokens"}
+                                    and type(v) is int
+                                    and v >= 0
+                                }
+                            raise
                     except (
                         httpx.TimeoutException,
                         httpx.NetworkError,
@@ -128,7 +184,7 @@ class AgentProvider:
                 {"attempts": self.current_attempts, "failure_kind": "request_error"},
             ) from None
 
-    def parse(self, raw, attempts):
+    def parse(self, raw, attempts, *, summary=False):
         """
         作用：丢弃 reasoning_content 等扩展正文
         输入：原始响应
@@ -195,7 +251,7 @@ class AgentProvider:
                 }
                 return {
                     "calls": calls,
-                    "assistant": assistant,
+                    "assistant": self.protocol_message(assistant, message),
                     "usage": usage,
                     "attempts": attempts,
                 }
@@ -206,7 +262,13 @@ class AgentProvider:
                 candidate = json.loads(content, parse_constant=reject_json_constant)
             except ValueError:
                 candidate = None
-            return {"calls": [], "candidate": candidate, "usage": usage, "attempts": attempts}
+            result = {"calls": [], "candidate": candidate, "usage": usage, "attempts": attempts}
+            result["assistant"] = self.protocol_message(
+                {"role": "assistant", "content": content}, message
+            )
+            if summary and len(content.encode("utf-8")) <= 2048:
+                result["summary_body"] = content
+            return result
         except DataError:
             raise
         except (KeyError, TypeError, ValueError, IndexError, ValidationError):

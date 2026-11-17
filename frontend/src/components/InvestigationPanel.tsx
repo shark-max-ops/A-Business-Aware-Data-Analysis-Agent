@@ -1,4 +1,3 @@
-import { dateRangeLabel } from '../api/data';
 import { useEffect, useRef, useState } from 'react';
 import { Button, Empty, Modal, Tag } from 'antd';
 import type { components } from '../api/schema';
@@ -10,6 +9,7 @@ import { readFrozen } from '../api/runHistory';
 export type Investigation = components['schemas']['InvestigationDTO'];
 type Finding = components['schemas']['FindingDTO'];
 export type FindingEvidence = {
+  scope_context?: components['schemas']['ScopeContext'] | null;
   block: { evidence_ids?: string[]; segments: { text: string; value?: { display: string; value_ref: { artifact_id: string; row: number; column: string } } }[] };
   artifacts: Record<string, { artifact: components['schemas']['QueryArtifact'] }>;
   sources: Record<string, { revision_id?: string; title: string; content: string; source_kind: string; locator: Record<string, unknown> }>;
@@ -48,7 +48,7 @@ export function InvestigationPanel({ investigation: inv, disabled, onFollowUp, r
   function findingView(item: Finding, historical = false) {
     return <article className={`investigation-finding${historical ? ' historical' : ''}`} key={item.id}>
       <div className="finding-heading"><Tag color={item.verification === 'unverified' ? undefined : item.kind === 'counterevidence' ? 'gold' : item.kind === 'fact' ? 'green' : undefined}>{item.verification === 'unverified' ? '未核实解释' : item.verification === 'result_values' ? '已核对取值' : kindText[item.kind] ?? item.kind}</Tag>{historical && <span>已有后续修正</span>}{['failed', 'cancelled', 'interrupted'].includes(item.source_run_status) && <span>来源运行未完成 · 复用前需重新核查</span>}</div>
-      <p>{item.text}</p>{(item.row_bindings ?? []).length > 0 && <small>已校验所声明的分组与数值来自同一行；文字解释仍需复核。</small>}<div className="finding-footer"><span>核查：{item.check}</span><Button size="small" type="link" loading={loading === item.id} onClick={() => { void showEvidence(item); }}>查看依据</Button></div>
+      <p>{item.text}</p>{(item.row_bindings ?? []).length > 0 && <small>已校验所声明的分组与数值来自同一行；文字解释仍需复核。</small>}<div className="finding-footer"><span>{item.scope_context?.main_label ?? "历史范围未记录"}<br />{item.scope_context?.policy === "server_scope_v1" ? "核查说明（未核实）" : "历史核查说明（未核实）"}：{item.check}</span><Button size="small" type="link" loading={loading === item.id} onClick={() => { void showEvidence(item); }}>查看依据</Button></div>
       {historical && onLocateRun && supersededBy.get(item.id) && <Button type="link" size="small" onClick={() => onLocateRun(supersededBy.get(item.id)!.run_id)}>定位后续修正轮次</Button>}
     </article>;
   }
@@ -61,7 +61,7 @@ export function InvestigationPanel({ investigation: inv, disabled, onFollowUp, r
     <Modal title="发现的固定依据" centered styles={{ body: { maxHeight: 'calc(100dvh - 200px)', overflowY: 'auto' } }} open={!!selectedFinding} onCancel={() => { request.current++; setSelectedFinding(null); setLoading(''); }} footer={<Button aria-label="关闭" onClick={() => { request.current++; setSelectedFinding(null); setLoading(''); }}>关闭</Button>} width={800}>
       {loading && <p role="status">正在读取固定依据…</p>}
       {error && <div><p role="alert">依据读取失败：{error}</p><Button onClick={() => { if (selectedFinding) void showEvidence(selectedFinding); }}>重试依据</Button></div>}
-      {evidence && <div className="finding-evidence"><p>{evidence.block.segments.map(s => s.text).join('')}</p>
+      {evidence && <div className="finding-evidence"><p>{evidence.scope_context?.main_label ?? "历史范围未记录"}</p><p>{evidence.block.segments.map(s => s.text).join('')}</p>
         {evidence.block.segments.filter(s => s.value).map((s, index) => <p key={index}>引用值：{s.value!.display} · 第 {s.value!.value_ref.row + 1} 行 · {s.value!.value_ref.column}</p>)}
         {Object.entries(evidence.artifacts).map(([id, item]) => <details key={id}><summary>成功查询 · 冻结 {item.artifact.returned_rows} 行</summary>{runId && <p>{item.artifact.run_id === runId ? '本轮产生的查询' : '引用旧轮次的证据'}</p>}<ExplorationNote artifact={item.artifact} /><pre>{item.artifact.sql}</pre><p>绑定参数：{JSON.stringify(item.artifact.parameters)}</p><code>来源运行：{item.artifact.run_id}</code></details>)}
         {Object.entries(evidence.sources).map(([id, source]) => isExternalSource(source.source_kind) ? <ExternalSource key={id} source={source} /> : <details key={id}><summary>{source.title} · {source.source_kind === 'official_reference' ? '官方资料' : source.source_kind === 'project_policy' ? '项目规则' : source.source_kind === 'wiki_generated' ? '生成 Wiki' : '来源材料'}</summary><p>定位：{JSON.stringify(source.locator)}</p><pre>{source.content}</pre></details>)}
@@ -73,6 +73,6 @@ export function InvestigationPanel({ investigation: inv, disabled, onFollowUp, r
 
 /** 固定版本及分配额度仅在调查信息抽屉内呈现。 */
 export function InvestigationInfo({ investigation: inv }: { investigation: Investigation }) {
-  return <section className="investigation-info"><h2>{inv.goal}</h2><p>{inv.scope}</p>{inv.date_range && <p>{dateRangeLabel(inv.date_range)}</p>}<Tag>{inv.status === 'running' ? '核查中' : inv.status === 'budget_exhausted' ? '累计额度已用完' : '可继续调查'}</Tag>
+  return <section className="investigation-info"><h2>{inv.goal}</h2><p>调查说明：{inv.scope}</p><p>{inv.scope_context?.main_label}</p><Tag>{inv.status === 'running' ? '核查中' : inv.status === 'budget_exhausted' ? '累计额度已用完' : '可继续调查'}</Tag>
     <h3>版本与累计额度</h3><p>数据和知识版本在调查创建时固定。运行前分配额度，取消或失败也不退回；这不是实际 token 消耗。</p><p>已分配 {inv.allocated.runs}/{inv.limits.runs} 次运行 · {inv.allocated.max_turns}/{inv.limits.max_turns} 轮模型交互 · {inv.allocated.max_tool_calls}/{inv.limits.max_tool_calls} 次工具调用 · {inv.allocated.timeout_seconds}/{inv.limits.timeout_seconds} 秒执行额度</p><p>剩余任一额度不足以分配完整运行时不能继续。</p><code>数据：{inv.snapshot_id}<br />知识：{inv.knowledge_snapshot_id}</code>{inv.parent_id && <p>此调查由已有调查显式建立分支。</p>}</section>;
 }

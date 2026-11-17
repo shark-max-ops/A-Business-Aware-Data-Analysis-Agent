@@ -3755,6 +3755,16 @@
       },
       "EvidenceDTO": {
         "properties": {
+          "scope_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScopeContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "block_id": {
             "type": "string",
             "title": "Block Id"
@@ -3886,6 +3896,16 @@
       },
       "FindingDTO": {
         "properties": {
+          "scope_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScopeContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "type": "string",
             "title": "Id"
@@ -4368,6 +4388,16 @@
       },
       "InvestigationDTO": {
         "properties": {
+          "scope_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScopeContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "type": "string",
             "title": "Id"
@@ -5443,6 +5473,16 @@
       },
       "ReportDTO": {
         "properties": {
+          "scope_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScopeContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "report_id": {
             "type": "string",
             "title": "Report Id"
@@ -5741,6 +5781,16 @@
       },
       "ReportSummary": {
         "properties": {
+          "scope_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScopeContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "type": "string",
             "title": "Id"
@@ -6049,6 +6099,50 @@
         ],
         "title": "SchemaDTO",
         "description": "作用：返回某个固定快照的公开结构\n输入：快照标识与表结构\n输出：结构 DTO"
+      },
+      "ScopeContext": {
+        "properties": {
+          "policy": {
+            "type": "string",
+            "enum": [
+              "server_scope_v1",
+              "legacy_scope_v1"
+            ],
+            "title": "Policy"
+          },
+          "main_date_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "range_source": {
+            "type": "string",
+            "enum": [
+              "frozen_range",
+              "legacy_single_month",
+              "unavailable"
+            ],
+            "title": "Range Source"
+          },
+          "main_label": {
+            "type": "string",
+            "title": "Main Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "policy",
+          "main_date_range",
+          "range_source",
+          "main_label"
+        ],
+        "title": "ScopeContext"
       },
       "SearchHit": {
         "properties": {

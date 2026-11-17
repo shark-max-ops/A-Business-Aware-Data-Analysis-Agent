@@ -3,7 +3,8 @@ import { test, expect, type Page } from '@playwright/test';
 test('report keeps fixed main range separate from declared population and subrange', async ({ page }) => {
   const range = { start: '2026-01-01', end_exclusive: '2026-03-01' };
   const report = { report_id: 'scope-test', revision_id: 'v1', version: 1, title: '合成范围报告',
-    question: '合成问题', scope: '范围说明', date_range: range, created_at: '2026-01-01T00:00:00Z',
+    question: '合成问题', scope: '错误日期2026-02-28（结束日不含）', date_range: range,
+    scope_context: { policy: 'server_scope_v1', main_date_range: range, range_source: 'frozen_range', main_label: '调查主范围：2026-01-01（含）至2026-03-01（不含）' }, created_at: '2026-01-01T00:00:00Z',
     data_snapshot: { id: 'synthetic', period: null, manifest: { source_kind: 'synthetic' } },
     limitations: ['仅合成展示验收'], draft: { limitations: [] }, blocks: [{
       id: 'groups', type: 'table', title: '指定航司', artifact_id: 'qa_test',
@@ -22,7 +23,7 @@ test('report keeps fixed main range separate from declared population and subran
   await page.goto('/reports/scope-test/revisions/v1');
   for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport);
-    await expect(page.getByText('固定主范围：2026-01-01 至 2026-03-01（不含结束日）')).toBeVisible();
+    await expect(page.locator('.report-content').getByText('调查主范围：2026-01-01（含）至2026-03-01（不含）', { exact: true })).toBeVisible();
     await expect(page.getByText('日期子范围：2026-01-01 至 2026-01-02（不含结束日）')).toBeVisible();
     await expect(page.getByText('分组维度：航司、日期')).toBeVisible();
     await expect(page.getByText('人群（航司）：OH')).toBeVisible();
@@ -155,11 +156,11 @@ test('frozen investigation and turn show the exact partial date range', async ({
     items: [{ ...run(1), date_range }],
   } }));
   await page.route('**/api/v1/investigations?*', route => route.fulfill({ json: {
-    items: [{ ...investigation('first'), date_range }],
+    items: [{ ...investigation('first'), date_range, scope_context: { policy: 'server_scope_v1', main_date_range: date_range, range_source: 'frozen_range', main_label: '调查主范围：2026-01-02（含）至2026-01-03（不含）' } }],
   } }));
   await page.reload();
   await page.getByRole('button', { name: '调查信息', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: '调查信息', exact: true })).toContainText('2026-01-02 至 2026-01-03（不含结束日）');
+  await expect(page.getByRole('dialog', { name: '调查信息', exact: true })).toContainText('调查主范围：2026-01-02（含）至2026-01-03（不含）');
   await page.keyboard.press('Escape');
   await page.locator('.run-result').getByText('本轮信息', { exact: true }).click();
   await expect(page.locator('.run-result')).toContainText('2026-01-02 至 2026-01-03（不含结束日）');

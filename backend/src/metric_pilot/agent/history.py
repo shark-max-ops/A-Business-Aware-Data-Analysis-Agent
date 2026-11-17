@@ -184,6 +184,7 @@ def read_history(registry, args):
             (
                 {
                     "type": "finding",
+                    "scope_context": f.get("scope_context"),
                     **{
                         k: f[k]
                         for k in (

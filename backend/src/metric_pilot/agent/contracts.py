@@ -7,6 +7,7 @@ from pydantic_core import PydanticCustomError
 
 from metric_pilot.contracts import StrictDTO
 from metric_pilot.data.contracts import ExplorationScope
+from metric_pilot.data.presentation import ScopeContext
 from metric_pilot.data.ranges import DateRange
 from metric_pilot.external.weather import WeatherRequest
 from metric_pilot.reports.contracts import (
@@ -394,6 +395,8 @@ class FindingDTO(StrictDTO):
     输出：中文内容与证据索引
     """
 
+    scope_context: ScopeContext | None = None
+
     id: str
     run_id: str
     kind: str
@@ -416,6 +419,8 @@ class InvestigationDTO(StrictDTO):
     输入：服务端调查
     输出：前后端统一契约
     """
+
+    scope_context: ScopeContext | None = None
 
     id: str
     conversation_id: str

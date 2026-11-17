@@ -5,6 +5,7 @@ from sqlalchemy import select
 from metric_pilot.agent import models as agent_models
 from metric_pilot.agent.investigations import authorized_runs, read_evidence_artifact
 from metric_pilot.data.common import DataError, digest, new_id, utc_now
+from metric_pilot.data.presentation import scope_context
 from metric_pilot.data.ranges import run_range
 from metric_pilot.knowledge.store import KnowledgeStore
 from metric_pilot.reports import models as m
@@ -288,6 +289,7 @@ class ReportService(KnowledgeStore):
         result = {key: payload[key] for key in ReportDTO.model_fields if key in payload}
         result.update(
             content_hash=digest,
+            scope_context=scope_context(payload),
             sources=list(payload["sources"].values()),
             metrics=list(payload["metrics"].values()),
             external_snapshots=list(payload.get("external_snapshots", {}).values()),
@@ -325,6 +327,7 @@ class ReportService(KnowledgeStore):
                     title=p["title"],
                     question=p["question"],
                     scope=p["scope"],
+                    scope_context=scope_context(p),
                     period=p["data_snapshot"]["period"],
                     date_range=p.get("date_range"),
                     source_kind=p["data_snapshot"]["manifest"].get("source_kind", "unknown"),
@@ -359,6 +362,9 @@ class ReportService(KnowledgeStore):
         old, _ = self.frozen(report_id, row["latest_revision_id"])
         # 新修订采用当前结论边界，旧冻结报告仍按原内容读取。
         old = {**old, "verification_policy": POLICY}
+        recovered = scope_context(old)["main_date_range"]
+        if old.get("date_range") is None and recovered is not None:
+            old = {**old, "date_range": recovered}
         prepared = materialize(request.report, old)
         with self.write() as connection:
             current = self.report_row(connection, report_id)
@@ -421,6 +427,7 @@ class ReportService(KnowledgeStore):
             source_ids = expanded
         return EvidenceDTO(
             proof=block.get("proof"),
+            scope_context=scope_context(p),
             block_id=block_id,
             value=value,
             artifact=artifact,

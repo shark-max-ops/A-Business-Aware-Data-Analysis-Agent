@@ -251,8 +251,9 @@ class ToolRegistry:
             "read_investigation": (
                 a.ReadInvestigation if self.history_enabled else a.LegacyReadInvestigation,
                 (
-                    "已知finding_id直接读；只记得主题时query搜索一次（最多3项）；"
-                    "query/finding_id互斥且offset=0、limit=5；无命中不代表未查过。"
+                    'ID直读 {"finding_id":"已知发现ID"}；主题搜索 {"query":"OH OO"}（最多3项）；'
+                    "两者互斥，均省略offset/limit。旧分页仅无ID和query时用"
+                    '{"offset":0,"limit":1}，offset取结果detail_offset。无命中不代表未查过。'
                     "已知artifact_id直接read_artifact。"
                     if self.history_enabled
                     else ""

@@ -29,7 +29,7 @@ export function RunDetails({ run, investigation, snapshot, disabled, onFollowUp,
     {investigationError && !findings.length ? <p>本轮发现尚不能确认，请刷新调查记录。</p> : investigation ? <InvestigationPanel investigation={investigation} runId={run.id} disabled={disabled} onFollowUp={onFollowUp} onLocateRun={onLocateRun} onError={() => {}} />
       : <p>{run.investigation_id ? '本轮调查记录尚未加载。' : '本轮为历史独立运行，没有关联的调查发现记录。'}</p>}
     <details className="turn-info"><summary>本轮信息</summary>
-      {investigation && <><p>所属调查目标：{investigation.goal}</p><p>所属调查固定范围：{investigation.scope}</p></>}
+      {investigation && <><p>{investigation.scope_context?.main_label}</p><p>所属调查目标：{investigation.goal}</p><p>所属调查说明：{investigation.scope}</p></>}
       <p>本轮状态：{run.result?.kind === 'report' && run.result.partial ? '部分完成，解释未完成' : ({ queued: '已排队', running: '分析中', completed: '已完成', failed: '失败', cancelled: '已取消', interrupted: '服务中断' })[run.status]}</p>
       <p>创建时间：{new Date(run.created_at).toLocaleString('zh-CN', { hour12: false })}</p>
       <p>固定数据版本：<code>{run.snapshot_id}</code><br />固定知识版本：<code>{run.knowledge_snapshot_id}</code></p>
