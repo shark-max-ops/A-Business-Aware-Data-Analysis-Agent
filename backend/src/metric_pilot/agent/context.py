@@ -246,6 +246,15 @@ def initial_messages(run, registry, previous):
                 ),
             }
         )
+    if getattr(registry, "history_enabled", False):
+        data = json.loads(messages[1]["content"])
+        data.pop("available_artifacts", None)
+        data["previous_completed_runs"] = [
+            {key: item.get(key) for key in ("question", "status")} for item in previous[-2:]
+        ]
+        if data.get("investigation"):
+            data["investigation"].pop("recent_findings", None)
+        messages[1]["content"] = json.dumps(data, ensure_ascii=False)
     return messages
 
 
@@ -684,9 +693,49 @@ def fit_context(header, groups, registry, max_chars):
     输入：消息组及字符预算
     输出：模型消息
     """
+    if getattr(registry, "history_enabled", False):
+        from metric_pilot.agent.history import corrected_findings, navigation
+
+        findings = (
+            corrected_findings(
+                InvestigationStore(registry.store.engine).read(registry.run["investigation_id"])[
+                    "findings"
+                ]
+            )
+            if registry.run.get("investigation_id")
+            else []
+        )
+        corrections = [f for f in reversed(findings) if f.get("supersedes") or f["superseded"]]
+        nav = navigation(
+            registry.query_summaries, corrections or findings[-2:], registry.prior_artifacts
+        )
+        summary = getattr(registry, "working_summary", None)
+        while (
+            nav["items"]
+            and len(
+                json.dumps({"navigation": nav, "summary": summary}, ensure_ascii=False).encode()
+            )
+            > 4096
+        ):
+            nav["items"].pop()
+            nav["omitted"] = True
+        header = header + [
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "history_navigation": nav,
+                        "working_summary": summary,
+                        "coverage_gap": getattr(registry, "compaction_gap", None),
+                        "boundary": "未核实背景；精确数值与关系证明仍读取原冻结记录。",
+                    },
+                    ensure_ascii=False,
+                ),
+            }
+        ]
     fixed = header + [
         {
-            "role": "system",
+            "role": "user" if getattr(registry, "history_enabled", False) else "system",
             "content": json.dumps(
                 {
                     "current_artifact_ids": sorted(registry.artifact_ids),
@@ -706,7 +755,9 @@ def fit_context(header, groups, registry, max_chars):
                     "known_external_tables": getattr(
                         getattr(registry, "external", None), "known_schemas", {}
                     ),
-                    "recent_successful_queries": getattr(registry, "query_summaries", [])[-3:],
+                    "recent_successful_queries": []
+                    if getattr(registry, "history_enabled", False)
+                    else getattr(registry, "query_summaries", [])[-3:],
                     "cached_source_excerpts": sorted(
                         getattr(registry, "source_summaries", {}).values(),
                         key=lambda item: item["source_kind"] != "official_reference",
@@ -724,8 +775,46 @@ def fit_context(header, groups, registry, max_chars):
         },
     ]
     selected = [compact_group(group, registry) for group in groups]
+
+    def refresh_history():
+        if not getattr(registry, "history_enabled", False):
+            return
+        from metric_pilot.agent.history import complete_caches, visible_locators
+
+        visible, complete = visible_locators(sum(selected, []))
+        nav = navigation(
+            registry.query_summaries,
+            corrections or findings[-2:],
+            registry.prior_artifacts,
+            visible,
+        )
+        summary = getattr(registry, "working_summary", None)
+        while (
+            nav["items"]
+            and len(
+                json.dumps({"navigation": nav, "summary": summary}, ensure_ascii=False).encode()
+            )
+            > 4096
+        ):
+            nav["items"].pop()
+            nav["omitted"] = True
+        background = json.loads(fixed[len(header) - 1]["content"])
+        background["history_navigation"] = nav
+        fixed[len(header) - 1]["content"] = json.dumps(background, ensure_ascii=False)
+        memory = json.loads(fixed[-1]["content"])
+        memory["recent_successful_queries"] = complete_caches(registry.query_summaries, complete)
+        fixed[-1]["content"] = json.dumps(memory, ensure_ascii=False)
+
+    refresh_history()
     # 以 UTF-8 字节作保守 token 上界，给输出与工具签名预留空间。
     while selected and model_message_bytes(fixed + sum(selected, [])) > max_chars:
+        if getattr(registry, "history_enabled", False):
+            memory = json.loads(fixed[-1]["content"])
+            if memory["recent_successful_queries"]:
+                memory["recent_successful_queries"] = []
+                fixed[-1]["content"] = json.dumps(memory, ensure_ascii=False)
+                if model_message_bytes(fixed + sum(selected, [])) <= max_chars:
+                    break
         if len(selected) == 1 and getattr(registry, "run", {}).get("investigation_id"):
             # 最后一次仅缩短预览和来源摘录，保留全部配对回复、范围和证据定位。
             # 从原始最新批次生成简版，不能把已经摘录的副本误当完整历史再裁剪。
@@ -809,6 +898,22 @@ def fit_context(header, groups, registry, max_chars):
                 )
             break
         selected.pop(0)
+        refresh_history()
+        if getattr(registry, "history_enabled", False):
+            memory = json.loads(fixed[-1]["content"])
+            memory["history_coverage_gap"] = (
+                "部分旧完整消息组因容量省略；摘要不代表完整覆盖，原记录仍保留。"
+                "按需query检索或按ID读取。"
+            )
+            fixed[-1]["content"] = json.dumps(memory, ensure_ascii=False, separators=(",", ":"))
+    refresh_history()
+    if (
+        getattr(registry, "history_enabled", False)
+        and model_message_bytes(fixed + sum(selected, [])) > max_chars
+    ):
+        memory = json.loads(fixed[-1]["content"])
+        memory["recent_successful_queries"] = []
+        fixed[-1]["content"] = json.dumps(memory, ensure_ascii=False)
     messages = fixed + sum(selected, [])
     if model_message_bytes(messages) > max_chars:
         raise DataError("CONTEXT_BUDGET_EXCEEDED")

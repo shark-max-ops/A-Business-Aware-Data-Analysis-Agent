@@ -347,7 +347,7 @@ def test_multimonth_blocks_downgrade_and_investigation(workspace, monkeypatch):
     with catalog.engine.connect() as c:
         assert (
             c.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0008_multimonth"
+            == "0009_context_checkpoints"
         )
     with TestClient(create_app(config)) as client:
         conv = client.post("/api/v1/conversations").json()

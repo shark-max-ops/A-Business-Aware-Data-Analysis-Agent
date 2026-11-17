@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     wiki_reasoning_effort: Literal["", "none", "low", "high", "max"] = "none"
     agent_reasoning_effort: Literal["", "none", "low", "high", "max"] = "none"
     run_context_tokens: int = Field(default=32000, ge=8000)
+    run_history_compaction: bool = False
     run_output_tokens: int = Field(default=3000, ge=512, le=16000)
     run_max_turns: int = Field(default=16, ge=1)
     run_max_tool_calls: int = Field(default=24, ge=1)

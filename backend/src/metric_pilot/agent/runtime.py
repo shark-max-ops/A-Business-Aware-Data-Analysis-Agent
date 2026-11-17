@@ -8,6 +8,7 @@ import time
 
 from pydantic import TypeAdapter, ValidationError
 
+from metric_pilot.agent.compaction import RunCompactor
 from metric_pilot.agent.context import fit_context, initial_messages
 from metric_pilot.agent.contracts import FinalCandidate
 from metric_pilot.agent.external_tools import NAMES as EXTERNAL_NAMES
@@ -64,6 +65,7 @@ class AgentRuntime:
         )
         registry = ToolRegistry(run, ctx, query, self.settings, cancel)
         groups, used, repairs, timeout_repairs = [], 0, 0, 0
+        compactor = RunCompactor()
         seen, previous_failure, repeated = set(), None, 0
         usage = {}
         closing = False
@@ -76,6 +78,7 @@ class AgentRuntime:
                 {
                     "question": self.store.read(ident)["question"],
                     "result": self.store.read(ident)["result"],
+                    "status": self.store.read(ident)["status"],
                 }
                 for ident in run["context_run_ids"]
             ]
@@ -172,6 +175,19 @@ class AgentRuntime:
                     if run.get("investigation_id") and closing
                     else header
                 )
+                if registry.history_enabled:
+                    await compactor.maybe(
+                        self,
+                        turn_header,
+                        groups,
+                        registry,
+                        available,
+                        schemas,
+                        ctx,
+                        cancel,
+                        usage,
+                        closing,
+                    )
                 messages = fit_context(turn_header, groups, registry, available)
                 self.observer.before_model(run["id"], index + 1)
                 turn = await self.wait_model(messages, schemas, ctx, cancel)
@@ -506,7 +522,7 @@ class AgentRuntime:
         if time.monotonic() >= ctx.deadline_monotonic:
             raise DataError("RUN_TIMEOUT")
 
-    async def wait_model(self, messages, tools, ctx, cancel):
+    async def wait_model(self, messages, tools, ctx, cancel, *, summary=False):
         """
         作用：取消时关闭实际异步 HTTP
         输入：模型请求及运行限制
@@ -514,7 +530,11 @@ class AgentRuntime:
         """
         if hasattr(self.provider, "current_attempts"):
             self.provider.current_attempts = 0
-        task = asyncio.create_task(self.provider.next_turn(messages, tools))
+        task = asyncio.create_task(
+            self.provider.next_summary(messages)
+            if summary
+            else self.provider.next_turn(messages, tools)
+        )
         try:
             while not task.done():
                 self.check(ctx, cancel)

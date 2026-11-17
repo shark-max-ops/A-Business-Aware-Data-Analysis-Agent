@@ -35,7 +35,12 @@ class AgentProvider:
         self.settings = settings
         self.current_attempts = 0
 
-    async def next_turn(self, messages, tools):
+    async def next_summary(self, messages):
+        return await self.next_turn(
+            messages, [], max_attempts=1, output_limit=min(self.settings.run_output_tokens, 4096)
+        )
+
+    async def next_turn(self, messages, tools, *, max_attempts=3, output_limit=None):
         """
         作用：获取白名单响应并有限重试
         输入：消息与工具
@@ -49,7 +54,7 @@ class AgentProvider:
             "model": self.settings.llm_model,
             "messages": messages,
             **({"tools": tools} if tools else {}),
-            "max_tokens": self.settings.run_output_tokens,
+            "max_tokens": output_limit or self.settings.run_output_tokens,
             "temperature": 0,
             **(
                 {"reasoning_effort": self.settings.agent_reasoning_effort}
@@ -63,13 +68,16 @@ class AgentProvider:
             async with httpx.AsyncClient(
                 timeout=60, trust_env=False, follow_redirects=False
             ) as client:
-                for attempt in range(3):
+                for attempt in range(max_attempts):
                     self.current_attempts = attempt + 1
                     try:
                         async with client.stream(
                             "POST", url, json=body, headers=headers
                         ) as response:
-                            if response.status_code in {429, 500, 502, 503, 504} and attempt < 2:
+                            if (
+                                response.status_code in {429, 500, 502, 503, 504}
+                                and attempt < max_attempts - 1
+                            ):
                                 retry_http = True
                             else:
                                 retry_http = False
@@ -99,7 +107,7 @@ class AgentProvider:
                         httpx.NetworkError,
                         httpx.RemoteProtocolError,
                     ) as error:
-                        if attempt < 2:
+                        if attempt < max_attempts - 1:
                             await asyncio.sleep(0.5 * 2**attempt)
                             continue
                         kind = (
