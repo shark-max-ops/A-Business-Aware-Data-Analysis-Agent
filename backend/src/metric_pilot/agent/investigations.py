@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 
 from metric_pilot.agent import models as m
 from metric_pilot.data.common import DataError, digest, new_id, utc_now
-from metric_pilot.data.models import ArtifactRecord
+from metric_pilot.data.models import ArtifactRecord, DataSnapshot
+from metric_pilot.data.presentation import scope_context
 from metric_pilot.data.ranges import resolve_range, run_range
 from metric_pilot.knowledge.store import KnowledgeStore
 
@@ -46,6 +47,7 @@ class InvestigationStore(KnowledgeStore):
             "goal": body.goal.strip(),
             "scope": body.scope.strip(),
             "date_range": selected.model_dump(),
+            "scope_context": scope_context({"date_range": selected.model_dump()}, new=True),
             "snapshot_id": body.snapshot_id,
             "knowledge_snapshot_id": knowledge_id,
             "parent_id": body.parent_id,
@@ -153,6 +155,10 @@ class InvestigationStore(KnowledgeStore):
             ]
             active = self.active(c, ident)
         p = row["payload"]
+        with Session(self.engine) as session:
+            snapshot = session.get(DataSnapshot, p["snapshot_id"])
+            legacy_period = snapshot.period if snapshot is not None else None
+        presentation = scope_context({**p, "data_snapshot": {"period": legacy_period}})
         exhausted = any(p["allocated"][key] >= value for key, value in p["limits"].items())
         return {
             "id": ident,
@@ -162,6 +168,7 @@ class InvestigationStore(KnowledgeStore):
             "status": "running" if active else "budget_exhausted" if exhausted else "ready",
             "active_run_id": active,
             "run_ids": runs,
+            "scope_context": presentation,
             "findings": sorted(entries, key=lambda e: (e["created_at"], e["id"])),
         }
 
@@ -186,6 +193,7 @@ class InvestigationStore(KnowledgeStore):
             },
             **{key: p[key] for key in ("kind", "check", "questions", "supersedes", "created_at")},
             "text": "".join(s["text"] for s in p["block"]["segments"]),
+            "scope_context": scope_context(p if p.get("scope_context") else p["frozen"]),
             "verification": p["block"].get("verification"),
         }
 
@@ -200,6 +208,7 @@ class InvestigationStore(KnowledgeStore):
             "block": block,
             "frozen": frozen,
             "created_at": utc_now(),
+            "scope_context": scope_context(frozen, new=True),
         }
         row = {
             "id": new_id("finding"),
@@ -284,7 +293,10 @@ class InvestigationStore(KnowledgeStore):
             if row is None:
                 raise DataError("FINDING_NOT_FOUND")
             self.public_finding(row)
-            return row["payload"]["frozen"]
+            return {
+                **row["payload"]["frozen"],
+                "scope_context": self.public_finding(row)["scope_context"],
+            }
 
 
 def authorized_runs(engine, run):

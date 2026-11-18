@@ -1,4 +1,32 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+import type { Report } from '../src/api/reports';
+
+async function savedReport(page: Page): Promise<Report> {
+  const path = page.url().includes('/reports/') ? new URL(page.url()).pathname : await page.getByRole('link', { name: '打开完整报告' }).getAttribute('href');
+  expect(path).toMatch(/^\/reports\/[^/]+\/revisions\/[^/]+$/);
+  const response = await page.request.get('/api/v1' + path);
+  expect(response.ok()).toBeTruthy();
+  const report = await response.json() as Report;
+  expect(path).toBe(`/reports/${report.report_id}/revisions/${report.revision_id}`);
+  return report;
+}
+
+function recordKpi(page: Page, report: Report) {
+  const block = report.blocks.find(b => b.type === 'kpi' && b.value?.value_ref.column === 'record_count')!;
+  expect(block).toBeDefined();
+  return { block, button: page.getByRole('button', { name: `${block.title}：${block.value!.display}，查看依据`, exact: true }) };
+}
+
+async function investigationData(page: Page) {
+  const conversation = await page.evaluate(() => localStorage.getItem('analysis-conversation'));
+  expect(conversation).toBeTruthy();
+  const response = await page.request.get(`/api/v1/investigations?conversation_id=${conversation}`);
+  expect(response.ok()).toBeTruthy();
+  const data = await response.json();
+  expect(data.items).toHaveLength(1);
+  return data.items[0];
+}
 
 const rangeSql = 'SELECT COUNT(*) AS record_count, COUNT(DISTINCT flight_date) AS distinct_days, MIN(flight_date) AS min_date, MAX(flight_date) AS max_date FROM v_flights';
 
@@ -54,13 +82,22 @@ test('multimonth date selection reaches real scoped SQL, continuation and a chan
   await page.getByRole('button', { name: /发送问题$/ }).click();
   await expect(page.getByRole('link', { name: '打开完整报告' })).toBeVisible({ timeout: 45000 });
   await page.getByRole('link', { name: '打开完整报告' }).click();
-  await expect(page.getByRole('img', { name: /所选范围月度趋势/ })).toBeVisible();
-  await expect(page.locator('.report-meta')).toContainText('2026-01-02 至 2026-02-02');
+  const report = await savedReport(page);
+  const trend = report.blocks.find(b => b.id === 'trend')!;
+  expect(trend.type).toBe('chart');
+  expect(trend.kind).toBe('line');
+  expect(trend.columns?.map(c => c.name)).toEqual(['month', 'n']);
+  expect(trend.rows).toHaveLength(2);
+  expect(report.blocks.find(b => b.id === 'grouped')?.rows).toHaveLength(4);
+  await expect(page.locator('.line-chart')).toHaveAccessibleName(`${trend.title}，点击数据点查看依据`);
+  await expect(page.locator('.line-chart')).toBeVisible();
+  expect(report.scope_context?.main_date_range).toEqual({ start: '2026-01-02', end_exclusive: '2026-02-02' });
+  await expect(page.locator('.report-meta')).toContainText(report.scope_context!.main_label);
   await expect(page.getByRole('cell', { name: '-6', exact: true })).toBeVisible();
   await page.getByRole('cell', { name: '-6', exact: true }).getByRole('button').click();
   const evidence = page.getByRole('dialog', { name: '这个结果从哪里来', exact: true });
   await expect(evidence).toContainText('原始值：-6');
-  await expect(evidence).toContainText('2026-01-02 至 2026-02-02');
+  await expect(evidence).toContainText(report.scope_context!.main_label);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/stage6d-monthly-evidence-mobile.png' });
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -95,7 +132,22 @@ test('external findings and reports show fixed weather coverage and scoped origi
     await expect(page.getByRole('dialog', { name: '调查发现', exact: true })).toBeHidden();
   }
   await page.getByRole('link', { name: '打开完整报告' }).click();
-  await page.locator('.report-text button').first().click();
+  const report = await savedReport(page);
+  const weather = report.blocks.find(b => b.id === 'weather_check')!;
+  expect(weather.verification).toBe('unverified');
+  const value = weather.segments!.find(segment => segment.value)!.value!;
+  const pending = page.locator('.report-unverified');
+  const citation = pending.getByRole('button', { name: value.display, exact: true });
+  await expect(pending).not.toHaveAttribute('open', '');
+  await expect(citation).toBeHidden();
+  await pending.locator('summary').click();
+  await expect(citation).toBeVisible();
+  const evidenceResponse = page.waitForResponse(r => r.url().includes('/evidence?') && r.request().method() === 'GET');
+  await citation.click();
+  const frozen = await (await evidenceResponse).json();
+  expect(frozen.value.value_ref).toEqual(value.value_ref);
+  expect(frozen.artifact.id).toBe(value.value_ref.artifact_id);
+  expect(frozen.artifact.external_snapshot_id).toBeTruthy();
   const drawer = page.getByRole('dialog', { name: '这个结果从哪里来' });
   await expect(drawer).toContainText('本项数值来自固定天气观测');
   await drawer.locator('.external-source > summary').filter({ hasText: '官方天气观测' }).click();
@@ -130,7 +182,12 @@ test('explicit exploration recovers from an unavailable metric and keeps its ide
   }
   await page.getByRole('link', { name: '打开完整报告' }).click();
   await expect(page.getByRole('heading', { name: '每日航班记录', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: /^首日记录数：/ }).click();
+  const report = await savedReport(page);
+  const kpi = recordKpi(page, report);
+  await expect(kpi.button).toHaveText(kpi.block.value!.display);
+  const evidenceResponse = page.waitForResponse(r => r.url().includes('/evidence?') && r.request().method() === 'GET');
+  await kpi.button.click();
+  expect((await (await evidenceResponse).json()).value.value_ref).toEqual(kpi.block.value!.value_ref);
   const drawer = page.getByRole('dialog', { name: '这个结果从哪里来' });
   await expect(drawer.getByRole('note', { name: '探索结果说明' })).toContainText('计算方式与分母');
   await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/exploration-evidence-desktop.png' });
@@ -161,7 +218,12 @@ test('investigation continues with fixed evidence, history, explicit branch and 
   await expect(page.getByRole('link', { name: '打开完整报告' })).toBeVisible({ timeout: 30000 });
   await page.getByRole('button', { name: /调查发现 ·/ }).click();
   const panel = page.getByRole('region', { name: '当前调查' });
-  await expect(panel).toContainText('观察事实');
+  const initialInvestigation = await investigationData(page);
+  expect(initialInvestigation.findings).toHaveLength(1);
+  const originalFinding = initialInvestigation.findings[0];
+  expect(originalFinding.kind).toBe('fact');
+  expect(originalFinding.verification).toBe('unverified');
+  await expect(panel).toContainText('未核实解释');
   await expect(panel).toContainText('首日记录为');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: '调查信息', exact: true }).click();
@@ -187,7 +249,14 @@ test('investigation continues with fixed evidence, history, explicit branch and 
   await page.getByRole('button', { name: '发送问题' }).click();
   await expect(page.locator('.run-result')).toHaveCount(2);
   await page.getByRole('button', { name: /调查发现 ·/ }).click();
-  await expect(panel).toContainText('反向证据', { timeout: 30000 });
+  await expect(page.locator('.analysis-thread').getByRole('heading', { name: '调查继续核查', exact: true })).toBeAttached({ timeout: 30000 });
+  const continuedInvestigation = await investigationData(page);
+  const successor = continuedInvestigation.findings.find((f: { supersedes: string | null }) => f.supersedes === originalFinding.id);
+  expect(successor.kind).toBe('counterevidence');
+  expect(successor.verification).toBe('unverified');
+  expect(continuedInvestigation.findings.find((f: { id: string }) => f.id === originalFinding.id)).toEqual(originalFinding);
+  expect(successor.artifact_ids).toEqual(originalFinding.artifact_ids);
+  await expect(panel).toContainText('未核实解释');
   await expect(page.locator('.analysis-thread').getByRole('heading', { name: '调查继续核查', exact: true })).toBeAttached();
   await expect(panel.locator('.investigation-finding:not(.historical)')).toHaveCount(1);
   await panel.getByText('查看被修正的历史记录', { exact: true }).click();
@@ -383,7 +452,10 @@ test('report generation, Chinese charts, evidence, exports, revisions and mobile
   await page.getByLabel('分析问题', { exact: true }).fill('报告验收：用中文说明逐日航班记录，并提供图表与依据');
   await page.getByRole('button', { name: '发送问题' }).click();
   await expect(page.getByRole('link', { name: '打开完整报告' })).toBeVisible({ timeout: 30000 });
-  await expect(page.locator('.execution-toggle')).toContainText('报告已生成');
+  const saved = await savedReport(page);
+  expect(saved.partial).toBe(false);
+  expect(saved.has_unverified_explanations).toBe(true);
+  await expect(page.locator('.execution-toggle')).toContainText('结果已保存，附有未核实解释');
   await page.screenshot({ path: '../.cache/screenshots/stage4-analysis.png', fullPage: true });
   if (await page.getByRole('dialog', { name: '调查发现', exact: true }).isVisible()) {
     await page.getByRole('dialog', { name: '调查发现', exact: true }).getByRole('button', { name: '关闭', exact: true }).click();
@@ -394,18 +466,20 @@ test('report generation, Chinese charts, evidence, exports, revisions and mobile
   await expect(page.locator('.report-kpi')).toHaveCount(2);
   await expect(page.locator('.line-chart')).toBeVisible();
   await expect(page.locator('.bar-chart')).toBeVisible();
-  await expect(page.locator('.chart-legend').first()).toContainText('航班记录');
+  expect(saved.blocks.filter(b => b.type === 'chart').map(b => b.kind).sort()).toEqual(['bar', 'line']);
+  await expect(page.locator('.chart-legend').first()).toContainText(saved.blocks.find(b => b.type === 'chart')!.columns![1].label);
   expect(await page.locator('.report-sheet').innerText()).not.toContain('�');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const originalUrl = page.url();
   await page.screenshot({ path: '../.cache/screenshots/stage4-report-desktop.png', fullPage: true });
-  const first = page.locator('.kpi-number').first();
+  const kpi = recordKpi(page, saved);
+  const first = kpi.button;
   const displayed = await first.innerText();
   await first.click();
   const drawer = page.getByRole('dialog', { name: '这个结果从哪里来' });
   await expect(drawer).toBeVisible();
   await expect(drawer.locator('.evidence-highlight strong')).toHaveText(displayed);
-  await expect(drawer.getByText('合成测试数据 · 2026-01-01 至 2026-02-01（不含结束日）', { exact: true })).toBeVisible();
+  await expect(drawer.getByText('合成测试数据 · ' + saved.scope_context!.main_label, { exact: true })).toBeVisible();
   await expect(drawer.locator('.evidence-source')).not.toHaveCount(0);
   await drawer.getByText('查看 SQL、参数与执行记录', { exact: true }).click();
   await expect(drawer.locator('pre').filter({ hasText: 'SELECT flight_date' })).toBeVisible();
@@ -424,21 +498,30 @@ test('report generation, Chinese charts, evidence, exports, revisions and mobile
   const jsonUrl = await page.getByRole('link', { name: '导出 JSON' }).getAttribute('href');
   const exported = await (await request.get(jsonUrl!)).json();
   expect(exported.title).toBe('每日航班记录');
-  expect(exported.blocks[0].value.display).toBe(displayed);
+  expect(exported.blocks.find((b: { id: string }) => b.id === kpi.block.id).value).toEqual(kpi.block.value);
+  expect(exported.scope_context).toEqual(saved.scope_context);
+  expect(saved.scope_context?.main_date_range).toEqual({ start: '2026-01-01', end_exclusive: '2026-02-01' });
   const mdUrl = await page.getByRole('link', { name: '导出 Markdown' }).getAttribute('href');
-  expect(await (await request.get(mdUrl!)).text()).toContain('每日航班记录');
+  const markdown = await (await request.get(mdUrl!)).text();
+  expect(markdown).toContain('每日航班记录');
+  expect(markdown).toContain(saved.scope_context!.main_label);
+  expect(markdown).toContain('分析说明（未核实）');
 
   await page.getByRole('button', { name: '修改说明' }).click();
   const modal = page.getByRole('dialog', { name: '修改报告说明' });
   await modal.getByLabel('报告标题', { exact: true }).fill('每日航班记录（补充说明）');
   await modal.getByRole('button', { name: '保存为新版本' }).click();
   await expect(page.getByRole('heading', { name: '每日航班记录（补充说明）', exact: true })).toBeVisible();
-  await expect(page.locator('.kpi-number').first()).toHaveText(displayed);
+  await expect(recordKpi(page, saved).button).toHaveText(displayed);
+  const revised = await savedReport(page);
+  expect(revised.scope_context).toEqual(saved.scope_context);
+  expect(revised.blocks).toEqual(saved.blocks);
   await page.goto(originalUrl);
+  expect(await savedReport(page)).toEqual(saved);
   await expect(page.getByRole('heading', { name: '每日航班记录', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: '修改说明' })).toBeDisabled();
   await page.reload();
-  await expect(page.locator('.kpi-number').first()).toHaveText(displayed);
+  await expect(recordKpi(page, saved).button).toHaveText(displayed);
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: '../.cache/screenshots/stage4-report-mobile.png', fullPage: true });

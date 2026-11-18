@@ -88,12 +88,33 @@ def invalid_arguments(error, summary, tool_name=None):
         "历史statement输入按constraints修正；values过多须减少叙述组数，"
         "完整比较放表格，不删除必要身份引用来绕过校验。",
     }
+    categories = {
+        "empty_query": ("EMPTY_QUERY", "query去除首尾空白后须为1—200字符，请填写搜索主题。"),
+        "conflicting_read_modes": (
+            "CONFLICTING_READ_MODES",
+            "query与finding_id互斥；已知发现ID只用finding_id。",
+        ),
+        "read_pagination_conflict": (
+            "READ_PAGINATION_CONFLICT",
+            "搜索或ID读取须省略offset/limit（默认0/5）；"
+            "旧分页用offset=结果中的detail_offset, limit=1。",
+        ),
+    }
+    feedback = next(
+        (
+            categories[e["type"]]
+            for e in error.errors(include_input=False)
+            if tool_name == "read_investigation" and e["type"] in categories
+        ),
+        None,
+    )
     return ToolResult(
         ok=False,
         summary=summary,
         error_code="INVALID_ARGUMENT",
         retryable=True,
         data={
+            **({"category": feedback[0]} if feedback else {}),
             "fields": [
                 {
                     "location": [str(part)[:80] for part in item["loc"][:6]],
@@ -107,7 +128,9 @@ def invalid_arguments(error, summary, tool_name=None):
                 }
                 for item in error.errors(include_input=False)[:12]
             ],
-            "instruction": instructions.get(
+            "instruction": feedback[1]
+            if feedback
+            else instructions.get(
                 tool_name, "按fields位置与constraints修正参数，使用该工具公开签名中的字段。"
             ),
         },
@@ -128,6 +151,7 @@ class ToolRegistry:
         输出：无
         """
         self.run, self.ctx, self.query, self.cancel = run, ctx, query, cancel
+        self.history_enabled = settings.run_history_compaction
         self.store = KnowledgeStore(query.catalog.engine)
         self.retriever = Retriever(self.store, KnowledgeProvider(settings))
         snapshot = query.catalog.snapshot(ctx.snapshot_id)
@@ -225,9 +249,18 @@ class ToolRegistry:
         return {
             **SPECS,
             "read_investigation": (
-                a.ReadInvestigation,
-                "查看固定调查和历史；多项历史在模型上下文中只保留概览，"
-                "用 detail_offset 与 limit=1 读取单项完整文字和 ValueRef，读取后核对发现 ID",
+                a.ReadInvestigation if self.history_enabled else a.LegacyReadInvestigation,
+                (
+                    'ID直读 {"finding_id":"已知发现ID"}；主题搜索 {"query":"OH OO"}（最多3项）；'
+                    "两者互斥，均省略offset/limit。旧分页仅无ID和query时用"
+                    '{"offset":0,"limit":1}，offset取结果detail_offset。无命中不代表未查过。'
+                    "已知artifact_id直接read_artifact。"
+                    if self.history_enabled
+                    else ""
+                )
+                + "查看固定调查和历史；多项历史在模型上下文中只保留概览，"
+                "用 offset=结果中的detail_offset, limit=1 读取单项完整文字和 ValueRef，"
+                "读取后核对发现 ID",
             ),
             "record_finding": (
                 a.RecordFindingInput,
@@ -376,6 +409,10 @@ class ToolRegistry:
         输出：实际服务结果
         """
         if name == "read_investigation":
+            if self.history_enabled and (args.query is not None or args.finding_id is not None):
+                from metric_pilot.agent.history import read_history
+
+                return read_history(self, args)
             investigation = InvestigationStore(self.store.engine).read(self.run["investigation_id"])
             ordered = list(reversed(investigation["findings"]))
             return {
@@ -546,6 +583,20 @@ class ToolRegistry:
                     query_purpose=metadata["query_purpose"],
                     external_snapshot_id=metadata.get("external_snapshot_id"),
                 )
+                if self.history_enabled:
+                    summary.update(
+                        {
+                            key: metadata.get(key)
+                            for key in ("date_range", "metric_revision_ids", "exploration_scope")
+                        }
+                    )
+                    summary["columns"] = [column["name"] for column in metadata["columns"]]
+                    summary.update(
+                        verification="frozen_query_only",
+                        source_run_status=(
+                            "current" if metadata["run_id"] == self.run["id"] else "completed"
+                        ),
+                    )
                 cached = dict(
                     columns=[c["name"] for c in metadata["columns"]],
                     rows=page["rows"] if args.offset == 0 else [],
@@ -649,6 +700,17 @@ class ToolRegistry:
                             summary.pop("sql")
                             summary["population"] = args.exploration_scope.population
                 result.data["validation_level"] = "references_validated"
+                if self.history_enabled and self.query_summaries:
+                    self.query_summaries[-1].update(
+                        {
+                            "run_id": self.run["id"],
+                            "columns": [column["name"] for column in metadata["columns"]],
+                            "date_range": metadata.get("date_range"),
+                            "metric_revision_ids": metadata.get("metric_revision_ids", []),
+                            "exploration_scope": metadata.get("exploration_scope"),
+                            "verification": "frozen_query_only",
+                        }
+                    )
                 result.data["limitation"] = "执行与引用有效；自由 SQL 的业务语义未自动证明。"
             return result
         raise DataError("UNKNOWN_TOOL")

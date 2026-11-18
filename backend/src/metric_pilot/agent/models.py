@@ -4,6 +4,16 @@ import sqlalchemy as sa
 
 from metric_pilot.database import Base
 
+context_checkpoints = sa.Table(
+    "run_context_checkpoints",
+    Base.metadata,
+    sa.Column("run_id", sa.String, primary_key=True),
+    sa.Column("revision", sa.Integer, primary_key=True),
+    sa.Column("previous_revision", sa.Integer, nullable=False),
+    sa.Column("payload", sa.JSON, nullable=False),
+    sa.Column("content_hash", sa.String, nullable=False),
+)
+
 conversations = sa.Table(
     "conversations",
     Base.metadata,

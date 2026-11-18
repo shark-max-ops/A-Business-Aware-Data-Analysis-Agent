@@ -111,15 +111,14 @@ def markdown(report, query_evidence=None):
     lines = [
         f"# {escape_markdown(report.title)}",
         "",
-        ("模型范围说明（未核实）：" if report.verification_policy else "")
+        (
+            "分析说明（未核实）："
+            if report.scope_context and report.scope_context.policy == "server_scope_v1"
+            else "历史分析说明（未核实）："
+        )
         + escape_markdown(report.scope),
         "",
-        (
-            f"调查日期：{report.date_range.start} 至 "
-            f"{report.date_range.end_exclusive}（不含结束日）"
-            if report.date_range
-            else f"数据月份：{report.data_snapshot.period}"
-        )
+        (report.scope_context.main_label if report.scope_context else "历史范围未记录")
         + f" · 版本 {report.version}",
         "",
     ]

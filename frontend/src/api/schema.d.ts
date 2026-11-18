@@ -1421,6 +1421,7 @@ export interface components {
          *     输出：原值、执行记录、固定来源与口径
          */
         EvidenceDTO: {
+            scope_context?: components["schemas"]["ScopeContext"] | null;
             /** Block Id */
             block_id: string;
             value?: components["schemas"]["FrozenValue"] | null;
@@ -1471,6 +1472,7 @@ export interface components {
          *     输出：中文内容与证据索引
          */
         FindingDTO: {
+            scope_context?: components["schemas"]["ScopeContext"] | null;
             /** Id */
             id: string;
             /** Run Id */
@@ -1692,6 +1694,7 @@ export interface components {
          *     输出：前后端统一契约
          */
         InvestigationDTO: {
+            scope_context?: components["schemas"]["ScopeContext"] | null;
             /** Id */
             id: string;
             /** Conversation Id */
@@ -2091,6 +2094,7 @@ export interface components {
          *     输出：报告详情 DTO
          */
         ReportDTO: {
+            scope_context?: components["schemas"]["ScopeContext"] | null;
             /** Report Id */
             report_id: string;
             /** Revision Id */
@@ -2216,6 +2220,7 @@ export interface components {
          *     输出：摘要卡片
          */
         ReportSummary: {
+            scope_context?: components["schemas"]["ScopeContext"] | null;
             /** Id */
             id: string;
             /** Revision Id */
@@ -2315,6 +2320,22 @@ export interface components {
             snapshot_id: string;
             /** Tables */
             tables: components["schemas"]["TableDTO"][];
+        };
+        /** ScopeContext */
+        ScopeContext: {
+            /**
+             * Policy
+             * @enum {string}
+             */
+            policy: "server_scope_v1" | "legacy_scope_v1";
+            main_date_range: components["schemas"]["DateRange"] | null;
+            /**
+             * Range Source
+             * @enum {string}
+             */
+            range_source: "frozen_range" | "legacy_single_month" | "unavailable";
+            /** Main Label */
+            main_label: string;
         };
         /**
          * SearchHit

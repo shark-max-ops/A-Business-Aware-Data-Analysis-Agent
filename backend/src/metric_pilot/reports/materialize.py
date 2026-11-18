@@ -4,6 +4,7 @@ import copy
 import hashlib
 
 from metric_pilot.data.common import DataError, canonical_bytes
+from metric_pilot.data.presentation import scope_context
 from metric_pilot.reports.claims import POLICY, label, render_relation
 from metric_pilot.reports.contracts import RenderedBlock, ReportDraft
 from metric_pilot.reports.scope import validate_display_scope
@@ -192,6 +193,7 @@ def materialize(draft, frozen, *, require_query=True, runtime_warnings=()):
         "draft": draft.model_dump(),
         "title": draft.title,
         "scope": draft.scope,
+        "scope_context": scope_context(frozen, new=True),
         "blocks": blocks,
         "has_unverified_explanations": any(b.get("verification") == "unverified" for b in blocks),
         "validation_level": "references_validated",

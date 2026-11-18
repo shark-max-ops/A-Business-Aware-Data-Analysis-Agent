@@ -7,7 +7,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from metric_pilot.settings import Settings
 
-SCHEMA_REVISION = "0008_multimonth"
+SCHEMA_REVISION = "0009_context_checkpoints"
 
 
 class Base(DeclarativeBase):
@@ -79,7 +79,8 @@ def inspect_database(engine: Engine) -> tuple[str, str]:
                 pass
             try:
                 revisions = connection.execute(text("SELECT version_num FROM alembic_version"))
-                ready = set(revisions.scalars()) == {SCHEMA_REVISION}
+                # The disabled Stage 8 path remains usable on the unchanged main database.
+                ready = set(revisions.scalars()) in ({SCHEMA_REVISION}, {"0008_multimonth"})
                 connection.execute(text("SELECT key, value FROM app_settings LIMIT 0"))
                 for table in (
                     "data_sources",

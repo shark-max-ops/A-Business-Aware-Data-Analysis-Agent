@@ -2,10 +2,12 @@
 
 from typing import Annotated, Any, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
+from pydantic_core import PydanticCustomError
 
 from metric_pilot.contracts import StrictDTO
 from metric_pilot.data.contracts import ExplorationScope
+from metric_pilot.data.presentation import ScopeContext
 from metric_pilot.data.ranges import DateRange
 from metric_pilot.external.weather import WeatherRequest
 from metric_pilot.reports.contracts import (
@@ -343,6 +345,11 @@ class RecordFinding(StrictDTO):
     supersedes: str | None = None
 
 
+class LegacyReadInvestigation(StrictDTO):
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=5, ge=1, le=10)
+
+
 class ReadInvestigation(StrictDTO):
     """
     作用：有限分页读取调查发现，防止历史记录挤满模型上下文
@@ -352,6 +359,33 @@ class ReadInvestigation(StrictDTO):
 
     offset: int = Field(default=0, ge=0)
     limit: int = Field(default=5, ge=1, le=10)
+    query: str | None = Field(default=None, min_length=1, max_length=200)
+    finding_id: str | None = Field(default=None, min_length=1, max_length=200)
+
+    @field_validator("query", mode="before")
+    @classmethod
+    def trim_query(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                raise PydanticCustomError("empty_query", "Empty query")
+        return value
+
+    @model_validator(mode="after")
+    def reading_mode(self):
+        if self.query is not None:
+            self.query = self.query.strip()
+            if not self.query:
+                raise ValueError("query must not be blank")
+        if self.query is not None and self.finding_id is not None:
+            raise PydanticCustomError("conflicting_read_modes", "Conflicting read modes")
+        if (self.query is not None or self.finding_id is not None) and (
+            self.offset != 0 or self.limit != 5
+        ):
+            raise PydanticCustomError(
+                "read_pagination_conflict", "Pagination conflicts with read mode"
+            )
+        return self
 
 
 class FindingDTO(StrictDTO):
@@ -360,6 +394,8 @@ class FindingDTO(StrictDTO):
     输入：持久化发现
     输出：中文内容与证据索引
     """
+
+    scope_context: ScopeContext | None = None
 
     id: str
     run_id: str
@@ -383,6 +419,8 @@ class InvestigationDTO(StrictDTO):
     输入：服务端调查
     输出：前后端统一契约
     """
+
+    scope_context: ScopeContext | None = None
 
     id: str
     conversation_id: str

@@ -6,6 +6,7 @@ from pydantic import Field
 
 from metric_pilot.contracts import StrictDTO
 from metric_pilot.data.contracts import QueryArtifact, SnapshotDTO
+from metric_pilot.data.presentation import ScopeContext
 from metric_pilot.data.ranges import DateRange
 
 ValueFormat = Literal["integer", "decimal_2", "percent_2", "minutes_2"]
@@ -272,6 +273,8 @@ class ReportSummary(StrictDTO):
     输出：摘要卡片
     """
 
+    scope_context: ScopeContext | None = None
+
     id: str
     revision_id: str
     version: int
@@ -290,6 +293,8 @@ class ReportDTO(StrictDTO):
     输入：服务端冻结修订
     输出：报告详情 DTO
     """
+
+    scope_context: ScopeContext | None = None
 
     report_id: str
     revision_id: str
@@ -321,6 +326,8 @@ class EvidenceDTO(StrictDTO):
     输入：报告块和受限单元格选择
     输出：原值、执行记录、固定来源与口径
     """
+
+    scope_context: ScopeContext | None = None
 
     block_id: str
     value: FrozenValue | None = None

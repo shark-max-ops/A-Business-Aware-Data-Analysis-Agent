@@ -39,7 +39,7 @@ export function ReportContent({ report, compact = false }: { report: Report; com
   content.sort((a, b) => Number(b.verification === 'checked_relation') - Number(a.verification === 'checked_relation'));
   return <div className={compact ? 'report-content report-preview' : 'report-content'}>
     {report.partial && !compact && <Alert type="warning" message="部分完成：已保留核查结果，解释仍需复核" />}
-    {report.date_range && <p className="report-note">固定主范围：{dateRangeLabel(report.date_range)}</p>}
+    <p className="report-note">{report.scope_context?.main_label ?? "历史范围未记录"}</p>
     {report.verification_policy && <p className="report-note">已核对结论仅限本次完整结果集的排名和数值关系；SQL业务口径与因果解释未自动认证。</p>}
     {!report.verification_policy && <p className="report-note">历史报告：仅校验引用，文字结论未经过当前关系核对。</p>}
     {compact && report.limitations.some(note => note.startsWith('包含数据探索结果')) && <p className="report-note">数据探索 · 未绑定已审核项目指标，统计范围见结果依据。</p>}
@@ -87,7 +87,7 @@ export function ReportsPage() {
   return <div className="reports-page"><div className="page-heading"><div><p className="eyebrow">已保存的分析</p><h1>每个数字，都能找到依据</h1><p>报告保留生成时的数据与资料版本，随时打开，仍是当时的结果。</p></div><Link className="report-open-link" to="/analysis">开始新分析 ↗</Link></div>
     {error && <Alert type="error" message="报告列表读取失败" description={error} action={<Button onClick={() => { void load(''); }}>重试</Button>} />}
     {!items.length && !busy && !error && <section className="panel"><Empty description="还没有保存的报告"><Link to="/analysis">提出一个问题，生成第一份报告</Link></Empty></section>}
-    <div className="report-list">{items.map(item => <Link className="report-list-card" key={item.id} to={`/reports/${item.id}/revisions/${item.revision_id}`}><div className="report-card-meta"><span>{dateRangeLabel(item.date_range, item.period)} · {item.source_kind === 'synthetic' ? '合成测试数据' : '固定数据版本'}</span><span>版本 {item.version}</span></div><h2>{item.title}</h2><p>{item.scope}</p><div className="report-card-bottom"><span>{new Date(item.created_at).toLocaleString('zh-CN', { hour12: false })}</span><strong>阅读报告 ↗</strong></div></Link>)}</div>
+    <div className="report-list">{items.map(item => <Link className="report-list-card" key={item.id} to={`/reports/${item.id}/revisions/${item.revision_id}`}><div className="report-card-meta"><span>{item.scope_context?.main_label ?? "???????"} · {item.source_kind === 'synthetic' ? '合成测试数据' : '固定数据版本'}</span><span>版本 {item.version}</span></div><h2>{item.title}</h2><p>{item.scope_context?.main_label ?? "历史范围未记录"}</p><p>{item.scope_context?.policy === "server_scope_v1" ? "分析说明（未核实）" : "历史分析说明（未核实）"}：{item.scope}</p><div className="report-card-bottom"><span>{new Date(item.created_at).toLocaleString('zh-CN', { hour12: false })}</span><strong>阅读报告 ↗</strong></div></Link>)}</div>
     {busy && <div className="report-loading"><Spin /> 正在读取报告…</div>}
     {cursor && !busy && <Button onClick={() => { void load(cursor); }}>加载更多报告</Button>}
   </div>;
@@ -149,20 +149,18 @@ export function ReportDetailPage() {
   const latest = Math.max(...history.map(item => item.version), report.version);
   const newest = history.find(item => item.version === latest);
   // 阅读区使用已知字段的中文称谓；原始范围与版本仍保存在报告和依据中。
-  const scopeText = report.scope.replaceAll(report.data_snapshot.id, '（已固定）')
-    .replace(/v_flights\s*表/g, '航班运行表').replace(/\bv_flights\b/g, '航班运行表')
-    .replace(/\bflight_date\b/g, '航班日期').replace(/（COUNT\(\*\)）/g, '');
+  const scopeText = report.scope;
 
   return <div className="report-reader">
     {historyError && <Alert type="error" message="更早版本读取失败" description={historyError} />}
     <div className="report-toolbar"><Link to="/reports">← 所有报告</Link><div className="report-actions"><Select aria-label="报告版本" dropdownRender={menu => <>{menu}{historyCursor && <Button type="text" block loading={historyBusy} onMouseDown={event => event.preventDefault()} onClick={() => { void olderVersions(); }}>加载更早版本</Button>}</>} value={report.revision_id} options={history.map(item => ({ value: item.revision_id, label: `版本 ${item.version}${item.version === latest ? ' · 最新' : ''}` }))} onChange={id => navigate(`/reports/${report.report_id}/revisions/${id}`)} /><a href={base + '/export?format=markdown'}>导出 Markdown</a><a href={base + '/export?format=json'}>导出 JSON</a><Button disabled={report.version < latest} onClick={() => { setTitle(report.title); setScope(report.scope); setLimitations((report.draft.limitations ?? []).join('\n')); setEditError(''); setEditing(true); }}>修改说明</Button></div></div>
     {newest && report.version < latest && <p className="report-note" role="status">当前为历史版本。<Link to={`/reports/${report.report_id}/revisions/${newest.revision_id}`}>查看最新版本 {latest} ↗</Link></p>}
-    <article className="report-sheet"><header className="report-header"><div className="report-meta"><span>{dateRangeLabel(report.date_range, report.data_snapshot.period)}</span><span>{report.data_snapshot.manifest?.source_kind === 'synthetic' ? '合成测试数据' : '固定数据版本'}</span><span>版本 {report.version}</span></div><p className="eyebrow">{report.verification_policy ? "分析主题（模型拟定）" : "历史分析主题"}</p><h1>{report.title}</h1>{report.verification_policy ? <details><summary>模型范围说明（未核实）</summary><p className="report-scope">{scopeText}</p></details> : <p className="report-scope">{scopeText}</p>}<p className="report-origin">分析问题：{report.question}</p><div className="report-stamp"><Tag color="green">数字与引用已核对</Tag><span>{new Date(report.created_at).toLocaleString('zh-CN', { hour12: false })}</span></div></header>
+    <article className="report-sheet"><header className="report-header"><div className="report-meta"><span>{report.scope_context?.main_label ?? "???????"}</span><span>{report.data_snapshot.manifest?.source_kind === 'synthetic' ? '合成测试数据' : '固定数据版本'}</span><span>版本 {report.version}</span></div><p className="eyebrow">{report.verification_policy ? "分析主题（模型拟定）" : "历史分析主题"}</p><h1>{report.title}</h1><details><summary>{report.scope_context?.policy === "server_scope_v1" ? "分析说明（未核实）" : "历史分析说明（未核实）"}</summary><p className="report-scope">{scopeText}</p></details><p className="report-origin">分析问题：{report.question}</p><div className="report-stamp"><Tag color="green">数字与引用已核对</Tag><span>{new Date(report.created_at).toLocaleString('zh-CN', { hour12: false })}</span></div></header>
       <ReportContent report={report} />
     </article>
     <Modal title="修改报告说明" open={editing} onCancel={() => { if (!saving) setEditing(false); }} onOk={() => { void save(); }} confirmLoading={saving} okText="保存为新版本" cancelText="取消" destroyOnClose>
-      <p className="report-note">保留原版本，数字仍来自同一批已保存的查询结果。</p>{editError && <Alert type="error" message="没有保存修改" description={editError} />}
-      <div className="report-edit-fields"><label htmlFor="report-edit-title">报告标题</label><Input id="report-edit-title" value={title} maxLength={160} onChange={event => setTitle(event.target.value)} /><label htmlFor="report-edit-scope">统计范围说明</label><Input.TextArea id="report-edit-scope" rows={3} value={scope} maxLength={1000} onChange={event => setScope(event.target.value)} /><label htmlFor="report-edit-limitations">限制与补充说明（每行一条）</label><Input.TextArea id="report-edit-limitations" rows={4} value={limitations} onChange={event => setLimitations(event.target.value)} /></div>
+      <p className="report-note">保留原版本，数字仍来自同一批已保存的查询结果。{report.scope_context?.main_label}</p>{editError && <Alert type="error" message="没有保存修改" description={editError} />}
+      <div className="report-edit-fields"><label htmlFor="report-edit-title">报告标题</label><Input id="report-edit-title" value={title} maxLength={160} onChange={event => setTitle(event.target.value)} /><label htmlFor="report-edit-scope">分析说明（未核实，不能修改固定范围）</label><Input.TextArea id="report-edit-scope" rows={3} value={scope} maxLength={1000} onChange={event => setScope(event.target.value)} /><label htmlFor="report-edit-limitations">限制与补充说明（每行一条）</label><Input.TextArea id="report-edit-limitations" rows={4} value={limitations} onChange={event => setLimitations(event.target.value)} /></div>
     </Modal>
   </div>;
 }
