@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from metric_pilot.agent import contracts as a
 from metric_pilot.agent.context import compact_schema
+from metric_pilot.agent.coverage import comparison_coverage
 from metric_pilot.agent.external_tools import NAMES as EXTERNAL_NAMES
 from metric_pilot.agent.external_tools import ExternalTools
 from metric_pilot.agent.findings import canonical_finding
@@ -187,6 +188,7 @@ class ToolRegistry:
             for table in self.schema.tables
         }
         self.query_summaries, self.progress = [], {}
+        self.coverage_checks = {}
         self.source_summaries = {}
         self.recorded_count = 0
         self.external = ExternalTools(run, self.ctx, query, settings, cancel)
@@ -270,6 +272,7 @@ class ToolRegistry:
                 "observations选择成功产物的artifact_id、绝对零基row和columns（含分组身份列）；"
                 "最多4行，每行最多6列。服务端生成引用和同行绑定，不填statement/values/row_bindings。"
                 "note只写待复核解释或限制，不手写数值；完整比较留在报告表格。"
+                "比较时comparison填写key、expected、可选denominator及所选行的artifact_id，服务端核对整份冻结结果。"
                 "默认保存一条关键发现后提交报告，新核查或修正才追加；supersedes 指向被修正的发现。",
             ),
         }
@@ -319,6 +322,12 @@ class ToolRegistry:
             )
         return result
 
+    def comparison_gaps(self):
+        """汇总当前未解决的比较缺口，供收尾和部分报告使用。"""
+        return list(
+            dict.fromkeys(gap for item in self.coverage_checks.values() for gap in item["gaps"])
+        )
+
     def metric(self, key):
         """
         作用：验证同一已审核指标修订覆盖整段调查范围
@@ -344,9 +353,10 @@ class ToolRegistry:
                 model = a.RecordFinding
             args = model.model_validate(call.arguments)
             selected_rows = isinstance(args, a.RecordFindingInput)
+            comparison = args.comparison if selected_rows else None
             if selected_rows:
                 args = canonical_finding(args, self.query, self.run)
-            data = self.execute(call.name, args, observation=selected_rows)
+            data = self.execute(call.name, args, observation=selected_rows, comparison=comparison)
             if isinstance(data, ToolResult):
                 return data
             if selected_rows:
@@ -406,7 +416,7 @@ class ToolRegistry:
                 },
             )
 
-    def execute(self, name, args, *, observation=False):
+    def execute(self, name, args, *, observation=False, comparison=None):
         """
         作用：分发显式工具
         输入：名称、已验证参数及服务端行选择标记
@@ -470,6 +480,13 @@ class ToolRegistry:
                 "external_snapshots": prepared.get("external_snapshots", {}),
                 "observation_texts": prepared.get("observation_texts", {}),
             }
+            coverage = None
+            if comparison:
+                if comparison.artifact_id not in frozen["artifacts"]:
+                    raise DataError("COMPARISON_REQUIRES_OBSERVED_ARTIFACT")
+                coverage = comparison_coverage(self.query, self.run, comparison)
+                frozen["comparison"] = coverage
+                args.questions = list(dict.fromkeys([*coverage["gaps"], *args.questions]))[:6]
             if self.cancel.is_set():
                 raise DataError("RUN_CANCELLED")
             if time.monotonic() >= self.ctx.deadline_monotonic:
@@ -477,7 +494,22 @@ class ToolRegistry:
             finding = InvestigationStore(self.store.engine).record(
                 self.run, args, prepared["blocks"][0], frozen
             )
+            if coverage:
+                finding["comparison"] = coverage
+                self.coverage_checks[finding["id"]] = coverage
+            previous = self.coverage_checks.get(args.supersedes)
+            if previous and coverage and (
+                previous["key"] == coverage["key"]
+                and set(previous["expected"]) == set(coverage["expected"])
+                and previous["denominator"] == coverage["denominator"]
+            ):
+                self.coverage_checks.pop(args.supersedes)
             self.recorded_count += 1
+            if coverage and coverage["gaps"]:
+                return {
+                    **finding,
+                    "next_step_hint": "按缺口补查后用supersedes更新；预算不足则说明限制。",
+                }
             return {
                 **finding,
                 "next_step_hint": "已有本轮记录；若所需比较已在成功结果中，"

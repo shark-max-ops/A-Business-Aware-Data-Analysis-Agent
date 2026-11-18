@@ -316,6 +316,24 @@ class FindingObservation(StrictDTO):
         return self
 
 
+class ComparisonCheck(StrictDTO):
+    """核对一份冻结结果中用户要求的对象是否出现，以及分母是否可用。"""
+
+    artifact_id: str = Field(min_length=1, max_length=120)
+    key: str = Field(min_length=1, max_length=128)
+    expected: list[int | Annotated[str, Field(min_length=1, max_length=100)]] = Field(
+        min_length=2, max_length=12
+    )
+    denominator: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @field_validator("expected")
+    @classmethod
+    def distinct_objects(cls, values):
+        if len(set(values)) != len(values):
+            raise ValueError("比较对象不能重复")
+        return values
+
+
 class RecordFindingInput(StrictDTO):
     """
     作用：向模型开放简短的发现输入，由服务端构造规范引用文字
@@ -325,6 +343,7 @@ class RecordFindingInput(StrictDTO):
 
     kind: Literal["fact", "candidate", "counterevidence", "limitation", "recommendation"]
     check: str = Field(min_length=1, max_length=400)
+    comparison: ComparisonCheck | None = None
     observations: list[FindingObservation] = Field(default_factory=list, max_length=4)
     note: str = Field(default="", max_length=800)
     evidence_ids: list[str] = Field(default_factory=list, max_length=8)

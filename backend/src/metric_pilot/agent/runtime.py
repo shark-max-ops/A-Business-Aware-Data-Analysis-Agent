@@ -77,6 +77,7 @@ class AgentRuntime:
         closing = False
         forced_finalization, finding_rejections = False, 0
         checkpoint_records, observed_rows = 0, set()
+        coverage_retry = False
         report_limits = []
         last_phase = "investigate"
         try:
@@ -131,6 +132,11 @@ class AgentRuntime:
                             else set()
                         )
                     registry.progress = {
+                        "comparison_gaps": [
+                            {"finding_id": ident, **check}
+                            for ident, check in registry.coverage_checks.items()
+                            if check["gaps"]
+                        ],
                         "remaining_turns": turns_left,
                         "remaining_tool_calls": remaining,
                         "phase": phase,
@@ -230,6 +236,36 @@ class AgentRuntime:
                                 query.read_artifact(run["id"], ident, 0, 1)
                         prepared = None
                         if candidate.kind == "report":
+                            gaps = registry.comparison_gaps()
+                            if gaps and not closing and not coverage_retry:
+                                coverage_retry = True
+                                groups.append(
+                                    [
+                                        {
+                                            "role": "user",
+                                            "content": "提交前补查："
+                                            + "；".join(gaps)
+                                            + "。读取或重新聚合，用supersedes保存修正；"
+                                            "无法补齐时交付部分结果。",
+                                        }
+                                    ]
+                                )
+                                continue
+                            if registry.coverage_checks:
+                                self.store.emit(
+                                    run["id"],
+                                    "run.progress",
+                                    {
+                                        "phase": "comparison_review",
+                                        "summary": "已核对声明的比较范围"
+                                        if not gaps
+                                        else "将未覆盖的比较对象列入报告限制",
+                                        "stop_reason": "coverage_checked"
+                                        if not gaps
+                                        else "partial_coverage",
+                                        "finding_ids": list(registry.coverage_checks),
+                                    },
+                                )
                             repair_guard.check(payload["report"])
                             if run.get("investigation_id"):
                                 findings = InvestigationStore(self.store.engine).read(
@@ -244,7 +280,7 @@ class AgentRuntime:
                                 ReportService(query).prepare,
                                 run,
                                 candidate.report,
-                                runtime_warnings=report_limits,
+                                runtime_warnings=[*report_limits, *gaps],
                             )
                         self.check(ctx, cancel)
                         self.observer.on_finish(
@@ -323,14 +359,14 @@ class AgentRuntime:
                                     repair_guard.fallback,
                                     ReportService(query),
                                     run,
-                                    report_limits,
+                                    [*report_limits, *registry.comparison_gaps()],
                                 )
                                 if prepared is None and repair_guard.raw is None:
                                     prepared = await asyncio.to_thread(
                                         ReportService(query).table_fallback,
                                         run,
                                         [item["artifact_id"] for item in registry.query_summaries],
-                                        report_limits,
+                                        [*report_limits, *registry.comparison_gaps()],
                                     )
                                 if prepared is not None:
                                     self.check(ctx, cancel)

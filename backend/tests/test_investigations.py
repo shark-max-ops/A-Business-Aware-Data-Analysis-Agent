@@ -650,3 +650,63 @@ def test_row_binding_survives_record_finding(agent_workspace):
     assert run["status"] == "completed"
     entries = InvestigationStore(agent_workspace[1].engine).read(inv["id"])["findings"]
     assert entries[0]["row_bindings"] == [{"dimensions": ["day"], "measures": ["count"]}]
+
+
+@pytest.mark.parametrize("repair", [False, True])
+def test_comparison_gap_reaches_followup_and_partial_report(agent_workspace, repair):
+    """缺侧时读取完整冻结结果，先给一次补查机会，并在未补齐时交付部分报告。"""
+    inv = investigation(agent_workspace)
+
+    def compare(messages, supersedes=None):
+        ident = final_from_query(messages)["artifact_ids"][0]
+        return calls(
+            (
+                "record_finding",
+                {
+                    "kind": "fact",
+                    "check": "两个日期的记录数",
+                    "supersedes": supersedes,
+                    "observations": [
+                        {"artifact_id": ident, "row": 0, "columns": ["day", "record_count"]}
+                    ],
+                    "comparison": {
+                        "artifact_id": ident,
+                        "key": "day",
+                        "expected": ["2026-01-01", "2026-01-02"],
+                        "denominator": "record_count",
+                    },
+                },
+            )
+        )
+
+    def repair_finding(messages):
+        progress = next(
+            json.loads(message["content"])["investigation_progress"]
+            for message in messages
+            if message["role"] == "system" and '"investigation_progress"' in message["content"]
+        )
+        return compare(messages, progress["comparison_gaps"][0]["finding_id"])
+
+    steps = [calls(("query_sql", {"sql": SQL + " LIMIT 1"})), compare, report_candidate]
+    if repair:
+        steps.extend([calls(("query_sql", {"sql": SQL})), repair_finding])
+    steps.append(report_candidate)
+    run, model = run_steps(agent_workspace, inv, steps)
+    assert run["status"] == "completed", run
+    assert len(model.messages) == len(steps)
+    repo = InvestigationStore(agent_workspace[1].engine)
+    finding = next(item for item in repo.read(inv["id"])["findings"] if not item["supersedes"])
+    coverage = repo.evidence(inv["id"], finding["id"])["comparison"]
+    assert coverage["sql_contains_limit"] and not coverage["truncated"]
+    assert coverage["missing"] and coverage["rows_checked"] == 1
+    assert coverage["gaps"] == finding["questions"]
+    frozen, _ = service(agent_workspace).frozen(
+        run["result"]["report_id"], run["result"]["revision_id"]
+    )
+    if repair:
+        repaired = next(item for item in repo.read(inv["id"])["findings"] if item["supersedes"])
+        assert repaired["supersedes"] == finding["id"]
+        assert not repo.evidence(inv["id"], repaired["id"])["comparison"]["gaps"]
+        assert not frozen["partial"] and not frozen["runtime_limitations"]
+    else:
+        assert frozen["partial"] and frozen["runtime_limitations"] == coverage["gaps"]
