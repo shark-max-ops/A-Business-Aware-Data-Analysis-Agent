@@ -64,6 +64,8 @@
 | [07-build-and-evaluate.md](07-build-and-evaluate.md) | 实施顺序、每阶段验收、评估集和交付清单 |
 | [08-code-reading-map.md](08-code-reading-map.md) | 本项目代码阅读路线、模块职责和设计核查问题 |
 
+阶段 9 与阶段 10 的专项建议见[回答质量改进方案](07-build-and-evaluate.md#answer-quality)。
+
 ## 5. 在当前工作区开始
 
 本蓝图位于 `docs/design/`，对应实现位于根目录的 `backend/`、`frontend/` 和 `scripts/`。根目录的 [AGENTS.md](../../AGENTS.md) 适用于整个工作区。
