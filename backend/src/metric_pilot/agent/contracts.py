@@ -48,6 +48,7 @@ class CreateRun(StrictDTO):
     investigation_id: str | None = None
     expected_investigation_version: int | None = Field(default=None, ge=1)
     date_range: DateRange | None = None
+    compact_context: bool = False
 
 
 class QueryResult(StrictDTO):
@@ -79,6 +80,17 @@ FinalCandidate = Annotated[
 StoredResult = Annotated[ReportResult | QueryResult | Clarification, Field(discriminator="kind")]
 
 
+class ContextUsage(StrictDTO):
+    """
+    作用：记录最近一次分析请求的上下文预算占用
+    输入：运行时估算的输入量与可用输入预算
+    输出：可重放的非计费计量
+    """
+
+    estimated_input: int = Field(ge=0)
+    input_budget: int = Field(gt=0)
+
+
 class RunDTO(StrictDTO):
     """
     作用：恢复运行状态
@@ -89,6 +101,8 @@ class RunDTO(StrictDTO):
     id: str
     conversation_id: str
     question: str
+    compact_context: bool = False
+    context_usage: ContextUsage | None = None
     snapshot_id: str
     knowledge_snapshot_id: str
     status: RunStatus
@@ -413,6 +427,15 @@ class FindingDTO(StrictDTO):
     verification: Literal["result_values", "checked_relation", "unverified"] | None = None
 
 
+class InvestigationCompactContext(StrictDTO):
+    """同调查续查的精简定位与输入估算。"""
+
+    locators: list[str]
+    run_count: int
+    before: int
+    usage: ContextUsage
+
+
 class InvestigationDTO(StrictDTO):
     """
     作用：恢复调查、额度与发现历史
@@ -434,6 +457,7 @@ class InvestigationDTO(StrictDTO):
     limits: dict[str, int]
     allocated: dict[str, int]
     status: Literal["ready", "running", "budget_exhausted"]
+    compacted_context: InvestigationCompactContext | None = None
     active_run_id: str | None
     run_ids: list[str]
     findings: list[FindingDTO]

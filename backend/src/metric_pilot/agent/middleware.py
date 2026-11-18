@@ -16,14 +16,21 @@ class RuntimeObserver:
         """
         self.store = store
 
-    def before_model(self, run_id, turn):
+    def before_model(self, run_id, turn, context_usage):
         """
         作用：记录真实模型请求进度
-        输入：运行及回合
+        输入：运行、回合与上下文预算占用
         输出：无
         """
         self.store.emit(
-            run_id, "run.progress", {"summary": "模型正在选择下一步工具或提交结果", "turn": turn}
+            run_id,
+            "run.progress",
+            {
+                "summary": "模型正在选择下一步工具或提交结果",
+                "turn": turn,
+                "context_usage": context_usage,
+            },
+            context_usage=context_usage,
         )
 
     def before_tool(self, run_id, call):

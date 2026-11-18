@@ -53,3 +53,5 @@ class HealthResponse(StrictDTO):
     llm: Literal["configured_unverified", "not_configured"]
     embedding: Literal["configured_unverified", "not_configured"]
     analysis: Literal["ready", "not_ready"] = "not_ready"
+    context_compaction: bool = False
+    analysis_model: str | None = None

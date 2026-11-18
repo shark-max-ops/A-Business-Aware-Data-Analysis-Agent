@@ -239,6 +239,18 @@ def test_metric_schema_sql_repair_and_pairing(agent_workspace):
     assert artifact["knowledge_revision_ids"]
     assert done[-1]["payload"]["data"]["preview"] == [[0]]
     assert len(llm.messages) == 6
+    context_snapshots = [
+        e["payload"]["context_usage"] for e in events if "context_usage" in e["payload"]
+    ]
+    assert len(context_snapshots) == len(llm.messages)
+    assert run["context_usage"] == context_snapshots[-1]
+    assert all(
+        0
+        < item["estimated_input"]
+        <= item["input_budget"]
+        == run["budget"]["context_tokens"] - run["budget"]["output_tokens"] - 1024
+        for item in context_snapshots
+    )
     assert "private-thought" not in json.dumps(events)
 
 

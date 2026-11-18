@@ -9,7 +9,7 @@ import time
 from pydantic import TypeAdapter, ValidationError
 
 from metric_pilot.agent.compaction import RunCompactor
-from metric_pilot.agent.context import fit_context, initial_messages
+from metric_pilot.agent.context import fit_context, initial_messages, model_message_bytes
 from metric_pilot.agent.contracts import FinalCandidate
 from metric_pilot.agent.external_tools import NAMES as EXTERNAL_NAMES
 from metric_pilot.agent.investigations import InvestigationStore
@@ -70,6 +70,7 @@ class AgentRuntime:
         registry = ToolRegistry(run, ctx, query, self.settings, cancel)
         groups, used, repairs, timeout_repairs = [], 0, 0, 0
         compactor = RunCompactor()
+        manual_handled = False
         repair_guard = RepairGuard()
         seen, previous_failure, repeated = set(), None, 0
         usage = {}
@@ -181,6 +182,13 @@ class AgentRuntime:
                     else header
                 )
                 if registry.history_enabled:
+                    # 只在形成完整工具消息组后读取主动请求。同一 Run 最多处理一次。
+                    manual = (
+                        not manual_handled
+                        and len(groups) >= 2
+                        and self.store.read(run["id"]).get("compact_context", False)
+                    )
+                    manual_handled = manual_handled or manual
                     await compactor.maybe(
                         self,
                         turn_header,
@@ -192,11 +200,20 @@ class AgentRuntime:
                         cancel,
                         usage,
                         closing,
+                        force=manual,
                     )
                 if hasattr(self.provider, "retain_protocol"):
                     self.provider.retain_protocol(groups)
                 messages = fit_context(turn_header, groups, registry, available)
-                self.observer.before_model(run["id"], index + 1)
+                # 记录经过配对裁剪的实际输入估算，包括工具签名与临时协议字段。
+                self.observer.before_model(
+                    run["id"],
+                    index + 1,
+                    {
+                        "estimated_input": model_message_bytes(messages) + tool_bytes,
+                        "input_budget": available + tool_bytes,
+                    },
+                )
                 turn = await self.wait_model(messages, schemas, ctx, cancel)
                 for key, value in turn["usage"].items():
                     usage[key] = usage.get(key, 0) + value

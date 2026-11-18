@@ -144,6 +144,8 @@ def initial_messages(run, registry, previous):
     investigation = None
     if run.get("investigation_id"):
         investigation = InvestigationStore(registry.store.engine).read(run["investigation_id"])
+        checkpoint = investigation.pop("compacted_context", None)
+        registry.compact_locators = set(checkpoint["locators"]) if checkpoint else set()
         if investigation["goal"] == run["question"]:
             # 原目标已在 question 中逐字保留，避免把长问题重复放入固定头部。
             investigation["goal"] = "与本轮 question 相同"
@@ -840,6 +842,25 @@ def fit_context(header, groups, registry, max_chars):
             nav["items"].pop()
             nav["omitted"] = True
         background = json.loads(fixed[len(header) - 1]["content"])
+        # 已压缩定位保留修订状态与待查问题。
+        covered = getattr(registry, "compact_locators", set())
+        for index, item in enumerate(nav["items"]):
+            if (item.get("id") or item.get("artifact_id")) in covered:
+                nav["items"][index] = {
+                    key: value
+                    for key, value in item.items()
+                    if key
+                    in {
+                        "id",
+                        "artifact_id",
+                        "kind",
+                        "verification",
+                        "superseded",
+                        "effective_successor_id",
+                        "source_run_status",
+                        "questions",
+                    }
+                }
         background["history_navigation"] = nav
         fixed[len(header) - 1]["content"] = json.dumps(background, ensure_ascii=False)
         memory = json.loads(fixed[-1]["content"])

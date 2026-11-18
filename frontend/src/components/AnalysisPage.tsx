@@ -1,6 +1,7 @@
+import { SharkMark } from './SharkMark';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Alert, Button, Drawer, Input, Modal, Select, Space } from 'antd';
+import { Alert, Button, Drawer, Input, Modal, Select } from 'antd';
 import type { components } from '../api/schema';
 import { analysisApi, jsonRequest, terminal } from '../api/analysis';
 import type { Conversation, Run } from '../api/analysis';
@@ -14,6 +15,7 @@ import { dateRangeError, dateRangeLabel, snapshotRange } from '../api/data';
 import type { DateRange } from '../api/data';
 import { DateRangeFields } from './DateRangeFields';
 import { SnapshotSummary } from './SnapshotSummary';
+import { AnalysisComposer } from './AnalysisComposer';
 
 type Source = components['schemas']['SourceDTO'];
 type Snapshot = components['schemas']['SnapshotDTO'];
@@ -38,6 +40,10 @@ export function AnalysisPage() {
   const [error, setError] = useState('');
   const [investigationError, setInvestigationError] = useState('');
   const [configured, setConfigured] = useState(false);
+  const [analysisModel, setAnalysisModel] = useState<string | null>(null);
+  const [compactionEnabled, setCompactionEnabled] = useState(false);
+  const [compactNotice, setCompactNotice] = useState<{ key: string; runCount: number; text: string } | null>(null);
+  const [requestingCompact, setRequestingCompact] = useState(false);
   const [busy, setBusy] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -54,7 +60,8 @@ export function AnalysisPage() {
   const thread = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
   const anchor = useRef<{ height: number; top: number } | null>(null);
-  const jumpTarget = useRef<string | null>(null);
+  const jumpTarget = useRef<{ id: string; report?: boolean } | null>(null);
+  const restoredReport = useRef<string | null>(null);
   const selectionVersion = useRef(0);
   const [investigations, setInvestigations] = useState<Investigation[]>([]);
   const [investigation, setInvestigation] = useState<Investigation | null>(null);
@@ -68,11 +75,28 @@ export function AnalysisPage() {
   const loading = !!conversationId && restored !== conversationId;
   const blocked = active || busy || investigationActive || loading;
   const visibleRuns = investigationRuns(runs.filter(item => item.conversation_id === conversationId), legacy ? null : investigation?.id ?? null);
+  const checkpoint = investigation?.compacted_context;
+  const idleUsage = !run && checkpoint?.run_count === visibleRuns.length ? checkpoint?.usage : null;
+  const contextUsage = idleUsage ?? (run ?? visibleRuns.at(-1))?.context_usage;
+  const percent = contextUsage ? Math.min(100, Math.floor(contextUsage.estimated_input / contextUsage.input_budget * 100)) : null;
   const draftKey = `${conversationId}:${legacy ? 'legacy' : investigation?.id ?? 'new'}`;
   const question = drafts[draftKey] ?? '';
+  const exhausted = investigation?.status === 'budget_exhausted';
   const setQuestion = (value: string) => setDrafts(current => ({ ...current, [draftKey]: value }));
   const onActivity = useCallback(() => setActivity(value => value + 1), []);
-  const onUpdate = useCallback((updated: Run) => setRuns(current => current.map(item => item.id === updated.id ? updated : item)), []);
+  const onResultArrive = useCallback((id: string, live: boolean) => {
+    const restoredResult = restoredReport.current === id;
+    if (restoredResult) restoredReport.current = null;
+    if (!follow.current || (!live && !restoredResult)) return;
+    follow.current = false;
+    jumpTarget.current = { id, report: true };
+    setAway(true);
+    setLocationVersion(value => value + 1);
+  }, []);
+  const onUpdate = useCallback((updated: Run) => setRuns(current => current.map(item => item.id === updated.id && updated.seq >= item.seq ? updated : item)), []);
+  const onContextUsage = useCallback((id: string, seq: number, usage: NonNullable<Run['context_usage']>) => {
+    setRuns(current => current.map(item => item.id === id && seq > item.seq ? { ...item, seq, context_usage: usage } : item));
+  }, []);
   const currentCount = investigation ? investigation.findings.filter(item => !investigation.findings.some(next => next.supersedes === item.id)).length : 0;
   const selectedSnapshot = snapshots.find(item => item.id === snapshotId);
   const formSnapshot = snapshots.find(item => item.id === formSnapshotId);
@@ -115,6 +139,8 @@ export function AnalysisPage() {
       setDefaultSnapshotId(initial);
       setSnapshotId(current => current || initial);
       setConfigured((health.kind === 'ready' || health.kind === 'degraded') && health.health.llm === 'configured_unverified' && health.health.analysis === 'ready');
+      setAnalysisModel(health.kind === 'ready' || health.kind === 'degraded' ? health.health.analysis_model ?? null : null);
+      setCompactionEnabled((health.kind === 'ready' || health.kind === 'degraded') && health.health.context_compaction === true);
     }).catch(e => { if (alive) setError(String(e.message)); });
     return () => { alive = false; };
   }, [attempt, catalogAttempt]);
@@ -130,6 +156,7 @@ export function AnalysisPage() {
       setInvestigationError('');
       setRuns(current => [...sorted, ...current.filter(item => item.conversation_id === conversationId && !sorted.some(old => old.id === item.id))]);
       const latest = sorted.find(item => !terminal(item.status)) ?? sorted.at(-1);
+      restoredReport.current = latest?.result?.kind === 'report' ? latest.id : null;
       const selected = list.items.find(item => item.id === latest?.investigation_id) ?? (!latest ? list.items.at(-1) : null) ?? null;
       setInvestigations(current => [...list.items, ...current.filter(item => item.conversation_id === conversationId && !list.items.some(old => old.id === item.id))]);
       if (version === selectionVersion.current) { setInvestigation(selected); setLegacy(!!latest && !latest.investigation_id); if (selected) setSnapshotId(selected.snapshot_id); }
@@ -150,7 +177,13 @@ export function AnalysisPage() {
     const element = thread.current;
     if (!element) return;
     if (anchor.current) { element.scrollTop = anchor.current.top + element.scrollHeight - anchor.current.height; anchor.current = null; }
-    else if (jumpTarget.current) { document.getElementById(`turn-${jumpTarget.current}`)?.scrollIntoView({ block: 'start' }); jumpTarget.current = null; }
+    else if (jumpTarget.current) {
+      const target = jumpTarget.current;
+      jumpTarget.current = null;
+      const turn = document.getElementById(`turn-${target.id}`);
+      const destination = target.report ? turn?.querySelector('.analysis-report-preview') ?? turn : turn;
+      if (destination) element.scrollTop += destination.getBoundingClientRect().top - element.getBoundingClientRect().top - 6;
+    }
     else if (follow.current) element.scrollTop = element.scrollHeight;
   }, [locationVersion, visibleRuns.length, shown, activity, conversationId, investigation?.id]);
   useEffect(() => {
@@ -170,7 +203,7 @@ export function AnalysisPage() {
   function locateRun(id: string) {
     const index = visibleRuns.findIndex(item => item.id === id);
     if (index < 0) return;
-    follow.current = false; setAway(true); jumpTarget.current = id;
+    follow.current = false; setAway(true); jumpTarget.current = { id };
     setLocationVersion(value => value + 1); setShown(Math.max(shown, visibleRuns.length - index));
   }
   function followUp(value: string) {
@@ -207,7 +240,10 @@ export function AnalysisPage() {
         setDrafts(items => ({ ...items, [`${id}:${current!.id}`]: question }));
         selectionVersion.current++; setInvestigation(current); setInvestigations(items => [...items, current!]);
       }
-      const created = await analysisApi<Run>('/runs', jsonRequest({ conversation_id: id, question: question.trim(), snapshot_id: current.snapshot_id, investigation_id: current.id, expected_investigation_version: current.version }));
+      const created = await analysisApi<Run>('/runs', jsonRequest({
+        conversation_id: id, question: question.trim(), snapshot_id: current.snapshot_id,
+        investigation_id: current.id, expected_investigation_version: current.version,
+      }));
       follow.current = true; setAway(false); setRuns(items => [...items, created]); setDrafts(items => ({ ...items, [draftKey]: '', [`${id}:${current!.id}`]: '' })); onActivity();
       setConversations(current => current.map(item => item.id === id ? { ...item, title: created.question.replace(/\s+/g, ' ').trim() } : item));
     } catch (e) { setError((e as Error).message); }
@@ -234,6 +270,33 @@ export function AnalysisPage() {
     setFormSnapshotId(id);
     setFormDateRange(asBranch ? investigation?.date_range ?? snapshotRange(snapshots.find(item => item.id === id)) : snapshotRange(snapshots.find(item => item.id === id)));
     setCreatingInvestigation(true);
+  }
+
+  /** 立即整理空闲调查，活动运行在当前轮的安全边界执行。 */
+  async function requestCompact() {
+    const version = selectionVersion.current;
+    setRequestingCompact(true);
+    setError('');
+    try {
+      if (!run && investigation) {
+        const updated = await analysisApi<Investigation>(`/investigations/${investigation.id}/compact`, { method: 'POST' });
+        if (version !== selectionVersion.current) return;
+        setInvestigation(current => current?.id === updated.id ? updated : current);
+        const saved = updated.compacted_context;
+        const reduced = saved && saved.before > saved.usage.estimated_input && !idleUsage;
+        setCompactNotice({ key: draftKey, runCount: visibleRuns.length, text: reduced
+          ? `续查上下文已压缩 · ${saved.before.toLocaleString()} → ${saved.usage.estimated_input.toLocaleString()}（估算）`
+          : '当前续查上下文已足够精简' });
+        return;
+      }
+      if (!run) return;
+      await analysisApi<Run>(`/runs/${run.id}/compact`, { method: 'POST' });
+      setRuns(items => items.map(item => item.id === run.id ? { ...item, compact_context: true } : item));
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setRequestingCompact(false);
+    }
   }
 
   /** 作用：显式停止实际后端执行；输入：当前运行；输出：取消状态。 */
@@ -268,17 +331,39 @@ export function AnalysisPage() {
         <div className="analysis-thread-frame">
         <div className="analysis-thread" ref={thread} onScroll={() => { const element = thread.current; if (element) { follow.current = element.scrollHeight - element.scrollTop - element.clientHeight <= 80; setAway(!follow.current); } }}><div className="analysis-turns">
           {loading && <p role="status">正在恢复调查与历史…</p>}
-          {!loading && !visibleRuns.length && <div className="welcome-state"><span className="welcome-symbol" aria-hidden="true">✳</span><p className="eyebrow">从数据，到有依据的发现</p><h1>今天，想了解什么？</h1><p>提出一个问题，一起查阅数据、核对线索，<br />让每个结论都能找到出处。</p></div>}
+          {!loading && !visibleRuns.length && <div className="welcome-state"><SharkMark className="welcome-symbol" /><p className="eyebrow">从数据，到有依据的发现</p><h1>今天，想了解什么？</h1><p>提出一个问题，一起查阅数据、核对线索，<br />让每个结论都能找到出处。</p></div>}
           {visibleRuns.length > shown && <Button block onClick={() => { const element = thread.current; if (element) anchor.current = { height: element.scrollHeight, top: element.scrollTop }; follow.current = false; setShown(count => count + 20); }}>显示更早轮次</Button>}
-          {!loading && visibleRuns.slice(-shown).map(item => <RunTurn key={`${conversationId}:${item.id}`} run={item} findingCount={investigation?.findings.filter(f => f.run_id === item.id).length ?? 0} onUpdate={onUpdate} onActivity={onActivity} onFindings={() => setFindingsOpen(true)} investigation={investigation ?? undefined} snapshot={snapshots.find(snapshot => snapshot.id === item.snapshot_id)} disabled={blocked} onFollowUp={followUp} onLocateRun={locateRun} investigationError={investigationError} />)}
+          {!loading && visibleRuns.slice(-shown).map(item => <RunTurn key={`${conversationId}:${item.id}`} run={item} findingCount={investigation?.findings.filter(f => f.run_id === item.id).length ?? 0} onUpdate={onUpdate} onContextUsage={onContextUsage} onActivity={onActivity} onFindings={() => setFindingsOpen(true)} onResultArrive={onResultArrive} investigation={investigation ?? undefined} snapshot={snapshots.find(snapshot => snapshot.id === item.snapshot_id)} disabled={blocked} onFollowUp={followUp} onLocateRun={locateRun} investigationError={investigationError} />)}
         </div></div>
-        {away && <Button className="return-latest" onClick={() => { follow.current = true; setAway(false); if (thread.current) thread.current.scrollTop = thread.current.scrollHeight; }}>回到最新</Button>}
+        {away && <button type="button" className="return-latest" aria-label="回到最新" title="回到最新"
+          onClick={() => { follow.current = true; setAway(false); if (thread.current) thread.current.scrollTop = thread.current.scrollHeight; }}>
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 4v11m-4.5-4.5L10 15l4.5-4.5" /></svg>
+        </button>}
         </div>
         {legacy && <Alert type="info" message="历史独立运行仅供查看，继续分析请选择或新建调查" />}
-        <div className="composer"><label htmlFor="question">分析问题{investigation ? ' · 继续调查' : ''}</label><Input.TextArea aria-label="分析问题" id="question" rows={2} maxLength={4000} value={question} onChange={e => setQuestion(e.target.value)} placeholder="描述你想了解的问题，或继续追问…" disabled={blocked || legacy} /><div className="composer-bottom"><span>{investigation?.status === 'budget_exhausted' ? '累计运行额度已分配完，历史发现仍可查看' : '关闭页面后运行会继续'}</span><Space>{active && <Button danger onClick={() => { void cancel(); }} disabled={run?.cancel_requested}>停止分析</Button>}<Button type="primary" loading={busy} disabled={blocked || legacy || investigation?.status === 'budget_exhausted' || !configured || !snapshotId || (!investigation && !!rangeError) || !question.trim()} onClick={() => { void submit(); }}>发送问题</Button></Space></div></div>
+        <AnalysisComposer key={draftKey} question={question} onQuestion={setQuestion}
+          onSend={() => { void submit(); }} onStop={() => { void cancel(); }}
+          onCompact={() => { void requestCompact(); }}
+          onFindings={() => setFindingsOpen(true)} onData={() => setDrawer(true)}
+          model={run?.model || analysisModel}
+          continuing={!!investigation} active={active} busy={busy}
+          disabled={legacy || loading || busy || (investigationActive && !active)}
+          canSend={!blocked && !legacy && !exhausted && configured && !!snapshotId && (!!investigation || !rangeError) && !!question.trim()}
+          stopping={!!run?.cancel_requested}
+          compactDisabled={!compactionEnabled ? '当前后端未启用上下文压缩'
+            : run?.cancel_requested ? '本轮正在停止'
+            : !active && !visibleRuns.length ? '当前会话暂无可压缩的历史'
+            : requestingCompact ? '正在发送压缩请求'
+            : run?.compact_context ? '此轮已请求压缩' : ''}
+        />
 
-        {!visibleRuns.length && !loading && !legacy && <div className="starter-prompts" aria-label="问题示例">{['这份数据覆盖哪些日期？', '看看各日期的记录分布', '哪些地方值得进一步核查？'].map(prompt => <button key={prompt} disabled={blocked} onClick={() => setQuestion(prompt)}>{prompt}<span aria-hidden="true">↗</span></button>)}</div>}
-        <p className="workspace-disclaimer">分析可能存在局限，请结合引用依据复核。数据与知识版本在调查创建时固定。</p>
+        <div className="context-meter" role="status" title={percent === null ? '暂无上下文计量' : idleUsage ? '续查起始上下文估算，尚未加入下一问' : '最近一次分析请求占可用输入预算的比例（服务端估算）'}>
+          {!active && <span>{requestingCompact ? '正在压缩…' : compactNotice?.key === draftKey && compactNotice.runCount === visibleRuns.length ? compactNotice.text : ''}</span>}
+          <span className="context-meter-ring" aria-hidden="true"
+            style={{ backgroundImage: `conic-gradient(currentColor ${percent ?? 0}%, var(--line) 0)` }} />
+          <span className="sr-only">上下文使用估算</span>
+          <span>{percent === null ? '—' : `${percent}%`}</span>
+        </div>
       </div>
     </section>
     <Suspense fallback={<p>正在加载数据源…</p>}>{drawer && <DataSourceDrawer open={drawer} onClose={() => setDrawer(false)} onActivated={() => { if (!investigation) setSnapshotId(''); setCatalogAttempt(value => value + 1); }} />}</Suspense>

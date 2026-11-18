@@ -17,7 +17,7 @@ from metric_pilot.agent.contracts import (
     RunDTO,
 )
 from metric_pilot.agent.investigations import InvestigationStore
-from metric_pilot.agent.store import TERMINAL, RunStore
+from metric_pilot.agent.store import TERMINAL, RunStore, compaction_available
 from metric_pilot.data.api import get_catalog
 from metric_pilot.data.common import DataError
 from metric_pilot.data.contracts import Page
@@ -107,6 +107,8 @@ def create_run(body: CreateRun, request: Request):
         raise DataError("ANALYSIS_WORKER_NOT_READY")
     if not settings.integration_configured("llm"):
         raise DataError("MODEL_NOT_CONFIGURED")
+    if body.compact_context and not compaction_available(store.engine, settings):
+        raise DataError("CONTEXT_COMPACTION_UNAVAILABLE")
     get_catalog(request).snapshot(body.snapshot_id)
     selected = store.date_range(body)
     body = body.model_copy(update={"date_range": selected})
@@ -210,6 +212,18 @@ def get_investigation(investigation_id: str, request: Request):
     return InvestigationStore(store_for(request).engine).read(investigation_id)
 
 
+@router.post("/investigations/{investigation_id}/compact", response_model=InvestigationDTO)
+def compact_investigation(investigation_id: str, request: Request):
+    """立即精简同调查续查索引。"""
+    from metric_pilot.agent.compaction import compact_idle
+
+    store = store_for(request)
+    settings = request.app.state.settings
+    if not compaction_available(store.engine, settings):
+        raise DataError("CONTEXT_COMPACTION_UNAVAILABLE")
+    return compact_idle(store, settings, investigation_id)
+
+
 @router.get("/investigations/{investigation_id}/findings/{finding_id}/evidence")
 def finding_evidence(investigation_id: str, finding_id: str, request: Request):
     """
@@ -242,6 +256,19 @@ def cancel_run(run_id: str, request: Request):
     if worker:
         worker.cancel(run_id)
     return row
+
+
+@router.post("/runs/{run_id}/compact", response_model=RunDTO, status_code=202)
+def request_compaction(run_id: str, request: Request):
+    """
+    作用：请求活动运行在下一个安全回合压缩
+    输入：运行标识与请求
+    输出：已接受请求的运行状态
+    """
+    store = store_for(request)
+    if not compaction_available(store.engine, request.app.state.settings):
+        raise DataError("CONTEXT_COMPACTION_UNAVAILABLE")
+    return store.request_compaction(run_id)
 
 
 @router.get("/runs/{run_id}/events")

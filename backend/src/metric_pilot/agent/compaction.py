@@ -237,7 +237,15 @@ def summary_diagnostic(runtime, ctx, **details):
         runtime.store.emit(
             ctx.run_id,
             "run.progress",
-            {"phase": "compaction", "summary": "Context summary attempt", "compaction": details},
+            {
+                "phase": "compaction",
+                "summary": {
+                    "manual_started": "正在压缩上下文",
+                    "manual_skipped": "本轮未应用主动压缩",
+                    "checkpoint_commit": "上下文检查点提交",
+                }.get(details.get("stage"), "正在核对上下文摘要"),
+                "compaction": details,
+            },
         )
     except SQLAlchemyError:
         pass
@@ -479,8 +487,25 @@ class RunCompactor:
         self.disabled = False
 
     async def maybe(
-        self, runtime, header, groups, registry, available, schemas, ctx, cancel, usage, closing
+        self,
+        runtime,
+        header,
+        groups,
+        registry,
+        available,
+        schemas,
+        ctx,
+        cancel,
+        usage,
+        closing,
+        *,
+        force=False,
     ):
+        """
+        作用：在安全回合尝试压缩较早的完整消息组
+        输入：运行上下文、消息组、预算和主动请求标记
+        输出：无，成功时替换已提交检查点覆盖的前缀
+        """
         if (
             self.disabled
             or self.attempts >= 2
@@ -489,21 +514,33 @@ class RunCompactor:
             or ctx.deadline_monotonic - time.monotonic() < 60
             or not hasattr(runtime.provider, "next_summary")
         ):
+            if force:
+                summary_diagnostic(
+                    runtime,
+                    ctx,
+                    stage="manual_skipped",
+                    classification="skipped",
+                    error_code="COMPACT_NOT_ELIGIBLE",
+                )
             return
         # Count the actual untrimmed, deduplicated representation before dropping old groups.
         raw = fit_context(header, groups, registry, 10**9)
         formatted = [compact_group(g, registry) for g in groups]
         before = model_message_bytes(raw)
-        if (
-            before + len(json.dumps(schemas, ensure_ascii=False, separators=(",", ":")).encode())
-            < (
-                registry.run["budget"]["context_tokens"]
-                - registry.run["budget"]["output_tokens"]
-                - 1024
+        if not force:
+            schema_bytes = len(
+                json.dumps(schemas, ensure_ascii=False, separators=(",", ":")).encode()
             )
-            * 0.8
-        ):
-            return
+            budget = registry.run["budget"]
+            threshold = (budget["context_tokens"] - budget["output_tokens"] - 1024) * 0.9
+            try:
+                packed = fit_context(header, groups, registry, available)
+            except DataError as error:
+                if error.code != "CONTEXT_BUDGET_EXCEEDED":
+                    raise
+            else:
+                if model_message_bytes(packed) + schema_bytes < threshold:
+                    return
         soft = min(available // 5, 20000)
         keep, size = len(groups) - 1, model_message_bytes(formatted[-1])
         while keep > 1 and size + model_message_bytes(formatted[keep - 1]) <= soft:
@@ -512,6 +549,14 @@ class RunCompactor:
         prefix, tail = groups[:keep], groups[keep:]
         if not paired(prefix) or not paired(tail):
             self.disabled = True
+            if force:
+                summary_diagnostic(
+                    runtime,
+                    ctx,
+                    stage="manual_skipped",
+                    classification="skipped",
+                    error_code="COMPACT_UNPAIRED_HISTORY",
+                )
             return
         allowed = {
             i: {"run_id": registry.run["id"], "verification": "frozen_query_only"}
@@ -558,10 +603,25 @@ class RunCompactor:
             registry.compaction_gap = (
                 "待摘要输入自身超限，未发送摘要请求；使用原安全裁剪，旧消息覆盖存在缺口。"
             )
+            if force:
+                summary_diagnostic(
+                    runtime,
+                    ctx,
+                    stage="manual_skipped",
+                    classification="skipped",
+                    error_code="COMPACT_INPUT_TOO_LARGE",
+                )
             return
         prefix, tail = groups[:keep], groups[keep:]
         old = getattr(registry, "working_summary", None)
         stage = "candidate_validation"
+        if force:
+            summary_diagnostic(
+                runtime,
+                ctx,
+                stage="manual_started",
+                attempt=self.attempts + 1,
+            )
         try:
             selected_coverage = json.loads(messages[1]["content"])["visible_coverage"]
             summary_allowed = copy.deepcopy(allowed)
@@ -638,7 +698,71 @@ class RunCompactor:
                 error_code=error.code if isinstance(error, DataError) else "COMPACT_COMMIT_FAILED",
             )
             registry.working_summary = old
+            if force and isinstance(error, DataError) and error.code == "COMPACT_NO_BENEFIT":
+                return
             self.disabled = True
             registry.compaction_gap = "摘要未激活；沿用原记录与安全配对裁剪。"
             if isinstance(error, DataError) and error.code in {"RUN_CANCELLED", "RUN_TIMEOUT"}:
                 raise
+
+
+def compact_idle(store, settings, ident):
+    """用与续查相同的请求组装器计量和精简历史，按调查版本提交。"""
+    import threading
+
+    from metric_pilot.agent.context import initial_messages
+    from metric_pilot.agent.tools import ToolRegistry
+    from metric_pilot.data.catalog import Catalog
+    from metric_pilot.data.contracts import RunContext
+    from metric_pilot.data.executor import QueryExecutor
+    from metric_pilot.data.query import QueryService
+
+    investigations = InvestigationStore(store.engine)
+    investigation = investigations.read(ident)
+    if investigation["active_run_id"]:
+        raise DataError("INVESTIGATION_BUSY")
+    count = len(investigation["run_ids"])
+    previous = investigation.get("compacted_context")
+    if not count or (previous and previous["run_count"] == count):
+        return investigation
+    run = {**store.read(investigation["run_ids"][-1]), "question": "", "metric_revision_ids": []}
+    ctx = RunContext(
+        run["id"], run["snapshot_id"], run["knowledge_snapshot_id"], time.monotonic() + 60
+    )
+    query = QueryService(
+        Catalog(store.engine, settings.storage_dir),
+        QueryExecutor(settings.sql_timeout_seconds, settings.sql_max_rows),
+    )
+    registry = ToolRegistry(run, ctx, query, settings, threading.Event(), completed_preview=True)
+    header = initial_messages(run, registry, [])
+    schemas = len(
+        json.dumps(registry.schemas(), ensure_ascii=False, separators=(",", ":")).encode()
+    )
+    budget = settings.run_context_tokens - settings.run_output_tokens - 1024
+
+    def preview():
+        return fit_context(header, [], registry, budget - schemas)
+
+    messages = preview()
+    before = model_message_bytes(messages) + schemas
+    items = json.loads(messages[-2]["content"])["history_navigation"]["items"]
+    registry.compact_locators = {item.get("id") or item["artifact_id"] for item in items}
+    after = model_message_bytes(preview()) + schemas
+    checkpoint = {
+        "run_count": count,
+        "locators": sorted(registry.compact_locators),
+        "before": before,
+        "usage": {"estimated_input": after, "input_budget": budget},
+    }
+    with investigations.write() as connection:
+        row = investigations.require(connection, ident)
+        if investigations.active(connection, ident):
+            raise DataError("INVESTIGATION_BUSY")
+        if row["version"] != investigation["version"]:
+            raise DataError("INVESTIGATION_VERSION_CONFLICT")
+        connection.execute(
+            m.investigations.update()
+            .where(m.investigations.c.id == ident)
+            .values(payload={**row["payload"], "compacted_context": checkpoint})
+        )
+    return investigations.read(ident)

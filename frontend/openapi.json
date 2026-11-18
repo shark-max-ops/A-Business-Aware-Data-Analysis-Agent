@@ -797,6 +797,56 @@
         }
       }
     },
+    "/api/v1/investigations/{investigation_id}/compact": {
+      "post": {
+        "summary": "Compact Investigation",
+        "description": "立即精简同调查续查索引。",
+        "operationId": "compact_investigation_api_v1_investigations__investigation_id__compact_post",
+        "parameters": [
+          {
+            "name": "investigation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Investigation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
     "/api/v1/investigations/{investigation_id}/findings/{finding_id}/evidence": {
       "get": {
         "summary": "Finding Evidence",
@@ -922,6 +972,56 @@
         ],
         "responses": {
           "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{run_id}/compact": {
+      "post": {
+        "summary": "Request Compaction",
+        "description": "作用：请求活动运行在下一个安全回合压缩\n输入：运行标识与请求\n输出：已接受请求的运行状态",
+        "operationId": "request_compaction_api_v1_runs__run_id__compact_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -3298,6 +3398,28 @@
         "title": "ComparisonBlock",
         "description": "作用：声明同一结果集同一字段两行之间的数值关系\n输入：产物、完整身份列、数值列与两行位置\n输出：待服务端计算的关系，不接受模型提供升降或差值"
       },
+      "ContextUsage": {
+        "properties": {
+          "estimated_input": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Estimated Input"
+          },
+          "input_budget": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Input Budget"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "estimated_input",
+          "input_budget"
+        ],
+        "title": "ContextUsage",
+        "description": "作用：记录最近一次分析请求的上下文预算占用\n输入：运行时估算的输入量与可用输入预算\n输出：可重放的非计费计量"
+      },
       "ConversationDTO": {
         "properties": {
           "id": {
@@ -3442,6 +3564,11 @@
                 "type": "null"
               }
             ]
+          },
+          "compact_context": {
+            "type": "boolean",
+            "title": "Compact Context",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -4347,6 +4474,22 @@
             ],
             "title": "Analysis",
             "default": "not_ready"
+          },
+          "context_compaction": {
+            "type": "boolean",
+            "title": "Context Compaction",
+            "default": false
+          },
+          "analysis_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis Model"
           }
         },
         "additionalProperties": false,
@@ -4385,6 +4528,38 @@
         ],
         "title": "ImportReceipt",
         "description": "作用：返回固定原文及实际处理任务\n输入：导入结果\n输出：上传回执"
+      },
+      "InvestigationCompactContext": {
+        "properties": {
+          "locators": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Locators"
+          },
+          "run_count": {
+            "type": "integer",
+            "title": "Run Count"
+          },
+          "before": {
+            "type": "integer",
+            "title": "Before"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/ContextUsage"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "locators",
+          "run_count",
+          "before",
+          "usage"
+        ],
+        "title": "InvestigationCompactContext",
+        "description": "同调查续查的精简定位与输入估算。"
       },
       "InvestigationDTO": {
         "properties": {
@@ -4463,6 +4638,16 @@
               "budget_exhausted"
             ],
             "title": "Status"
+          },
+          "compacted_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InvestigationCompactContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "active_run_id": {
             "anyOf": [
@@ -5904,6 +6089,21 @@
           "question": {
             "type": "string",
             "title": "Question"
+          },
+          "compact_context": {
+            "type": "boolean",
+            "title": "Compact Context",
+            "default": false
+          },
+          "context_usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContextUsage"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "snapshot_id": {
             "type": "string",

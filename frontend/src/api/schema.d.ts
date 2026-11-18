@@ -264,6 +264,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/investigations/{investigation_id}/compact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compact Investigation
+         * @description 立即精简同调查续查索引。
+         */
+        post: operations["compact_investigation_api_v1_investigations__investigation_id__compact_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/investigations/{investigation_id}/findings/{finding_id}/evidence": {
         parameters: {
             query?: never;
@@ -324,6 +344,28 @@ export interface paths {
          *     输出：当前状态
          */
         post: operations["cancel_run_api_v1_runs__run_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}/compact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Compaction
+         * @description 作用：请求活动运行在下一个安全回合压缩
+         *     输入：运行标识与请求
+         *     输出：已接受请求的运行状态
+         */
+        post: operations["request_compaction_api_v1_runs__run_id__compact_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1224,6 +1266,18 @@ export interface components {
             right_row: number;
         };
         /**
+         * ContextUsage
+         * @description 作用：记录最近一次分析请求的上下文预算占用
+         *     输入：运行时估算的输入量与可用输入预算
+         *     输出：可重放的非计费计量
+         */
+        ContextUsage: {
+            /** Estimated Input */
+            estimated_input: number;
+            /** Input Budget */
+            input_budget: number;
+        };
+        /**
          * ConversationDTO
          * @description 作用：描述会话
          *     输入：服务端记录
@@ -1278,6 +1332,11 @@ export interface components {
             /** Expected Investigation Version */
             expected_investigation_version?: number | null;
             date_range?: components["schemas"]["DateRange"] | null;
+            /**
+             * Compact Context
+             * @default false
+             */
+            compact_context: boolean;
         };
         /**
          * DateRange
@@ -1672,6 +1731,13 @@ export interface components {
              * @enum {string}
              */
             analysis: "ready" | "not_ready";
+            /**
+             * Context Compaction
+             * @default false
+             */
+            context_compaction: boolean;
+            /** Analysis Model */
+            analysis_model?: string | null;
         };
         /**
          * ImportReceipt
@@ -1686,6 +1752,19 @@ export interface components {
             revision_id: string;
             /** Job Id */
             job_id: string;
+        };
+        /**
+         * InvestigationCompactContext
+         * @description 同调查续查的精简定位与输入估算。
+         */
+        InvestigationCompactContext: {
+            /** Locators */
+            locators: string[];
+            /** Run Count */
+            run_count: number;
+            /** Before */
+            before: number;
+            usage: components["schemas"]["ContextUsage"];
         };
         /**
          * InvestigationDTO
@@ -1726,6 +1805,7 @@ export interface components {
              * @enum {string}
              */
             status: "ready" | "running" | "budget_exhausted";
+            compacted_context?: components["schemas"]["InvestigationCompactContext"] | null;
             /** Active Run Id */
             active_run_id: string | null;
             /** Run Ids */
@@ -2266,6 +2346,12 @@ export interface components {
             conversation_id: string;
             /** Question */
             question: string;
+            /**
+             * Compact Context
+             * @default false
+             */
+            compact_context: boolean;
+            context_usage?: components["schemas"]["ContextUsage"] | null;
             /** Snapshot Id */
             snapshot_id: string;
             /** Knowledge Snapshot Id */
@@ -3187,6 +3273,46 @@ export interface operations {
             };
         };
     };
+    compact_investigation_api_v1_investigations__investigation_id__compact_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                investigation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvestigationDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     finding_evidence_api_v1_investigations__investigation_id__findings__finding_id__evidence_get: {
         parameters: {
             query?: never;
@@ -3281,6 +3407,46 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunDTO"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    request_compaction_api_v1_runs__run_id__compact_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };

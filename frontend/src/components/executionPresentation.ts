@@ -1,3 +1,4 @@
+import { terminal } from '../api/analysis';
 import type { Run, RunEvent } from '../api/analysis';
 
 export type ToolStatus = 'running' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted' | 'unknown';
@@ -55,6 +56,28 @@ export function recordOf(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
+/** 用真实检查点和诊断呈现上下文压缩状态。 */
+export function contextCompactionStatus(run: Run, events: RunEvent[], recordsComplete: boolean): { tone: string; text: string; code?: string } | null {
+  const steps = events.filter(event => event.payload.phase === 'compaction')
+    .map(event => recordOf(event.payload.compaction)).filter(step => typeof step.stage === 'string');
+  const commits = steps.filter(step => step.stage === 'checkpoint_commit' && !step.error_code).length;
+  const latest = steps.at(-1);
+  const previous = commits ? `已压缩 ${commits} 次 · ` : '';
+  if (latest?.error_code) {
+    return { tone: 'warning', text: previous + (latest.stage === 'manual_skipped' ? '主动压缩已跳过' : '本次压缩未应用'), code: String(latest.error_code) };
+  }
+  if (run.compact_context && (!latest || latest.stage === 'manual_requested')) {
+    if (!terminal(run.status)) return { tone: 'neutral', text: previous + '已请求压缩，等待工具记录' };
+    if (recordsComplete) return { tone: 'neutral', text: previous + '运行结束，主动压缩未执行' };
+  }
+  if (!terminal(run.status) && latest && latest.stage !== 'checkpoint_commit' && latest.stage !== 'manual_requested') {
+    return { tone: 'neutral', text: previous + '正在检查上下文摘要' };
+  }
+  if (commits) return { tone: 'success', text: `已压缩上下文 · ${commits} 次` };
+  if (latest && recordsComplete) return { tone: 'neutral', text: '本轮没有已提交的压缩检查点' };
+  return null;
+}
+
 /** 作用：计算真实事件时间间隔；输入：服务端开始及结束时间；输出：毫秒或未知。 */
 function elapsed(start: string | null, end: string | null): number | null {
   if (!start || !end) return null;
@@ -67,7 +90,7 @@ export function modelSteps(events: RunEvent[]): ToolStep[] {
   const ordered = [...new Map(events.map(event => [event.seq, event])).values()].sort((a, b) => a.seq - b.seq);
   return ordered.flatMap((event, index) => {
     if (event.type !== 'run.progress' || typeof event.payload.turn !== 'number') return [];
-    const end = ordered.slice(index + 1).find(next => ['run.progress', 'tool.started', 'report.ready', 'run.completed', 'run.failed', 'run.cancelled', 'run.interrupted'].includes(next.type));
+    const end = ordered.slice(index + 1).find(next => next.payload.phase !== 'compaction' && ['run.progress', 'tool.started', 'report.ready', 'run.completed', 'run.failed', 'run.cancelled', 'run.interrupted'].includes(next.type));
     const status: ToolStatus = !end ? 'running' : end.type === 'run.failed' ? 'failed' : end.type === 'run.cancelled' ? 'cancelled' : end.type === 'run.interrupted' ? 'interrupted' : 'succeeded';
     return [{ id: `model-${event.seq}`, name: 'model_thinking', status, arguments: {}, result: null, startedAt: event.created_at, finishedAt: end?.created_at ?? null, durationMs: elapsed(event.created_at, end?.created_at ?? null) }];
   });

@@ -1,3 +1,4 @@
+import { SharkMark } from './components/SharkMark';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Alert, Button, Empty, Spin } from 'antd';
@@ -30,7 +31,7 @@ export function App() {
       if ((event.target as HTMLElement).closest('.conversation-item, .new-conversation')) setSidebarOpen(false);
     }}>
       <Button className="sidebar-close" type="text" aria-label="关闭导航" onClick={() => setSidebarOpen(false)}>×</Button>
-      <Link to="/analysis" className="brand"><span className="brand-mark" aria-hidden="true">✳</span><span>分析工作台<small>Business-aware analysis</small></span></Link>
+      <Link to="/analysis" className="brand"><SharkMark className="brand-mark" /><span>分析工作台<small>Business-aware analysis</small></span></Link>
       <nav aria-label="主导航">
         <NavLink to="/analysis"><span aria-hidden="true">＋</span>分析</NavLink>
         <NavLink to="/knowledge"><span aria-hidden="true">◈</span>知识管理</NavLink>

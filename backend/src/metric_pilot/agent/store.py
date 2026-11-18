@@ -2,7 +2,8 @@
 
 import time
 
-from sqlalchemy import literal_column, select
+from sqlalchemy import inspect, literal_column, select
+from sqlalchemy.exc import SQLAlchemyError
 
 from metric_pilot.agent import models as m
 from metric_pilot.agent.titles import clean_title
@@ -11,6 +12,20 @@ from metric_pilot.data.ranges import resolve_range, run_range
 from metric_pilot.knowledge.store import KnowledgeStore
 
 TERMINAL = {"completed", "failed", "cancelled", "interrupted"}
+
+
+def compaction_available(engine, settings):
+    """
+    作用：确认主动压缩已启用且可保存检查点
+    输入：数据库引擎与运行配置
+    输出：能力状态
+    """
+    try:
+        return settings.run_history_compaction and inspect(engine).has_table(
+            m.context_checkpoints.name
+        )
+    except SQLAlchemyError:
+        return False
 
 
 class RunStore(KnowledgeStore):
@@ -81,15 +96,21 @@ class RunStore(KnowledgeStore):
             )
         )
 
-    def emit(self, ident, kind, payload):
+    def emit(self, ident, kind, payload, *, context_usage=None):
         """
         作用：提交进度后供订阅读取
-        输入：事件
+        输入：事件与可选的最近输入占用
         输出：无
         """
         with self.write() as c:
-            if self.require(c, ident)["status"] not in TERMINAL:
-                self.event(c, ident, kind, payload)
+            row = self.require(c, ident)
+            if row["status"] in TERMINAL:
+                return
+            # 只保存数值快照，刷新时无需重放整条事件链。
+            if context_usage is not None:
+                current = {**row["payload"], "context_usage": context_usage}
+                c.execute(m.runs.update().where(m.runs.c.id == ident).values(payload=current))
+            self.event(c, ident, kind, payload)
 
     def events_after(self, ident, seq):
         """
@@ -108,6 +129,39 @@ class RunStore(KnowledgeStore):
                     .limit(100)
                 ).mappings()
             ]
+
+    def request_compaction(self, ident):
+        """
+        作用：为活动运行登记一次幂等压缩请求
+        输入：运行标识
+        输出：最新运行状态
+        """
+        with self.write() as c:
+            row = self.require(c, ident)
+            if row["status"] in TERMINAL or row["cancel_requested"]:
+                raise DataError("COMPACTION_RUN_INACTIVE")
+            if not row["payload"].get("compact_context"):
+                payload = {**row["payload"], "compact_context": True}
+                c.execute(m.runs.update().where(m.runs.c.id == ident).values(payload=payload))
+                self.compaction_requested_event(c, ident)
+            return self.public(self.require(c, ident))
+
+    def compaction_requested_event(self, connection, ident):
+        """
+        作用：记录服务端已接受主动压缩请求
+        输入：事务与运行标识
+        输出：无
+        """
+        self.event(
+            connection,
+            ident,
+            "run.progress",
+            {
+                "phase": "compaction",
+                "summary": "已请求压缩上下文，等待可整理的工具记录",
+                "compaction": {"stage": "manual_requested"},
+            },
+        )
 
     def date_range(self, body):
         """
@@ -181,6 +235,8 @@ class RunStore(KnowledgeStore):
                 .values(title=" ".join(body.question.split()))
             )
             self.event(c, ident, "run.queued", {"summary": "分析已排队"})
+            if body.compact_context:
+                self.compaction_requested_event(c, ident)
         return self.read(ident)
 
     def apply_title(self, connection, run, title, expected_title=None):

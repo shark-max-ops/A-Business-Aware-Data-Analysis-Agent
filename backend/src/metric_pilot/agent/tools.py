@@ -144,7 +144,7 @@ class ToolRegistry:
     输出：受限工具集
     """
 
-    def __init__(self, run, ctx, query, settings, cancel):
+    def __init__(self, run, ctx, query, settings, cancel, *, completed_preview=False):
         """
         作用：绑定执行范围
         输入：运行、上下文、查询服务和取消
@@ -190,7 +190,9 @@ class ToolRegistry:
         self.source_summaries = {}
         self.recorded_count = 0
         self.external = ExternalTools(run, self.ctx, query, settings, cancel)
-        self.prior_artifacts = self.previous_artifacts() if run.get("investigation_id") else []
+        self.prior_artifacts = (
+            self.previous_artifacts(completed_preview) if run.get("investigation_id") else []
+        )
         # 旧成功产物已绑定且在当前固定范围仍适用的口径可直接复用，不重复模型检索。
         with self.store.engine.connect() as connection:
             for item in self.prior_artifacts:
@@ -272,13 +274,15 @@ class ToolRegistry:
             ),
         }
 
-    def previous_artifacts(self):
+    def previous_artifacts(self, completed_preview=False):
         """
         作用：列出最近授权本地查询，避免续查重跑已有结果
         输入：当前固定调查和既有证据权限
         输出：最多六项经归属、成功和哈希核对的产物定位，不含数值
         """
-        allowed = authorized_runs(self.store.engine, self.run) - {self.run["id"]}
+        allowed = authorized_runs(self.store.engine, self.run)
+        if not completed_preview or self.run.get("status") != "completed":
+            allowed.discard(self.run["id"])
         if not allowed:
             return []
         with self.store.engine.connect() as connection:

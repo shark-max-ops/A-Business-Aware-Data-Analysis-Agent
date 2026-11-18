@@ -1,8 +1,8 @@
 ﻿import { describe, expect, it } from 'vitest';
 import type { Run, RunEvent } from '../api/analysis';
-import { executionSteps, executionSummary, modelSteps, stepDuration, runFailureDescription, stepDescription } from './executionPresentation';
+import { contextCompactionStatus, executionSteps, executionSummary, modelSteps, stepDuration, runFailureDescription, stepDescription } from './executionPresentation';
 
-const run: Run = { id: 'run_test', conversation_id: 'conv_test', question: '核对范围', snapshot_id: 'snapshot_test', knowledge_snapshot_id: 'ks_test', status: 'completed', budget: {}, context_run_ids: [], metric_revision_ids: [], result: { kind: 'query_result', artifact_ids: ['qa_test'] }, error_code: null, cancel_requested: false, created_at: '2026-10-31T00:00:00Z', seq: 5, usage: {}, model: 'isolated-test' };
+const run: Run = { id: 'run_test', conversation_id: 'conv_test', question: '核对范围', compact_context: false, snapshot_id: 'snapshot_test', knowledge_snapshot_id: 'ks_test', status: 'completed', budget: {}, context_run_ids: [], metric_revision_ids: [], result: { kind: 'query_result', artifact_ids: ['qa_test'] }, error_code: null, cancel_requested: false, created_at: '2026-10-31T00:00:00Z', seq: 5, usage: {}, model: 'isolated-test' };
 /** 作用：构造明确的合成事件；输入：序号、类型和负载；输出：契约事件。 */
 function event(seq: number, type: RunEvent['type'], payload: RunEvent['payload']): RunEvent {
   return { run_id: run.id, seq, type, created_at: `2026-10-31T00:00:0${seq}Z`, payload };
@@ -16,6 +16,18 @@ const history: RunEvent[] = [
 ];
 
 describe('execution presentation uses actual evidence', () => {
+  it('distinguishes a compaction request, commit and later fallback', () => {
+    const requested: Run = { ...run, compact_context: true, status: 'running' };
+    const pending = event(2, 'run.progress', { phase: 'compaction', compaction: { stage: 'manual_requested' } });
+    const checkpoint = event(3, 'run.progress', { phase: 'compaction', compaction: { stage: 'checkpoint_commit' } });
+    const rejected = event(4, 'run.progress', { phase: 'compaction', compaction: { stage: 'checkpoint_commit', error_code: 'COMPACT_COMMIT_FAILED' } });
+    expect(contextCompactionStatus(requested, [pending], false)?.text).toBe('已请求压缩，等待工具记录');
+    expect(contextCompactionStatus({ ...requested, status: 'completed' }, [pending], true)?.text).toBe('运行结束，主动压缩未执行');
+    expect(contextCompactionStatus(requested, [pending, checkpoint], false)?.tone).toBe('success');
+    expect(contextCompactionStatus(requested, [pending, checkpoint, rejected], true)?.text).toBe('已压缩 1 次 · 本次压缩未应用');
+    const model = modelSteps([event(1, 'run.progress', { turn: 1 }), pending])[0];
+    expect(model.status).toBe('running');
+  });
   it('restores model phases from replay and keeps tool time separate', () => {
     const start = event(1, 'run.progress', { turn: 1 });
     const events = [history[2], start, history[1], start, event(4, 'run.progress', { turn: 2 }), event(5, 'run.failed', {})];

@@ -11,7 +11,7 @@ from starlette.exceptions import HTTPException
 
 from metric_pilot.agent.api import router as agent_router
 from metric_pilot.agent.runtime import AgentWorker
-from metric_pilot.agent.store import RunStore
+from metric_pilot.agent.store import RunStore, compaction_available
 from metric_pilot.contracts import ErrorDetail, ErrorResponse, HealthResponse
 from metric_pilot.data.api import router as data_router
 from metric_pilot.data.common import DataError
@@ -166,6 +166,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         body = HealthResponse(
             status="ok" if ready else "degraded",
             analysis="ready" if analysis_ready else "not_ready",
+            context_compaction=analysis_ready
+            and database == "ready"
+            and compaction_available(request.app.state.engine, config),
+            analysis_model=config.llm_model if config.integration_configured("llm") else None,
             database=database,
             fts5=fts5,
             worker="ready" if worker_ready else "not_ready",
@@ -203,6 +207,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "INVESTIGATION_VERSION_CONFLICT": "调查进展已更新，请刷新后继续",
             "INVESTIGATION_BOUNDARY_MISMATCH": "数据或知识版本与调查不一致，请显式新建调查或分支",
             "INVESTIGATION_BUDGET_EXCEEDED": "调查累计额度不足，历史发现与报告仍可查看",
+            "CONTEXT_COMPACTION_UNAVAILABLE": "当前后端未启用上下文压缩或缺少检查点迁移",
+            "COMPACTION_RUN_INACTIVE": "这轮分析已结束或正在停止，可在下一轮请求压缩",
         }
         return error_response(
             request,

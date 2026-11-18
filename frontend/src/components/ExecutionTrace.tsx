@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react';
 import { Alert, Button, Drawer, Select } from 'antd';
 import type { Run, RunEvent } from '../api/analysis';
 import { terminal } from '../api/analysis';
-import { executionSteps, executionSummary, formatDuration, modelSteps, stepDuration, recordOf, runFailureDescription, stepDescription, toolLabels, toolStatusLabels } from './executionPresentation';
+import { contextCompactionStatus, executionSteps, executionSummary, formatDuration, modelSteps, stepDuration, recordOf, runFailureDescription, stepDescription, toolLabels, toolStatusLabels } from './executionPresentation';
 import type { ToolStatus, ToolStep } from './executionPresentation';
 import { ExplorationNote } from './ExplorationNote';
 
@@ -38,6 +38,7 @@ export function ExecutionTrace({ run, events, connection, recordsState = 'comple
   const steps = executionSteps(scopedEvents);
   const timeline = [...steps, ...modelSteps(scopedEvents)].sort((a, b) => (a.startedAt ?? a.finishedAt ?? '').localeCompare(b.startedAt ?? b.finishedAt ?? ''));
   const complete = recordsState === 'complete' || recordsState === 'live';
+  const compaction = contextCompactionStatus(run, scopedEvents, recordsState === 'complete');
   const summary = complete ? executionSummary(run, scopedEvents, steps) : {
     tone: run.status === 'failed' ? 'error' as const : run.result?.kind === 'report' && run.result.partial ? 'warning' as const : 'neutral' as const,
     title: run.status === 'completed' ? (run.result?.kind === 'report' && run.result.partial ? '部分完成，已保留核查结果' : run.result?.kind === 'report' && run.result.has_unverified_explanations ? '结果已保存，附有未核实解释' : run.result?.kind === 'report' ? '报告已生成' : run.result?.kind === 'clarification' ? '需要补充条件' : '查询已完成') : run.status === 'cancelled' ? '分析已取消' : '分析未完成',
@@ -80,6 +81,7 @@ export function ExecutionTrace({ run, events, connection, recordsState = 'comple
       <button type="button" className="execution-detail-link" onClick={() => inspect()}>执行详情 <span aria-hidden="true">↗</span></button>
     </div>
     <span className="sr-only" role="status">{summary.title}</span>
+    {compaction && <p className={`context-compaction-status ${compaction.tone}`} role="status">{compaction.text}</p>}
     {reconnecting && <p className="execution-connection" role="status">进度连接已断开，正在重连；后端运行会继续。</p>}
     {expanded && <div id={contentId} role="region" aria-label="工具步骤" className="execution-steps">
       {timeline.length === 0 && <p className="execution-empty">{!complete ? summary.info : terminal(run.status) ? '本次运行没有工具执行记录。' : '正在等待实际工具执行。'}</p>}
@@ -99,6 +101,11 @@ export function ExecutionTrace({ run, events, connection, recordsState = 'comple
       <p className="execution-drawer-eyebrow">本次分析</p><h3 className="execution-drawer-question">{run.question}</h3>
       <div className={`execution-overview ${summary.tone}`}><StateMark tone={summary.tone} /><span>{summary.title}</span><span className="execution-meta">{summary.info}</span></div>
       <p className="execution-fixed-note">数据与知识版本已固定。以下仅展示实际操作与结果。</p>
+      {(compaction || (complete && terminal(run.status))) && <div className="execution-compaction-detail">
+        <strong>上下文压缩</strong>
+        <span>{compaction?.text ?? '本轮无压缩记录'}</span>
+        {compaction?.code && <code>{compaction.code}</code>}
+      </div>}
       {recordError && <Alert type="warning" message="执行记录尚未完整读取" description={recordError} action={<Button onClick={onReadRecords}>重试记录</Button>} />}
       {run.error_code && <Alert type={run.status === 'cancelled' ? 'info' : 'warning'} showIcon message={summary.title} description={<><p>{runFailureDescription(run)}</p><code>{run.error_code}</code></>} />}
       {steps.length > 0 ? <>
@@ -110,7 +117,7 @@ export function ExecutionTrace({ run, events, connection, recordsState = 'comple
           <ExplorationNote artifact={artifact} />
           {selected.durationMs !== null && <p className="execution-meta">工具用时 {formatDuration(selected.durationMs)} · 按服务端开始与结束事件计算</p>}
           {typeof selected.result?.error_code === 'string' && <Alert type="warning" message="本次工具未成功" description={String(selected.result.error_code)} />}
-          {sql && <><h4>SQL</h4><pre className="execution-code"><code>{sql}</code></pre><h4>绑定参数</h4>{Object.keys(recordOf(params)).length ? <JsonBlock value={params} /> : <p className="execution-meta">无绑定参数</p>}</>}
+          {sql && <details className="execution-technical execution-sql" key={selected.id}><summary>SQL 与绑定参数</summary><pre className="execution-code"><code>{sql}</code></pre>{Object.keys(recordOf(params)).length ? <JsonBlock value={params} /> : <p className="execution-meta">无绑定参数</p>}</details>}
           {sources.length > 0 && <div className="execution-sources"><h4>命中的来源资料</h4>{sources.map((source, index) => <div key={String(source.chunk_id ?? index)}><span className="execution-meta">{({ official_reference: '官方资料', project_policy: '项目规则', generated_wiki: '生成 Wiki' } as Record<string, string>)[String(source.source_kind)] ?? '来源资料'}</span><p>{typeof source.excerpt === 'string' ? source.excerpt : ''}</p></div>)}</div>}
           {typeof artifact.id === 'string' && <details className="execution-technical"><summary>查询产物与依据</summary><JsonBlock value={artifact} /></details>}
           <details className="execution-technical"><summary>工具输入</summary><JsonBlock value={selected.arguments} /></details>

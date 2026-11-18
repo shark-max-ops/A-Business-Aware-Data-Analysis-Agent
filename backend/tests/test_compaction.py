@@ -90,6 +90,102 @@ def test_checkpoint_rejects_cancel_and_stale_revision(agent_workspace):
         assert len(c.execute(select(m.context_checkpoints)).all()) == 1
 
 
+def test_manual_request_is_idempotent_and_bound_to_active_run(agent_workspace):
+    """
+    作用：验证主动请求可在创建或运行中登记，且不会重复改写事件
+    输入：隔离工作区
+    输出：无
+    """
+    store = agent_workspace[1]
+    queued = enqueue(agent_workspace, investigation(agent_workspace), compact_context=True)
+    assert queued["compact_context"]
+    assert store.request_compaction(queued["id"])["seq"] == queued["seq"]
+    assert store.events_after(queued["id"], 0)[-1]["payload"]["compaction"]["stage"] == (
+        "manual_requested"
+    )
+    store.cancel(queued["id"])
+    with pytest.raises(DataError, match="COMPACTION_RUN_INACTIVE"):
+        store.request_compaction(queued["id"])
+
+    run = enqueue(agent_workspace, investigation(agent_workspace))
+    store.claim()
+    accepted = store.request_compaction(run["id"])
+    assert accepted["status"] == "running" and accepted["compact_context"]
+    assert store.request_compaction(run["id"])["seq"] == accepted["seq"]
+
+
+def test_manual_compaction_bypasses_only_threshold(agent_workspace):
+    """
+    作用：验证主动压缩绕过容量触发线，仍提交验证后的检查点
+    输入：隔离运行和低于触发线的消息组
+    输出：无
+    """
+    config, store, *_ = agent_workspace
+    config.run_history_compaction = True
+    run = enqueue(agent_workspace, investigation(agent_workspace), compact_context=True)
+    store.claim()
+    run["budget"]["context_tokens"] = 64000
+    registry = registry_for(agent_workspace, run)
+    provider = SimpleNamespace(next_summary=True)
+    runtime = AgentRuntime(store, config, provider)
+    compactor = RunCompactor()
+    groups = [[{"role": "assistant", "content": "人工核查记录" * 190}] for _ in range(6)]
+    ctx = SimpleNamespace(run_id=run["id"], deadline_monotonic=time.monotonic() + 180)
+    requests = []
+
+    async def summarize(*args, **kwargs):
+        """
+        作用：返回合成摘要并记录发送次数
+        输入：模型消息和参数
+        输出：结构化摘要
+        """
+        requests.append(args)
+        return {
+            "candidate": {"background": "已核查。", "source_ids": [], "gaps": []},
+            "attempts": 1,
+            "usage": {},
+        }
+
+    runtime.wait_model = summarize
+    params = (runtime, [], groups, registry, 58000, [], ctx, threading.Event(), {}, False)
+    asyncio.run(compactor.maybe(*params))
+    assert not requests
+    asyncio.run(compactor.maybe(*params, force=True))
+    assert len(requests) == compactor.revision == 1
+    assert any(
+        event["payload"].get("compaction", {}).get("stage") == "checkpoint_commit"
+        for event in store.events_after(run["id"], 0)
+    )
+
+
+def test_manual_no_benefit_allows_later_auto(agent_workspace):
+    config, store, *_ = agent_workspace
+    config.run_history_compaction = True
+    run = enqueue(agent_workspace, investigation(agent_workspace))
+    store.claim()
+    registry = registry_for(agent_workspace, run)
+    registry.run["budget"].update(context_tokens=27000, output_tokens=3000)
+    runtime = AgentRuntime(store, config, SimpleNamespace(next_summary=True))
+
+    async def summarize(*args, **kwargs):
+        return {
+            "candidate": {"background": "简要背景", "source_ids": [], "gaps": []},
+            "attempts": 1,
+            "usage": {},
+        }
+
+    runtime.wait_model = summarize
+    groups = [[{"role": "assistant", "content": "a"}] for _ in range(2)]
+    ctx = SimpleNamespace(run_id=run["id"], deadline_monotonic=time.monotonic() + 180)
+    params = (runtime, [], groups, registry, 22976, [], ctx, threading.Event(), {}, False)
+    compactor = RunCompactor()
+    asyncio.run(compactor.maybe(*params, force=True))
+    assert compactor.attempts == 1 and not compactor.disabled and compactor.revision == 0
+    groups.extend([[{"role": "assistant", "content": "合成历史" * 171}] for _ in range(10)])
+    asyncio.run(compactor.maybe(*params))
+    assert compactor.attempts == 2 and compactor.revision == 1
+
+
 @pytest.mark.parametrize("partial", [False, True])
 def test_trigger_counts_deduplicated_context(partial):
     rows = [["v" * 500], ["w" * 500]]
@@ -139,7 +235,7 @@ def test_trigger_counts_deduplicated_context(partial):
     actual = fit_context([], groups, registry, 10**9)
     assert bool(json.loads(actual[1]["content"])["recent_successful_queries"]) == partial
     registry.run["budget"] = {
-        "context_tokens": int((model_message_bytes(actual) + 500) / 0.8) + 3000 + 1024,
+        "context_tokens": int((model_message_bytes(actual) + 500) / 0.9) + 3000 + 1024,
         "output_tokens": 3000,
     }
 
@@ -197,6 +293,10 @@ def test_two_compactions_replace_summary_and_keep_contiguous_coverage(
     usage = {}
     header = initial_messages(run, registry, [])
     expected_before = model_message_bytes(fit_context(header, groups, registry, 10**9))
+    registry.run["budget"]["context_tokens"] = (
+        int(expected_before / 0.91) + registry.run["budget"]["output_tokens"] + 1024
+    )
+    available = int(expected_before / 0.91)
     cancel = threading.Event()
     if failure == "write":
 
@@ -209,13 +309,13 @@ def test_two_compactions_replace_summary_and_keep_contiguous_coverage(
 
     async def execute():
         await compactor.maybe(
-            runtime, header, groups, registry, 27000, [], registry.ctx, cancel, usage, False
+            runtime, header, groups, registry, available, [], registry.ctx, cancel, usage, False
         )
         if failure:
             assert compactor.disabled and compactor.revision == 0
             assert registry.working_summary is None and len(groups) == 6
             await compactor.maybe(
-                runtime, header, groups, registry, 27000, [], registry.ctx, cancel, usage, False
+                runtime, header, groups, registry, available, [], registry.ctx, cancel, usage, False
             )
             assert runtime.provider.count == 1
             return
@@ -223,7 +323,7 @@ def test_two_compactions_replace_summary_and_keep_contiguous_coverage(
         assert registry.working_summary["background"] == "摘要1"
         groups.extend([[{"role": "assistant", "content": "新增合成记录" * 180}] for _ in range(6)])
         await compactor.maybe(
-            runtime, header, groups, registry, 27000, [], registry.ctx, cancel, usage, False
+            runtime, header, groups, registry, available, [], registry.ctx, cancel, usage, False
         )
 
     asyncio.run(execute())
@@ -573,3 +673,33 @@ def test_summary_reuse_preserves_tail_and_adds_prefix_boundary(agent_workspace, 
     assert background["working_summary"] == frozen == summary
     assert "input_coverage不是整个Run的读取清单" in background["boundary"]
     assert messages[-1]["content"] == "retained-third-page-200-300"
+
+
+def test_idle_compaction_feeds_next_run_without_changing_evidence(agent_workspace):
+    from metric_pilot.agent.compaction import compact_idle
+    from test_investigations import SQL, calls, finding_call, report_candidate, run_steps
+
+    config, store, *_ = agent_workspace
+    config.run_history_compaction = True
+    config.run_context_tokens = 64000
+    inv = investigation(agent_workspace)
+    assert not compact_idle(store, config, inv["id"]).get("compacted_context")
+    run, _ = run_steps(
+        agent_workspace, inv, [calls(("query_sql", {"sql": SQL})), finding_call, report_candidate]
+    )
+    assert run["status"] == "completed"
+    current = compact_idle(store, config, inv["id"])
+    saved = current["compacted_context"]
+    assert saved["usage"]["estimated_input"] < saved["before"]
+    assert compact_idle(store, config, inv["id"]) == current
+    assert store.read(run["id"]) == run
+    following = enqueue(agent_workspace, current)
+    registry = registry_for(agent_workspace, following)
+    header = initial_messages(following, registry, [])
+    assert registry.compact_locators == set(saved["locators"])
+    packed = fit_context(header, [], registry, 64000)
+    items = json.loads(packed[-2]["content"])["history_navigation"]["items"]
+    assert any(item.get("artifact_id") in registry.compact_locators for item in items)
+    assert all("columns" not in item for item in items)
+    with pytest.raises(DataError, match="INVESTIGATION_BUSY"):
+        compact_idle(store, config, inv["id"])
