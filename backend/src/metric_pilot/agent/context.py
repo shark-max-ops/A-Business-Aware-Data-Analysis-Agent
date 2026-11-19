@@ -92,7 +92,12 @@ text: type,id,text_template,values{key:ValueRef,max24},evidence_ids[].
 table: type,id,title,artifact_id,columns[raw names,max16],column_labels{raw:中文}.
 chart: type,id,title,artifact_id,kind(bar/line),x,y[numeric columns],x_label,series_labels,format.
 ranking: type,id,artifact_id,dimensions,measure,direction(descending/ascending),top_k(1..10).
-comparison: type,id,artifact_id,dimensions,measure,left_row,right_row；同列两行，服务端决定高低。
+派生块共用type,id,artifact_id,dimensions,measure。
+rate_decomposition: dimensions=[期间,互斥组]，denominator=有效量列，
+comparison_total_row和baseline_total_row为两期独立合计；同表列全两期各组和合计。
+count_rate: denominator,comparison_row；可加baseline_row求百分点差。
+comparison: left_row,right_row；加calculation="difference"求左减右。
+read_artifact.calculation可预核并返回report_block。text勿用原始值复述差值。
 排名和升降必须用ranking/comparison，服务端核对完整结果集并保留并列；不手写名次或猜极值。
 普通text均进入“未核实解释”，不会成为已核实结论。数据标签由实际字段生成，不用标题冒充事实。
 ValueRef={artifact_id,row:absolute zero-based int,column:raw name}; never supply values.
@@ -102,7 +107,7 @@ rows/preview若提供则对应row_indices。同航司跨月不一定相邻。
 record_finding只填observations[{artifact_id,row,columns}]，每行含分组身份和数量列；最多4行、每行6列。
 该工具不填statement、values或row_bindings；返回的report_block可原样用于最终报告，不重写引用。
 note只写待复核解释或限制；完整比较放表格，已有发现后直接报告，额外维度留下一步。
-合计/差值须有SQL取值；不自算数量，不冒称显著。
+合计从冻结查询取值，差值、占比及贡献使用服务端派生块；不自算数量，不冒称显著。
 表图完整展示产物；指定人群先查询筛选产物，标题不筛行。
 display_scope={dimensions:[可见列],population:{分类列:[允许字符串]}}逐行核对；
 date_range须等于主范围；子范围配date_column且有日粒度支持。范围错误按details修正，不删声明绕过。

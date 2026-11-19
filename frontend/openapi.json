@@ -3382,6 +3382,18 @@
             "type": "integer",
             "minimum": 0.0,
             "title": "Right Row"
+          },
+          "calculation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "difference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calculation"
           }
         },
         "additionalProperties": false,
@@ -3444,6 +3456,72 @@
         ],
         "title": "ConversationDTO",
         "description": "作用：描述会话\n输入：服务端记录\n输出：公开会话"
+      },
+      "CountRateBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "count_rate",
+            "title": "Type"
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "artifact_id": {
+            "type": "string",
+            "title": "Artifact Id"
+          },
+          "dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Dimensions"
+          },
+          "measure": {
+            "type": "string",
+            "title": "Measure"
+          },
+          "denominator": {
+            "type": "string",
+            "title": "Denominator"
+          },
+          "comparison_row": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Comparison Row"
+          },
+          "baseline_row": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Row"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "artifact_id",
+          "dimensions",
+          "measure",
+          "denominator",
+          "comparison_row"
+        ],
+        "title": "CountRateBlock",
+        "description": "从完整冻结结果的整数计数计算单行占比或两行百分点差。"
       },
       "CreateInvestigation": {
         "properties": {
@@ -5488,6 +5566,71 @@
         "title": "RankingBlock",
         "description": "作用：声明由服务端在完整冻结结果集内计算的排名\n输入：产物、身份列、数值列、方向与名次上限\n输出：待核对的排名请求，不接受模型提供名次或结论"
       },
+      "RateDecompositionBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "rate_decomposition",
+            "title": "Type"
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "artifact_id": {
+            "type": "string",
+            "title": "Artifact Id"
+          },
+          "dimensions": {
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Dimensions"
+          },
+          "measure": {
+            "type": "string",
+            "title": "Measure"
+          },
+          "denominator": {
+            "type": "string",
+            "title": "Denominator"
+          },
+          "comparison_total_row": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Comparison Total Row"
+          },
+          "baseline_total_row": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Baseline Total Row"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "artifact_id",
+          "dimensions",
+          "measure",
+          "denominator",
+          "comparison_total_row",
+          "baseline_total_row"
+        ],
+        "title": "RateDecompositionBlock",
+        "description": "按两期的完整分类行及各期独立合计行核对百分点贡献。"
+      },
       "RenderedBlock": {
         "properties": {
           "type": {
@@ -5869,6 +6012,12 @@
                 },
                 {
                   "$ref": "#/components/schemas/ComparisonBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/CountRateBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/RateDecompositionBlock"
                 }
               ],
               "discriminator": {
@@ -5876,8 +6025,10 @@
                 "mapping": {
                   "chart": "#/components/schemas/ChartBlock",
                   "comparison": "#/components/schemas/ComparisonBlock",
+                  "count_rate": "#/components/schemas/CountRateBlock",
                   "kpi": "#/components/schemas/KPIBlock",
                   "ranking": "#/components/schemas/RankingBlock",
+                  "rate_decomposition": "#/components/schemas/RateDecompositionBlock",
                   "table": "#/components/schemas/TableBlock",
                   "text": "#/components/schemas/TextBlock"
                 }

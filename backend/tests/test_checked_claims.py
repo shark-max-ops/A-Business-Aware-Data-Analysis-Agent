@@ -242,3 +242,92 @@ def test_real_runtime_freezes_relation_and_evidence_and_cannot_edit_proof(agent_
     proof = svc.evidence(result.report_id, result.revision_id, "actual_rank").proof
     assert proof == result.blocks[0].proof
     assert proof["result_hash"]
+
+
+@pytest.mark.parametrize("baseline, expected", [(None, ("100", "3")), (1, ("25", "3"))])
+def test_count_rate_preserves_exact_fraction(baseline, expected):
+    """用三分之一与四分之一验证单行占比和有向百分点差。"""
+    data = frozen([["Jan", 1, 3], ["Feb", 1, 4]])["artifacts"]
+    data["qa_test"]["artifact"]["columns"][1:] = [
+        {"name": column, "type": "INTEGER"} for column in ("part", "total")
+    ]
+    block = dict(
+        type="count_rate",
+        id="rate",
+        dimensions=["month"],
+        artifact_id="qa_test",
+        measure="part",
+        denominator="total",
+        comparison_row=0,
+        baseline_row=baseline,
+    )
+    proof = render_relation(block, data)["proof"]
+    assert (proof["exact_numerator"], proof["exact_denominator"]) == expected
+    data["qa_test"]["rows"][0][2] = 0
+    with pytest.raises(DataError, match="REPORT_ZERO_DENOMINATOR"):
+        render_relation(block, data)
+
+
+@pytest.mark.parametrize(
+    "row,col,value,code",
+    [
+        (1, 1, "X", "REPORT_GROUP_COVERAGE"),
+        (1, 2, 0, "REPORT_GROUP_TOTAL_MISMATCH"),
+        (1, 3, None, "REPORT_COUNT_MISSING"),
+        (1, 2, 1.5, "REPORT_INVALID_COUNTS"),
+        (0, 2, 0, "REPORT_ZERO_DENOMINATOR"),
+        (1, 1, "B", "REPORT_CLAIM_IDENTITY"),
+        (1, 0, "Mar", "REPORT_GROUP_SCOPE"),
+    ],
+)
+def test_group_rate_refuses_unreconciled_counts(row, col, value, code):
+    """Check each rejection on a complete, synthetic two-period result."""
+    rows = [
+        ["Jan", "ALL", 2, 8],
+        ["Jan", "A", 1, 3],
+        ["Jan", "B", 1, 5],
+        ["Feb", "ALL", 3, 6],
+        ["Feb", "B", 3, 6],
+        ["Feb", "A", 0, 0],
+    ]
+    data = frozen(rows)
+    record = data["artifacts"]["qa_test"]
+    record["artifact"]["columns"][2:] = [{"name": c, "type": "INTEGER"} for c in ("part", "total")]
+    block = dict(
+        type="rate_decomposition",
+        id="parts",
+        artifact_id="qa_test",
+        dimensions=["month", "carrier_code"],
+        measure="part",
+        denominator="total",
+        comparison_total_row=3,
+        baseline_total_row=0,
+    )
+    draft = dict(schema_version="1", title="Group check", scope="Two periods", blocks=[block])
+    proof = materialize(draft, data)["blocks"][0]["proof"]
+    assert [r["display"] for r in proof["total_rates"]] == ["50.0000", "25.0000"]
+    assert proof["display"] == "25.0000"
+    assert [x["display"] for x in proof["groups"]] == ["37.5000", "-12.5000"]
+    if code == "REPORT_ZERO_DENOMINATOR":
+        rows[0][3] = 0
+    rows[row][col] = value
+    with pytest.raises(DataError, match=code):
+        materialize(draft, data)
+
+
+def test_count_rate_rejects_percentage_units_even_when_values_are_integers():
+    """An integral percentage still cannot serve as a raw count."""
+    data = frozen([["Jan", "A", 1, 5]])
+    record = data["artifacts"]["qa_test"]
+    record["artifact"]["columns"].append({"name": "total", "type": "INTEGER"})
+    block = dict(
+        type="count_rate",
+        id="rate",
+        artifact_id="qa_test",
+        dimensions=["month"],
+        measure="rate_pct",
+        denominator="total",
+        comparison_row=0,
+    )
+    with pytest.raises(DataError, match="REPORT_COUNT_UNIT_MISMATCH"):
+        render_relation(block, data["artifacts"])

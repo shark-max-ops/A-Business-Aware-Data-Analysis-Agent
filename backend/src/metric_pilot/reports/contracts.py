@@ -143,10 +143,44 @@ class ComparisonBlock(StrictDTO):
     measure: str
     left_row: int = Field(ge=0, strict=True)
     right_row: int = Field(ge=0, strict=True)
+    calculation: Literal["difference"] | None = None
+
+
+class CountRateBlock(StrictDTO):
+    """从完整冻结结果的整数计数计算单行占比或两行百分点差。"""
+
+    type: Literal["count_rate"]
+    id: str = Field(min_length=1, max_length=80)
+    artifact_id: str
+    dimensions: list[str] = Field(min_length=1, max_length=6)
+    measure: str
+    denominator: str
+    comparison_row: int = Field(ge=0, strict=True)
+    baseline_row: int | None = Field(default=None, ge=0, strict=True)
+
+
+class RateDecompositionBlock(StrictDTO):
+    """按两期的完整分类行及各期独立合计行核对百分点贡献。"""
+
+    type: Literal["rate_decomposition"]
+    id: str = Field(min_length=1, max_length=80)
+    artifact_id: str
+    dimensions: tuple[str, str]
+    measure: str
+    denominator: str
+    comparison_total_row: int = Field(ge=0, strict=True)
+    baseline_total_row: int = Field(ge=0, strict=True)
 
 
 Block = Annotated[
-    KPIBlock | TableBlock | ChartBlock | TextBlock | RankingBlock | ComparisonBlock,
+    KPIBlock
+    | TableBlock
+    | ChartBlock
+    | TextBlock
+    | RankingBlock
+    | ComparisonBlock
+    | CountRateBlock
+    | RateDecompositionBlock,
     Field(discriminator="type"),
 ]
 

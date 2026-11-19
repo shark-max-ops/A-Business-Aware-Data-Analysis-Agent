@@ -1264,6 +1264,8 @@ export interface components {
             left_row: number;
             /** Right Row */
             right_row: number;
+            /** Calculation */
+            calculation?: "difference" | null;
         };
         /**
          * ContextUsage
@@ -1290,6 +1292,31 @@ export interface components {
             title: string;
             /** Created At */
             created_at: string;
+        };
+        /**
+         * CountRateBlock
+         * @description 从完整冻结结果的整数计数计算单行占比或两行百分点差。
+         */
+        CountRateBlock: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "count_rate";
+            /** Id */
+            id: string;
+            /** Artifact Id */
+            artifact_id: string;
+            /** Dimensions */
+            dimensions: string[];
+            /** Measure */
+            measure: string;
+            /** Denominator */
+            denominator: string;
+            /** Comparison Row */
+            comparison_row: number;
+            /** Baseline Row */
+            baseline_row?: number | null;
         };
         /**
          * CreateInvestigation
@@ -2109,6 +2136,34 @@ export interface components {
             top_k: number;
         };
         /**
+         * RateDecompositionBlock
+         * @description 按两期的完整分类行及各期独立合计行核对百分点贡献。
+         */
+        RateDecompositionBlock: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "rate_decomposition";
+            /** Id */
+            id: string;
+            /** Artifact Id */
+            artifact_id: string;
+            /** Dimensions */
+            dimensions: [
+                string,
+                string
+            ];
+            /** Measure */
+            measure: string;
+            /** Denominator */
+            denominator: string;
+            /** Comparison Total Row */
+            comparison_total_row: number;
+            /** Baseline Total Row */
+            baseline_total_row: number;
+        };
+        /**
          * RenderedBlock
          * @description 作用：提供由服务端物化的统一块 DTO
          *     输入：已校验块与冻结数据
@@ -2251,7 +2306,7 @@ export interface components {
             /** Metric Revision Ids */
             metric_revision_ids?: string[];
             /** Blocks */
-            blocks: (components["schemas"]["KPIBlock"] | components["schemas"]["TableBlock"] | components["schemas"]["ChartBlock"] | components["schemas"]["TextBlock"] | components["schemas"]["RankingBlock"] | components["schemas"]["ComparisonBlock"])[];
+            blocks: (components["schemas"]["KPIBlock"] | components["schemas"]["TableBlock"] | components["schemas"]["ChartBlock"] | components["schemas"]["TextBlock"] | components["schemas"]["RankingBlock"] | components["schemas"]["ComparisonBlock"] | components["schemas"]["CountRateBlock"] | components["schemas"]["RateDecompositionBlock"])[];
             /** Limitations */
             limitations?: string[];
         };

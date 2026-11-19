@@ -68,7 +68,7 @@ SPECS = {
     "read_artifact": (
         a.ArtifactArgs,
         "读取授权成功产物；小型聚合可用limit=100一次读完。"
-        "避免反复小分页；大结果需要进一步SQL聚合。",
+        "可选calculation预核同一产物的差值、占比、百分点差或分组贡献，返回证明及report_block。",
     ),
 }
 
@@ -498,10 +498,14 @@ class ToolRegistry:
                 finding["comparison"] = coverage
                 self.coverage_checks[finding["id"]] = coverage
             previous = self.coverage_checks.get(args.supersedes)
-            if previous and coverage and (
-                previous["key"] == coverage["key"]
-                and set(previous["expected"]) == set(coverage["expected"])
-                and previous["denominator"] == coverage["denominator"]
+            if (
+                previous
+                and coverage
+                and (
+                    previous["key"] == coverage["key"]
+                    and set(previous["expected"]) == set(coverage["expected"])
+                    and previous["denominator"] == coverage["denominator"]
+                )
             ):
                 self.coverage_checks.pop(args.supersedes)
             self.recorded_count += 1
@@ -607,6 +611,25 @@ class ToolRegistry:
             page = read_evidence_artifact(
                 self.query, self.run, args.artifact_id, args.offset, args.limit
             )
+            if args.calculation is not None:
+                from metric_pilot.reports.claims import render_relation
+
+                block = args.calculation.model_dump(exclude_none=True)
+                if block["artifact_id"] != args.artifact_id:
+                    raise DataError("REPORT_ARTIFACT_NOT_ALLOWED")
+                metadata = page["artifact"]
+                if metadata["truncated"]:
+                    raise DataError("REPORT_CLAIM_INCOMPLETE")
+                rows = list(page["rows"]) if args.offset == 0 else []
+                for offset in range(len(rows), metadata["returned_rows"], 100):
+                    chunk = read_evidence_artifact(
+                        self.query, self.run, args.artifact_id, offset, 100
+                    )
+                    rows.extend(chunk["rows"])
+                rendered = render_relation(
+                    block, {args.artifact_id: {"artifact": metadata, "rows": rows}}
+                )
+                page.update(calculation_proof=rendered["proof"], report_block=block)
             # 绝对零基行号与当前页一一对应，避免模型按分组排序猜测行号。
             page["row_indices"] = list(range(args.offset, args.offset + len(page["rows"])))
             if self.run.get("investigation_id"):

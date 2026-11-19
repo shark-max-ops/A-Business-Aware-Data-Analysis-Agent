@@ -2,7 +2,7 @@
 
 from typing import Annotated, Any, Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, WithJsonSchema, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
 from metric_pilot.contracts import StrictDTO
@@ -11,6 +11,9 @@ from metric_pilot.data.presentation import ScopeContext
 from metric_pilot.data.ranges import DateRange
 from metric_pilot.external.weather import WeatherRequest
 from metric_pilot.reports.contracts import (
+    ComparisonBlock,
+    CountRateBlock,
+    RateDecompositionBlock,
     ReportCandidate,
     ReportResult,
     RowBinding,
@@ -250,6 +253,36 @@ class ArtifactArgs(StrictDTO):
     artifact_id: str
     offset: int = Field(default=0, ge=0)
     limit: int = Field(default=20, ge=1, le=100)
+    # 报告块的字段说明已在固定消息中发送；工具只公开一次共用结构。
+    calculation: Annotated[
+        ComparisonBlock | CountRateBlock | RateDecompositionBlock | None,
+        WithJsonSchema(
+            {
+                "type": ["object", "null"],
+                "properties": {
+                    "type": {"enum": ["comparison", "count_rate", "rate_decomposition"]},
+                    "dimensions": {"type": "array", "items": {"type": "string"}},
+                    **{
+                        key: {"type": "string"}
+                        for key in ("artifact_id", "id", "measure", "denominator", "calculation")
+                    },
+                    **{
+                        key: {"type": "integer", "minimum": 0}
+                        for key in (
+                            "left_row",
+                            "right_row",
+                            "comparison_row",
+                            "baseline_row",
+                            "comparison_total_row",
+                            "baseline_total_row",
+                        )
+                    },
+                },
+                "required": ["type", "artifact_id", "id", "dimensions", "measure"],
+                "additionalProperties": False,
+            }
+        ),
+    ] = None
 
 
 class ExternalSourceArgs(StrictDTO):

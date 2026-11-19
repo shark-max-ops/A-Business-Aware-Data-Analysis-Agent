@@ -21,7 +21,14 @@ def artifact_ids(draft, *, require_query=True):
     for block in draft.blocks:
         if block.type == "kpi":
             result.add(block.value_ref.artifact_id)
-        elif block.type in {"table", "chart", "ranking", "comparison"}:
+        elif block.type in {
+            "table",
+            "chart",
+            "ranking",
+            "comparison",
+            "count_rate",
+            "rate_decomposition",
+        }:
             result.add(block.artifact_id)
         else:
             result.update(ref.artifact_id for ref in block.values.values())
@@ -43,7 +50,7 @@ def render_blocks(draft, artifacts, sources, main_range=None, policy=None, obser
         if b["id"] in ids:
             raise DataError("REPORT_DUPLICATE_BLOCK")
         ids.add(b["id"])
-        if b["type"] in {"ranking", "comparison"}:
+        if b["type"] in {"ranking", "comparison", "count_rate", "rate_decomposition"}:
             blocks.append(RenderedBlock.model_validate(render_relation(b, artifacts)).model_dump())
             continue
         out = {"type": b["type"], "id": b["id"], "title": b.get("title", "")}
@@ -173,7 +180,7 @@ def materialize(draft, frozen, *, require_query=True, runtime_warnings=()):
     )
     if frozen.get("verification_policy") == POLICY:
         warnings.append(
-            "已核对结论仅限完整冻结结果集内的排序或同列数值关系；不认证SQL业务分母、总体覆盖、显著性或因果。"
+            "已核对结论仅限完整冻结结果集内的排序、数值关系及冻结计数的派生运算；不认证SQL业务分母、总体覆盖、显著性或因果。"
         )
     warnings.extend(runtime_warnings)
     # 运行收尾产生的真实未完成事项在人工修订时继续保留，模型不能移除。
