@@ -75,6 +75,7 @@ export function AnalysisPage() {
   const loading = !!conversationId && restored !== conversationId;
   const blocked = active || busy || investigationActive || loading;
   const visibleRuns = investigationRuns(runs.filter(item => item.conversation_id === conversationId), legacy ? null : investigation?.id ?? null);
+  const latestResult = visibleRuns.at(-1)?.result;
   const checkpoint = investigation?.compacted_context;
   const idleUsage = !run && checkpoint?.run_count === visibleRuns.length ? checkpoint?.usage : null;
   const contextUsage = idleUsage ?? (run ?? visibleRuns.at(-1))?.context_usage;
@@ -369,7 +370,7 @@ export function AnalysisPage() {
     <Suspense fallback={<p>正在加载数据源…</p>}>{drawer && <DataSourceDrawer open={drawer} onClose={() => setDrawer(false)} onActivated={() => { if (!investigation) setSnapshotId(''); setCatalogAttempt(value => value + 1); }} />}</Suspense>
     <Drawer title="调查信息" open={infoOpen} onClose={() => setInfoOpen(false)} width="min(560px, 100vw)">{investigation && <InvestigationInfo investigation={investigation} />}</Drawer>
     <Modal title="替换当前草稿？" open={pendingFollowUp !== null} onCancel={() => setPendingFollowUp(null)} onOk={() => { if (pendingFollowUp !== null) fillFollowUp(pendingFollowUp); }} okText="替换" cancelText="保留草稿">输入框中已有内容，是否替换为建议问题？</Modal>
-    <Drawer title="调查发现" open={findingsOpen} onClose={() => setFindingsOpen(false)} width="min(680px, 100vw)" destroyOnClose>{investigation && <InvestigationPanel key={investigation.id} investigation={investigation} disabled={blocked} onFollowUp={followUp} onError={setError} />}</Drawer>
+    <Drawer title="调查发现" open={findingsOpen} onClose={() => setFindingsOpen(false)} width="min(680px, 100vw)" destroyOnClose>{investigation && <InvestigationPanel key={investigation.id} investigation={investigation} disabled={blocked} onFollowUp={followUp} onError={setError} report={latestResult?.kind === 'report' ? latestResult : undefined} />}</Drawer>
     <Modal title={branch ? '新建调查分支' : '新建调查'} open={creatingInvestigation} onCancel={() => setCreatingInvestigation(false)} onOk={() => { void createInvestigation(); }} cancelText={"取消"} confirmLoading={busy} okText="固定范围并创建" okButtonProps={{ disabled: !goal.trim() || !scope.trim() || !formSnapshotId || !!formRangeError }}><div className="investigation-form"><label>调查目标<Input.TextArea aria-label="调查目标" value={goal} maxLength={1200} onChange={e => setGoal(e.target.value)} rows={2} /></label><label>范围与已确认条件<Input.TextArea aria-label="调查范围" value={scope} maxLength={1200} onChange={e => setScope(e.target.value)} rows={3} /></label><label>数据快照<Select aria-label="新调查数据快照" value={formSnapshotId} onChange={id => { setFormSnapshotId(id); setFormDateRange(snapshotRange(snapshots.find(item => item.id === id))); }} options={snapshots.map(item => ({ value: item.id, label: `${item.period ?? (item.periods ?? []).join('、')} · ${item.row_count.toLocaleString()} 条 · ${item.id.slice(-8)}` }))} /></label><DateRangeFields snapshot={formSnapshot} value={formDateRange} onChange={setFormDateRange} />{formSnapshot && <SnapshotSummary snapshot={formSnapshot} />}<p>创建时固定当前知识版本。分支记录来源调查，证据需在新调查中重新核查；不会自动继承旧结论或重置原调查额度。</p></div></Modal>
   </>;
 }

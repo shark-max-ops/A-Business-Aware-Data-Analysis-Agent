@@ -2280,6 +2280,10 @@ export interface components {
             partial: boolean;
             /** Verification Policy */
             verification_policy?: string | null;
+            /** Answer Block Id */
+            answer_block_id?: string | null;
+            /** Answer Limit */
+            answer_limit?: string | null;
             /**
              * Has Unverified Explanations
              * @default false

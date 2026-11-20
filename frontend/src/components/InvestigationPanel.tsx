@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Button, Empty, Modal, Tag } from 'antd';
 import type { components } from '../api/schema';
 import { ExplorationNote } from './ExplorationNote';
 import { ExternalSource, isExternalSource } from './ExternalSource';
 import { boundFindingEvidence, findingGroups } from './investigationPresentation';
 import { readFrozen } from '../api/runHistory';
+
+const ReportPreview = lazy(() => import('./ReportsPage').then(module => ({ default: module.ReportPreview })));
 
 export type Investigation = components['schemas']['InvestigationDTO'];
 type Finding = components['schemas']['FindingDTO'];
@@ -20,9 +22,10 @@ const kindText: Record<string, string> = {
 };
 
 /** 展示调查发现与核查入口；版本及额度由独立信息抽屉呈现。 */
-export function InvestigationPanel({ investigation: inv, disabled, onFollowUp, runId, onLocateRun }: {
+export function InvestigationPanel({ investigation: inv, disabled, onFollowUp, runId, onLocateRun, report }: {
   investigation: Investigation; disabled: boolean; onFollowUp: (question: string) => void; onError: (message: string) => void;
   runId?: string; onLocateRun?: (id: string) => void;
+  report?: { report_id: string; revision_id: string };
 }) {
   const [evidence, setEvidence] = useState<FindingEvidence | null>(null);
   const [error, setError] = useState('');
@@ -59,6 +62,7 @@ export function InvestigationPanel({ investigation: inv, disabled, onFollowUp, r
   }
 
   return <section className="investigation-panel" aria-label={runId ? '本轮调查发现' : '当前调查'}>
+    {report && <Suspense fallback={<p role="status">正在加载本次结果…</p>}><ReportPreview reportId={report.report_id} revisionId={report.revision_id} answerOnly /></Suspense>}
     <div className="investigation-findings"><h3>{runId ? '本轮发现' : '发现与待核查事项'}</h3>{current.length ? current.map(item => findingView(item, supersededBy.has(item.id))) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={runId ? '本轮尚无已保存的调查发现' : '核查后的发现、反证和限制会保存在这里'} />}</div>
     {history.length > 0 && <details className="investigation-meta"><summary>查看被修正的历史记录</summary>{history.map(item => findingView(item, true))}</details>}
     {questions.length > 0 && <div className="investigation-next"><h3>可以继续核查</h3>{questions.map(question => <div key={question.text}>{question.historical && <span className="historical-note">历史建议 · 原发现已有后续修正</span>}<Button disabled={disabled || inv.status === 'budget_exhausted'} onClick={() => onFollowUp(question.text)}>{question.text}</Button></div>)}</div>}

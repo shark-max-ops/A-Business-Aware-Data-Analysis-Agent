@@ -26,7 +26,7 @@ export function RunDetails({ run, investigation, snapshot, disabled, onFollowUp,
   const findings = investigation?.findings.filter(item => item.run_id === run.id) ?? [];
   return <div className="turn-investigation">
     {investigationError && <Alert type="warning" message="调查发现读取失败" description={investigationError} action={<Button onClick={onRetryInvestigation}>刷新调查发现</Button>} />}
-    {investigationError && !findings.length ? <p>本轮发现尚不能确认，请刷新调查记录。</p> : investigation ? <InvestigationPanel investigation={investigation} runId={run.id} disabled={disabled} onFollowUp={onFollowUp} onLocateRun={onLocateRun} onError={() => {}} />
+    {investigationError && !findings.length ? <p>本轮发现尚不能确认，请刷新调查记录。</p> : investigation ? <InvestigationPanel investigation={investigation} runId={run.id} disabled={disabled} onFollowUp={onFollowUp} onLocateRun={onLocateRun} onError={() => {}} report={run.result?.kind === 'report' ? run.result : undefined} />
       : <p>{run.investigation_id ? '本轮调查记录尚未加载。' : '本轮为历史独立运行，没有关联的调查发现记录。'}</p>}
     <details className="turn-info"><summary>本轮信息</summary>
       {investigation && <><p>{investigation.scope_context?.main_label}</p><p>所属调查目标：{investigation.goal}</p><p>所属调查说明：{investigation.scope}</p></>}

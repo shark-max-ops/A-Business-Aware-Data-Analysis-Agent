@@ -195,8 +195,35 @@ def materialize(draft, frozen, *, require_query=True, runtime_warnings=()):
         warnings.append(
             "外部观测与公告是固定来源证据，不单独证明航班异常原因；有效期及航司限制见原文。"
         )
+    # 按草稿顺序选首段。只有表图时，直接展示完整冻结结果。
+    answer = next(
+        (
+            b
+            for b in blocks
+            if b.get("verification") == "checked_relation"
+            or (b.get("verification") == "result_values" and b["type"] in {"text", "kpi"})
+        ),
+        None,
+    )
+    if answer is None and frozen.get("verification_policy") == POLICY:
+        answer = next((b for b in blocks if b["type"] == "table"), None)
+        if answer is None:
+            answer = next((b for b in blocks if b["type"] == "chart"), None)
+    answer_limit = None
+    if answer:
+        if answer["type"] in {"table", "chart"}:
+            boundary = "展示已查询范围内的冻结结果。"
+        elif answer["verification"] == "checked_relation":
+            boundary = "该关系仅在本次冻结结果集内核对。"
+        else:
+            boundary = "仅核对所选记录的取值。"
+        answer_limit = next(
+            iter([*frozen.get("runtime_limitations", []), *runtime_warnings]), boundary
+        )
     result = {
         **copy.deepcopy(frozen),
+        "answer_block_id": answer["id"] if answer else None,
+        "answer_limit": answer_limit,
         "draft": draft.model_dump(),
         "title": draft.title,
         "scope": draft.scope,

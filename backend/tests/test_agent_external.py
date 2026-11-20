@@ -231,6 +231,57 @@ def test_context_budget_counts_tool_text_once_and_preserves_pairing():
     assert limited[-2]["tool_calls"][0]["id"] == limited[-1]["tool_call_id"]
 
 
+def test_external_schema_cache_yields_to_latest_finding_protocol():
+    """
+    作用：预算收紧时保留最新发现及原样协议字段
+    输入：宽外部表缓存和已保存发现的配对回复
+    输出：无
+    """
+    from types import SimpleNamespace
+
+    from metric_pilot.agent.context import fit_context, model_message_bytes
+    from metric_pilot.agent.protocol import ProtocolMessage, State, hydrate
+
+    registry = SimpleNamespace(
+        artifact_ids={"qa_synthetic"},
+        resolved=set(),
+        definitions={},
+        run={"investigation_id": "synthetic"},
+        external=SimpleNamespace(
+            known_schemas={
+                "xsnap_synthetic": {
+                    "v_weather_observations": {f"field_{i}": "DOUBLE" for i in range(100)}
+                }
+            },
+            summaries={},
+        ),
+    )
+    assistant = ProtocolMessage(
+        role="assistant",
+        content=None,
+        tool_calls=[
+            dict(id="save", type="function", function=dict(name="record_finding", arguments="{}"))
+        ],
+    )
+    assistant.protocol = State("fixture protocol " * 200)
+    reply = dict(
+        role="tool",
+        tool_call_id="save",
+        content=json.dumps({"ok": True, "data": {"id": "finding_synthetic"}}),
+    )
+    header = [dict(role="user", content="synthetic investigation")]
+    full = fit_context(header, [[assistant, reply]], registry, 100000)
+    budget = model_message_bytes(full) - 900
+    bounded = fit_context(header, [[assistant, reply]], registry, budget)
+    assert model_message_bytes(bounded) <= budget
+    memory = json.loads(bounded[1]["content"])
+    assert "known_external_tables" not in memory
+    assert memory["current_artifact_ids"] == ["qa_synthetic"]
+    assert json.loads(bounded[-1]["content"]) == json.loads(reply["content"])
+    assert hydrate(bounded)[-2]["reasoning_content"] == assistant.protocol.value
+    assert registry.external.known_schemas["xsnap_synthetic"]
+
+
 SCOPE = dict(
     population="明确合成观测时刻",
     calculation="核对精确温度，不作航班因果结论",

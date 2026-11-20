@@ -123,7 +123,15 @@ def markdown(report, query_evidence=None):
         "",
     ]
     refs = {}
-    for block in report.blocks:
+    answer = next((block for block in report.blocks if block.id == report.answer_block_id), None)
+    # 历史版本沿用原顺序；新版本把分析说明放到答案后面。
+    introduction = lines[2:] if answer else []
+    if answer:
+        lines = lines[:2]
+    ordered = (
+        [answer, *(b for b in report.blocks if b.id != answer.id)] if answer else report.blocks
+    )
+    for block in ordered:
         if block.verification == "unverified":
             lines.extend(["## 未核实解释（不属于已核实结论）", ""])
         elif block.verification == "checked_relation":
@@ -164,10 +172,18 @@ def markdown(report, query_evidence=None):
             lines.append("| " + " | ".join("---" for _ in block.columns) + " |")
             for row in block.rows:
                 lines.append("| " + " | ".join(escape_markdown(v.display) for v in row) + " |")
+            if block is answer:
+                if not block.rows:
+                    lines.extend(["", "这个范围没有查询结果"])
+                lines.append("")
             lines.append(f"固定查询产物：{block.artifact_id}")
             if block.type == "chart":
                 lines.append("图表以对应的冻结数据表导出。")
         lines.append("")
+        if block is answer:
+            if report.answer_limit:
+                lines.extend([escape_markdown(report.answer_limit), ""])
+            lines.extend(introduction)
     lines.extend(["## 限制与说明", ""])
     lines.extend("- " + escape_markdown(value) for value in report.limitations)
     lines.extend(["", "## 数字与来源索引", ""])

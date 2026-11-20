@@ -158,7 +158,8 @@ class AgentRuntime:
                             "尽快 record_finding 保存本轮发现或限制，再提交简洁报告。"
                             if phase == "prepare"
                             else "已有成功核查但尚无记录时，"
-                            "先 record_finding 保存观察或限制，再继续核查。"
+                            "先确认成功结果直接覆盖所问对象和值，再 record_finding。"
+                            "问指定类别条数时保存该类别的聚合计数，完整分组仅作辅助。"
                             if registry.query_summaries and not registry.recorded_count
                             else "已有成功查询和本轮记录时，若本轮目标已满足即提交报告；"
                             "可选扩展留作下一步，不重复结构、结果读取或为排序重算汇总。"

@@ -44,11 +44,16 @@ function ReportBlockView({ block, inspect }: { block: ReportBlock; inspect: (sel
 }
 
 /** 作用：组合报告阅读布局与按需依据抽屉；输入：固定报告和预览开关；输出：只读正文。 */
-export function ReportContent({ report, compact = false }: { report: Report; compact?: boolean }) {
+export function ReportContent({ report, compact = false, answerOnly = false }: { report: Report; compact?: boolean; answerOnly?: boolean }) {
   const [selection, setSelection] = useState<Selection | null>(null);
   useEffect(() => setSelection(null), [report.revision_id]);
-  const kpis = report.blocks.filter(block => block.type === 'kpi');
-  const content = report.blocks.filter(block => block.type !== 'kpi' && block.verification !== 'unverified');
+  const answer = report.blocks.find(block => block.id === report.answer_block_id);
+  const opening = answer && <section aria-label="本次结果"><ReportBlockView block={answer} inspect={setSelection} />{report.answer_limit && <p className="report-note">{report.answer_limit}</p>}</section>;
+  const evidence = <EvidenceDrawer report={report} selection={selection} close={() => setSelection(null)} />;
+  if (answerOnly) return answer ? <div className="report-content report-preview">{opening}{evidence}</div> : null;
+  const supporting = report.blocks.filter(block => block !== answer);
+  const kpis = supporting.filter(block => block.type === 'kpi');
+  const content = supporting.filter(block => block.type !== 'kpi' && block.verification !== 'unverified');
   const pending = report.blocks.filter(block => block.verification === 'unverified');
   const conclusions = content.filter(block => block.type === 'text').sort((a, b) => Number(b.verification === 'checked_relation') - Number(a.verification === 'checked_relation'));
   const charts = content.filter(block => block.type === 'chart');
@@ -56,7 +61,8 @@ export function ReportContent({ report, compact = false }: { report: Report; com
   const main = [charts[0], tables[0]].filter(Boolean);
   const remainder = content.filter(block => block.type !== 'text' && !main.includes(block));
   return <div className={compact ? 'report-content report-preview' : 'report-content'}>
-    {report.partial && !compact && <Alert type="warning" message="部分完成：已保留核查结果，解释仍需复核" />}
+    {opening}
+    {report.partial && (!compact || answer) && <Alert type="warning" message="部分完成：已保留核查结果，解释仍需复核" />}
     {kpis.length > 0 && <div className="report-kpi-grid">{(compact ? kpis.slice(0, 3) : kpis).map(block => <ReportBlockView key={block.id} block={block} inspect={setSelection} />)}</div>}
     {(compact ? conclusions.slice(0, 1) : conclusions).map(block => <ReportBlockView key={block.id} block={block} inspect={setSelection} />)}
     {main.length > 0 && <div className="report-primary-grid">{main.map(block => <ReportBlockView key={block.id} block={block} inspect={setSelection} />)}</div>}
@@ -65,12 +71,12 @@ export function ReportContent({ report, compact = false }: { report: Report; com
     <p className="report-note">{report.verification_policy ? '已核对关系适用于本次完整结果集。SQL 业务口径与因果解释需复核。' : '历史报告：文字结论未经过当前关系核对。'}</p>
     {compact && report.limitations.some(note => note.startsWith('包含数据探索结果')) && <p className="report-note">数据探索 · 未绑定已审核项目指标，统计范围见结果依据。</p>}
     {!compact && <section className="report-limitations"><h2>范围与限制</h2><ul>{report.limitations.map((note, index) => <li key={index}>{note}</li>)}</ul></section>}
-    <EvidenceDrawer report={report} selection={selection} close={() => setSelection(null)} />
+    {evidence}
   </div>;
 }
 
 /** 作用：在对话中读取已提交报告预览；输入：报告引用；输出：摘要及报告入口。 */
-export function ReportPreview({ reportId, revisionId, onReady }: { reportId: string; revisionId: string; onReady?: () => void }) {
+export function ReportPreview({ reportId, revisionId, onReady, answerOnly = false }: { reportId: string; revisionId: string; onReady?: () => void; answerOnly?: boolean }) {
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -84,6 +90,7 @@ export function ReportPreview({ reportId, revisionId, onReady }: { reportId: str
   useEffect(() => { if (report) onReady?.(); }, [report, onReady]);
   if (error) return <Alert type="error" message="报告读取失败" description={error} action={<Button onClick={() => setAttempt(a => a + 1)}>重试报告</Button>} />;
   if (!report) return <Spin tip="正在读取报告"><div className="evidence-loading" /></Spin>;
+  if (answerOnly) return <ReportContent key={report.revision_id} report={report} answerOnly />;
   return <section className="analysis-report-preview"><div className="report-preview-heading"><div><h2>{report.title}</h2><p className="report-note">{report.scope_context?.main_label ?? '历史范围未记录'}</p></div><Link className="report-open-link" to={`/reports/${report.report_id}/revisions/${report.revision_id}`}>打开完整报告 ↗</Link></div><ReportContent key={report.revision_id} report={report} compact /></section>;
 }
 

@@ -732,6 +732,14 @@ class ToolRegistry:
             )
             self.artifact_ids.update(result.artifact_ids)
             if result.ok:
+                if result.data["artifact"]["returned_rows"] == 0:
+                    # 空表保留原样；仅提示如何通过新查询取得实际零值。
+                    result.data["empty_result_hint"] = (
+                        "本查询返回零行，没有可引用的计数单元格。若用户问指定对象有多少条，"
+                        "按问题日期和对象筛选，执行不带 GROUP BY 的 "
+                        "SELECT COUNT(*) AS record_count。"
+                        "以该查询返回的一行作为首段依据。"
+                    )
                 result.data["row_indices"] = list(range(len(result.data["preview"])))
                 if self.run.get("investigation_id"):
                     metadata = result.data["artifact"]

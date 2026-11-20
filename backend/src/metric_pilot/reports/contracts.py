@@ -351,6 +351,8 @@ class ReportDTO(StrictDTO):
     date_range: DateRange | None = None
     partial: bool = False
     verification_policy: str | None = None
+    answer_block_id: str | None = None
+    answer_limit: str | None = None
     has_unverified_explanations: bool = False
 
 

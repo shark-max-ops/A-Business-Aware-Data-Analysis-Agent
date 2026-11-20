@@ -115,7 +115,7 @@ test('external findings and reports show fixed weather coverage and scoped origi
   await expect(page.getByRole('link', { name: '打开完整报告' })).toBeVisible();
   await page.getByRole('button', { name: /调查发现 ·/ }).click();
   const panel = page.getByRole('region', { name: '当前调查' });
-  await panel.getByRole('button', { name: '查看依据' }).click();
+  await panel.locator('.investigation-finding').getByRole('button', { name: '查看依据', exact: true }).click();
   const finding = page.getByRole('dialog', { name: '发现的固定依据' });
   await finding.locator('.external-source > summary').filter({ hasText: '官方天气观测' }).click();
   await expect(finding.locator('.external-coverage')).toContainText('2 个可用观测时刻');
@@ -171,7 +171,7 @@ test('explicit exploration recovers from an unavailable metric and keeps its ide
   await page.getByRole('button', { name: /调查发现 ·/ }).click();
   const panel = page.getByRole('region', { name: '当前调查' });
   await expect(panel).toContainText('首日记录为');
-  await panel.getByRole('button', { name: '查看依据' }).click();
+  await panel.locator('.investigation-finding').getByRole('button', { name: '查看依据', exact: true }).click();
   const finding = page.getByRole('dialog', { name: '发现的固定依据' });
   await finding.getByText(/成功查询 · 冻结/).click();
   await expect(finding.getByRole('note', { name: '探索结果说明' })).toContainText('缺失处理');
@@ -230,7 +230,7 @@ test('investigation continues with fixed evidence, history, explicit branch and 
   await expect(page.getByRole('dialog', { name: '调查信息', exact: true })).toContainText('已分配 1/4 次运行');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: /调查发现 ·/ }).click();
-  await panel.getByRole('button', { name: '查看依据' }).click();
+  await panel.locator('.investigation-finding').getByRole('button', { name: '查看依据', exact: true }).click();
   const evidence = page.getByRole('dialog', { name: '发现的固定依据' });
   await expect(evidence).toContainText('引用值');
   await evidence.getByText(/成功查询 · 冻结/).click();
@@ -265,7 +265,7 @@ test('investigation continues with fixed evidence, history, explicit branch and 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(await panel.innerText()).not.toContain('�');
   await page.screenshot({ animations: 'disabled', path: '../.cache/screenshots/investigation-mobile.png', fullPage: true });
-  await panel.getByRole('button', { name: '查看依据' }).first().click();
+  await panel.locator('.investigation-finding').getByRole('button', { name: '查看依据', exact: true }).first().click();
   await expect(evidence).toBeVisible();
   await expect(evidence).not.toHaveClass(/zoom|appear|enter/);
   await expect.poll(() => evidence.evaluate(e => {
@@ -456,11 +456,21 @@ test('report generation, Chinese charts, evidence, exports, revisions and mobile
   expect(saved.partial).toBe(false);
   expect(saved.has_unverified_explanations).toBe(true);
   await expect(page.locator('.execution-toggle')).toContainText('结果已保存，附有未核实解释');
+  const opening = page.locator('.analysis-report-preview').getByRole('region', { name: '本次结果' });
+  await expect(opening).toBeVisible();
+  const openingText = (await opening.textContent())!;
+  await page.getByRole('button', { name: /调查发现 ·/ }).click();
+  const findingsDrawer = page.getByRole('dialog', { name: '调查发现', exact: true });
+  const findingOpening = findingsDrawer.getByRole('region', { name: '本次结果' });
+  await expect(findingOpening).toHaveText(openingText);
+  await findingOpening.getByRole('button', { name: /查看依据/ }).click();
+  const findingEvidence = page.getByRole('dialog', { name: '这个结果从哪里来' });
+  await expect(findingEvidence.locator('.evidence-highlight strong')).toHaveText(saved.blocks.find(block => block.id === saved.answer_block_id)!.value!.display);
+  await findingEvidence.getByRole('button', { name: '关闭', exact: true }).click();
+  await expect(findingEvidence).toBeHidden();
+  await findingsDrawer.getByRole('button', { name: '关闭', exact: true }).click();
+  await expect(findingsDrawer).toBeHidden();
   await page.screenshot({ path: '../.cache/screenshots/stage4-analysis.png', fullPage: true });
-  if (await page.getByRole('dialog', { name: '调查发现', exact: true }).isVisible()) {
-    await page.getByRole('dialog', { name: '调查发现', exact: true }).getByRole('button', { name: '关闭', exact: true }).click();
-    await expect(page.getByRole('dialog', { name: '调查发现', exact: true })).toBeHidden();
-  }
   await page.getByRole('link', { name: '打开完整报告' }).click();
   await expect(page.getByRole('heading', { name: '每日航班记录', exact: true })).toBeVisible();
   await expect(page.locator('.report-kpi')).toHaveCount(2);

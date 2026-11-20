@@ -2,6 +2,7 @@
 
 import asyncio
 import copy
+import json
 import threading
 import time
 
@@ -130,6 +131,15 @@ def test_report_real_sql_values_events_and_evidence(agent_workspace):
     value = report.blocks[0].value
     assert value.raw == report.blocks[2].segments[1].value.raw
     assert value.display == str(value.raw)
+    assert report.answer_block_id == "count"
+    exported = markdown(report)
+    assert (
+        exported.index(report.blocks[0].title)
+        < exported.index(report.answer_limit)
+        < exported.index("分析说明")
+    )
+    legacy = report.model_copy(update={"answer_block_id": None, "answer_limit": None})
+    assert markdown(legacy).index("分析说明") < markdown(legacy).index(report.blocks[0].title)
     evidence = service(agent_workspace).evidence(report.report_id, report.revision_id, "count")
     assert evidence.value == value
     assert evidence.artifact.sql == SQL
@@ -141,6 +151,43 @@ def test_report_real_sql_values_events_and_evidence(agent_workspace):
     assert report.validation_level == "references_validated"
     assert report.blocks[4].columns[1].label == "记录数"
     assert "业务" in report.limitations[-1]
+
+
+@pytest.mark.parametrize("empty", [False, True])
+def test_table_only_report_opens_with_frozen_result(agent_workspace, empty):
+    """
+    作用：核对纯表报告首段和 Markdown 顺序
+    输入：真实 SQL 的非空或空结果
+    输出：无
+    """
+
+    def candidate(messages):
+        """
+        作用：仅提交同一成功查询的表格
+        输入：可定位产物的工具消息
+        输出：纯表报告草稿
+        """
+        query = next(json.loads(m["content"])["data"] for m in messages if m["role"] == "tool")
+        if empty:
+            assert query["artifact"]["returned_rows"] == 0
+            assert "不带 GROUP BY" in query["empty_result_hint"]
+        else:
+            assert "empty_result_hint" not in query
+        result = report_candidate(messages)
+        result["report"]["blocks"] = [result["report"]["blocks"][3]]
+        return result
+
+    sql = f"SELECT * FROM ({SQL}) WHERE FALSE" if empty else SQL
+    run, _ = execute(agent_workspace, [calls(("query_sql", {"sql": sql})), candidate])
+    assert run["status"] == "completed", run
+    svc = service(agent_workspace)
+    report = svc.read(run["result"]["report_id"], run["result"]["revision_id"])
+    assert report.answer_block_id == "table"
+    rendered = markdown(report)
+    assert rendered.index(report.blocks[0].title) < rendered.index(report.answer_limit)
+    assert rendered.index(report.answer_limit) < rendered.index("分析说明")
+    assert ("这个范围没有查询结果" in rendered) == empty
+    assert svc.evidence(report.report_id, report.revision_id, "table").artifact.sql == sql
 
 
 @pytest.mark.parametrize(

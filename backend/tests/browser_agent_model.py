@@ -53,8 +53,8 @@ class BrowserModel(FakeLLM):
                 data = [json.loads(m["content"])["data"] for m in messages if m["role"] == "tool"]
                 weather = next(d for d in data if d.get("external_snapshot_id"))
                 candidates = next(d for d in data if d.get("candidate_only"))
+                state["notice"] = candidates["items"][0]["source_ref"]
                 return calls(
-                    ("read_external_source", dict(source_ref=candidates["items"][0]["source_ref"])),
                     (
                         "query_sql",
                         dict(
@@ -66,13 +66,24 @@ class BrowserModel(FakeLLM):
                     ),
                 )
 
+            def read_notice(messages):
+                """作用：保留已执行查询的测试引用；输入：工具消息；输出：读公告工具调用。"""
+                state["weather_query"] = next(
+                    m
+                    for m in reversed(messages)
+                    if m["role"] == "tool"
+                    and json.loads(m["content"]).get("data", {}).get("artifact")
+                )
+                return calls(("read_external_source", dict(source_ref=state["notice"])))
+
             self.steps = [
                 calls(
                     ("query_historical_weather", dict(airport="ATL", start="2026-11-02")),
                     ("search_official_advisories", dict(airport="ATL", start="2026-11-02")),
                 ),
                 choose_external,
-                lambda messages: statement(messages, state),
+                read_notice,
+                lambda messages: statement([state["weather_query"], *messages], state),
                 lambda _: final(state),
             ]
         if "探索边界验收" in question and self.index == 0:
