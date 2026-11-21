@@ -359,6 +359,9 @@ class ComparisonCheck(StrictDTO):
     )
     denominator: str | None = Field(default=None, min_length=1, max_length=128)
 
+    numerator: str | None = Field(default=None, min_length=1, max_length=128)
+    zero_count_artifact_id: str | None = Field(default=None, max_length=120)
+
     @field_validator("expected")
     @classmethod
     def distinct_objects(cls, values):

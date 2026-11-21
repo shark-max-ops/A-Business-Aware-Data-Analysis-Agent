@@ -272,7 +272,9 @@ class ToolRegistry:
                 "observations选择成功产物的artifact_id、绝对零基row和columns（含分组身份列）；"
                 "最多4行，每行最多6列。服务端生成引用和同行绑定，不填statement/values/row_bindings。"
                 "note只写待复核解释或限制，不手写数值；完整比较留在报告表格。"
-                "比较时comparison填写key、expected、可选denominator及所选行的artifact_id，服务端核对整份冻结结果。"
+                "双对象计数占比比较须填comparison：artifact_id、key、expected双方、"
+                "numerator和denominator计数列。缺侧补查SELECT COUNT(*) FROM v_flights "
+                "WHERE 身份列=缺侧对象（主范围已固定），观察该单元格并填zero_count_artifact_id。"
                 "默认保存一条关键发现后提交报告，新核查或修正才追加；supersedes 指向被修正的发现。",
             ),
         }
@@ -485,6 +487,22 @@ class ToolRegistry:
                 if comparison.artifact_id not in frozen["artifacts"]:
                     raise DataError("COMPARISON_REQUIRES_OBSERVED_ARTIFACT")
                 coverage = comparison_coverage(self.query, self.run, comparison)
+                if comparison.numerator:
+                    from metric_pilot.reports.comparison_answer import comparison_answer
+
+                    if (
+                        comparison.zero_count_artifact_id
+                        and comparison.zero_count_artifact_id not in frozen["artifacts"]
+                    ):
+                        raise DataError("COMPARISON_REQUIRES_OBSERVED_ARTIFACT")
+                    answer = comparison_answer(coverage, frozen["artifacts"], frozen["date_range"])
+                    if answer["proof"]["confirmed_zero"] == coverage["missing"] and not (
+                        coverage["unknown_denominator"]
+                        or coverage["truncated"]
+                        or coverage["sql_contains_limit"]
+                    ):
+                        coverage["gaps"] = []
+                    frozen["block"] = answer
                 frozen["comparison"] = coverage
                 args.questions = list(dict.fromkeys([*coverage["gaps"], *args.questions]))[:6]
             if self.cancel.is_set():
@@ -492,7 +510,7 @@ class ToolRegistry:
             if time.monotonic() >= self.ctx.deadline_monotonic:
                 raise DataError("RUN_TIMEOUT")
             finding = InvestigationStore(self.store.engine).record(
-                self.run, args, prepared["blocks"][0], frozen
+                self.run, args, frozen["block"], frozen
             )
             if coverage:
                 finding["comparison"] = coverage

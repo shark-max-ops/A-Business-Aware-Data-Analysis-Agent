@@ -157,9 +157,9 @@ class AgentRuntime:
                             else "收尾准备：不得新增查询或检索。读取已有证据，"
                             "尽快 record_finding 保存本轮发现或限制，再提交简洁报告。"
                             if phase == "prepare"
-                            else "已有成功核查但尚无记录时，"
-                            "先确认成功结果直接覆盖所问对象和值，再 record_finding。"
-                            "问指定类别条数时保存该类别的聚合计数，完整分组仅作辅助。"
+                            else "已有证据直接回答主问或一个独立子问时，"
+                            "先 record_finding 保存该事实，再核查其余子问。"
+                            "引用分组计数时，同时绑定分组身份和数量。"
                             if registry.query_summaries and not registry.recorded_count
                             else "已有成功查询和本轮记录时，若本轮目标已满足即提交报告；"
                             "可选扩展留作下一步，不重复结构、结果读取或为排序重算汇总。"
@@ -185,7 +185,8 @@ class AgentRuntime:
                 available = budget["context_tokens"] - budget["output_tokens"] - tool_bytes - 1024
                 turn_header = (
                     header + [{"role": "system", "content": registry.progress["instruction"]}]
-                    if run.get("investigation_id") and closing
+                    if run.get("investigation_id")
+                    and (closing or (registry.query_summaries and not registry.recorded_count))
                     else header
                 )
                 if registry.history_enabled:

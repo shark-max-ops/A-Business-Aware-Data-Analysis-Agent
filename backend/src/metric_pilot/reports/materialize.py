@@ -160,6 +160,11 @@ def materialize(draft, frozen, *, require_query=True, runtime_warnings=()):
             {"instruction": "主范围须等于固定date_range；子范围请声明块display_scope。"},
         )
     wanted = artifact_ids(draft, require_query=require_query)
+    primary = frozen.get("primary_comparison") if draft.primary_comparison_finding_id else None
+    if draft.primary_comparison_finding_id:
+        if not primary or primary["id"] != draft.primary_comparison_finding_id:
+            raise DataError("REPORT_COMPARISON_FINDING_NOT_ALLOWED")
+        wanted.update(primary["block"]["evidence_ids"])
     if not wanted <= set(frozen["artifacts"]):
         raise DataError("REPORT_ARTIFACT_NOT_ALLOWED")
     artifacts = {key: frozen["artifacts"][key] for key in wanted}
@@ -209,6 +214,11 @@ def materialize(draft, frozen, *, require_query=True, runtime_warnings=()):
         answer = next((b for b in blocks if b["type"] == "table"), None)
         if answer is None:
             answer = next((b for b in blocks if b["type"] == "chart"), None)
+    if primary:
+        answer = copy.deepcopy(primary["block"])
+        if any(b["id"] == answer["id"] for b in blocks):
+            raise DataError("REPORT_DUPLICATE_BLOCK")
+        blocks.insert(0, answer)
     answer_limit = None
     if answer:
         if answer["type"] in {"table", "chart"}:

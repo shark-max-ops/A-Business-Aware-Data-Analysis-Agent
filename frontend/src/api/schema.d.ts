@@ -2309,6 +2309,8 @@ export interface components {
             date_range?: components["schemas"]["DateRange"] | null;
             /** Metric Revision Ids */
             metric_revision_ids?: string[];
+            /** Primary Comparison Finding Id */
+            primary_comparison_finding_id?: string | null;
             /** Blocks */
             blocks: (components["schemas"]["KPIBlock"] | components["schemas"]["TableBlock"] | components["schemas"]["ChartBlock"] | components["schemas"]["TextBlock"] | components["schemas"]["RankingBlock"] | components["schemas"]["ComparisonBlock"] | components["schemas"]["CountRateBlock"] | components["schemas"]["RateDecompositionBlock"])[];
             /** Limitations */
