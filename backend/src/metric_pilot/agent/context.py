@@ -18,15 +18,17 @@ scope/check 只描述核查，子范围用 display_scope。
 缺审核或冲突时说明缺口，可继续其他指标或独立探索。不得删引用或以探索替代正式指标。
 原始字段、缺失和分布核查用 exploratory，不绑定指标；
 exploration_scope 说明 population、calculation（含分母）、missing_values。自定义分母须标明。
+双对象比例主问或续问用record_finding.comparison绑定计数产物、双方及分子分母列；报告primary_comparison_finding_id填对应发现ID。
 多期多组用 record_finding.comparison 声明分组、各侧和适用分母，以 observations 绑定证据。
 缺侧补查，用 supersedes 关联旧发现。小组高率查样本，时间和类别集中查交集，重叠切面不可相加。
-只报告冻结值或服务端核对的派生关系；排名要有完整排序依据。
+排名要有完整排序依据。
 多数须超过相应分母的一半，局部分组不可推广。截断重新聚合；空结果可接受。
 工具失败按 error_details 修正，不绕过禁令或原样重试。
 区分 Reporting/Marketing Carrier、ArrDelay/ArrDelayMinutes（提前到达分别为负和零）。
 代码不猜名称，单月不推跨月变化，运行数据不推利润，相关不推因果。
-首个证据块直接呈现用户要的范围、组和值。指定分类的条数用聚合直接查；
-仅在覆盖范围内以实际 COUNT 结果报告零。计数列用 record_count 等业务别名。
+首个证据块写清主问的范围、对象和值。数字引用冻结单元格，派生关系由服务端核对。
+日期、对象、状态和分类须由查询条件或所引结果行共同支持；证据不足就补查或缩小表述。
+指定类别按全部适用条件直接聚合计数；零值须来自覆盖目标范围的计数，空明细不能代替零。
 返回简洁中文报告或请求补充条件，不重写查询数字。结束时仅输出 JSON：
 {"kind":"report","report":{"schema_version":"1","title":"中文标题","scope":"统计范围",
 "metric_revision_ids":[],"blocks":[...],"limitations":["实际限制"]}}
@@ -66,8 +68,7 @@ complete 预览可直接引用；节选按 next_offset 读必要行，小聚合 
 
 INVESTIGATION_REPORT_GUIDE = """JSON: {"kind":"report","report":{"schema_version":"1",
 "title":"标题","scope":"范围说明字符串","metric_revision_ids":[],"blocks":[],"limitations":[]}}.
-先放直接回答本题的关系、观察或KPI。按 question 的明确日期和分类筛选计数，不带 GROUP BY；
-无匹配也引用聚合返回的零。全量分组表仅作补充。另用带来源的 text 解释分类。
+用带来源的 text 解释分类。
 blocks不可为空，id唯一；各type字段：
 kpi: type,id,title,value_ref,format(integer/decimal_2/percent_2/minutes_2).
 text: type,id,text_template,values{key:ValueRef,max24},evidence_ids[].
@@ -86,9 +87,10 @@ ValueRef={artifact_id,row:absolute zero-based int,column:raw name}; never supply
 indexed_rows每项为[绝对零基行号,该行列值数组]，使用紧邻行值的行号，不按排序猜行号。
 rows/preview若提供则对应row_indices。同航司跨月不一定相邻。
 默认一条关键发现加完整表格即可；未执行新核查就不追加同结果candidate，限制可在报告中说明。
-record_finding只填observations[{artifact_id,row,columns}]，每行含分组身份和数量列；最多4行、每行6列。
+双对象比率主问，无论齐全或缺侧都在同一条发现填写comparison与observations；不要拆成两个普通fact。缺侧时，先单独COUNT(*)验证对象，再将零计数产物的行和分组计数行一起放入observations；comparison.zero_count_artifact_id填该零计数产物ID。续问沿用同调查有效主比较发现ID。
+record_finding用observations[{artifact_id,row,columns}]，每行含分组身份和数量列；最多4行、每行6列。
 该工具不填statement、values或row_bindings；返回的report_block可原样用于最终报告，不重写引用。
-note只写待复核解释或限制；完整比较放表格，已有发现后直接报告，额外维度留下一步。
+note只写待复核解释或限制；完整比较放表格；主问及明确子问均已处理后提交报告。
 合计从冻结查询取值，差值、占比及贡献使用服务端派生块；不自算数量，不冒称显著。
 表图完整展示产物；指定人群先查询筛选产物，标题不筛行。
 display_scope={dimensions:[可见列],population:{分类列:[允许字符串]}}逐行核对；

@@ -197,6 +197,7 @@ class ReportDraft(StrictDTO):
     scope: str = Field(min_length=1, max_length=1000)
     date_range: DateRange | None = None
     metric_revision_ids: list[str] = Field(default_factory=list, max_length=16)
+    primary_comparison_finding_id: str | None = Field(default=None, max_length=120)
     blocks: list[Block] = Field(min_length=1, max_length=20)
     limitations: list[str] = Field(default_factory=list, max_length=12)
 

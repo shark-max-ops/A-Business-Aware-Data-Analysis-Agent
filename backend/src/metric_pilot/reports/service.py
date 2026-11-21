@@ -55,6 +55,8 @@ class ReportService(KnowledgeStore):
         """
         draft = ReportDraft.model_validate(draft)
         observation_texts = {}
+        primary = None
+        primary_id = draft.primary_comparison_finding_id
         if observation_text is not None:
             observation_texts[observation_text.id] = observation_text.model_dump()
         if run.get("investigation_id"):
@@ -74,6 +76,24 @@ class ReportService(KnowledgeStore):
                 if digest(finding["payload"]) != finding["content_hash"]:
                     raise DataError("FINDING_HASH_MISMATCH")
                 observation_texts.update(finding["payload"]["frozen"].get("observation_texts", {}))
+            obsolete = {entry["payload"].get("supersedes") for entry in findings}
+            candidates = [
+                entry
+                for entry in findings
+                if entry["id"] not in obsolete
+                and entry["payload"]["frozen"].get("comparison", {}).get("numerator")
+            ]
+            if primary_id is None and require_query:
+                current = [entry for entry in candidates if entry["run_id"] == run["id"]]
+                if len(current) == 1:
+                    primary_id = current[0]["id"]
+                    draft = draft.model_copy(update={"primary_comparison_finding_id": primary_id})
+            primary = next(
+                (entry["payload"]["frozen"] for entry in candidates if entry["id"] == primary_id),
+                None,
+            )
+        if primary_id and primary is None:
+            raise DataError("REPORT_COMPARISON_FINDING_NOT_ALLOWED")
         with self.engine.connect() as connection:
             checks = (
                 connection.execute(
@@ -93,7 +113,12 @@ class ReportService(KnowledgeStore):
             for row in checks
         )
         artifacts = {}
-        for ident in artifact_ids(draft, require_query=require_query):
+        ids = artifact_ids(draft, require_query=require_query)
+        if primary:
+            ids.update(primary["block"]["evidence_ids"])
+        if len(ids) > 8:
+            raise DataError("REPORT_QUERY_REQUIRED")
+        for ident in ids:
             offset, rows = 0, []
             while True:
                 page = read_evidence_artifact(self.query, run, ident, offset, 100)
@@ -149,6 +174,11 @@ class ReportService(KnowledgeStore):
                 "partial": bool(runtime_warnings),
                 "verification_policy": POLICY,
                 "observation_texts": observation_texts,
+                **(
+                    {"primary_comparison": {"id": primary_id, "block": primary["block"]}}
+                    if primary
+                    else {}
+                ),
             },
             require_query=require_query,
             runtime_warnings=[
