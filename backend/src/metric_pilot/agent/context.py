@@ -253,7 +253,7 @@ def initial_messages(run, registry, previous):
     return messages
 
 
-def compact_group(group, registry=None, *, brief=False):
+def compact_group(group, registry=None, *, brief=False, history_index=False):
     """
     作用：只压缩重复工具展示内容，保留完整调用配对与真实结果标识
     输入：原始消息组
@@ -507,7 +507,25 @@ def compact_group(group, registry=None, *, brief=False):
                     }
                     for index, item in enumerate(data["findings"])
                 ]
-                if brief:
+                if (
+                    history_index
+                    and offset == 0
+                    and data.get("finding_count") == len(data["findings"])
+                ):
+                    data["findings"] = [
+                        {
+                            k: item[k]
+                            for k in (
+                                "id",
+                                "source_run_status",
+                                "verification",
+                                "detail_offset",
+                                "check",
+                            )
+                        }
+                        for item in data["findings"]
+                    ]
+                elif brief:
                     # 紧预算只带一项可定位概览，明确续读位置；单项原文/引用不在此处截断。
                     omitted = len(data["findings"]) - 1
                     first = data["findings"][0]
@@ -519,7 +537,7 @@ def compact_group(group, registry=None, *, brief=False):
                     "按 detail_offset 调用 read_investigation(offset=该值, limit=1)。"
                 )
                 data["context_note"] += "来源运行未完成的发现仅作线索，不能直接复用为证据。"
-                if brief:
+                if data.get("context_findings_omitted"):
                     data["context_note"] += (
                         "本次上下文仅展示首项；其余按next_offset续读，工具原始回复在审计中完整保留。"
                     )
@@ -872,6 +890,15 @@ def fit_context(header, groups, registry, max_chars):
         if len(selected) == 1 and getattr(registry, "run", {}).get("investigation_id"):
             # 最后一次仅缩短预览和来源摘录，保留全部配对回复、范围和证据定位。
             # 从原始最新批次生成简版，不能把已经摘录的副本误当完整历史再裁剪。
+            if any(
+                call.get("function", {}).get("name") == "read_investigation"
+                for message in groups[-1]
+                for call in message.get("tool_calls", [])
+            ):
+                overview = compact_group(groups[-1], registry, brief=True, history_index=True)
+                if model_message_bytes(fixed + overview) <= max_chars:
+                    selected[0] = overview
+                    break
             selected[0] = compact_group(groups[-1], registry, brief=True)
             # 缓存是可选副本，先让出空间给最新真实结果，不能反过来挤掉最新工具组。
             memory = json.loads(fixed[-1]["content"])

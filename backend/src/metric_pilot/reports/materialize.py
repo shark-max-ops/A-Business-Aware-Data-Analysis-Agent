@@ -59,7 +59,30 @@ def render_blocks(draft, artifacts, sources, main_range=None, policy=None, obser
         if b["type"] == "kpi":
             out["value"] = cell(artifacts, b["value_ref"], b["format"], True)
             if policy == POLICY:
-                out["title"] = label(b["value_ref"]["column"]) + "（所选记录）"
+                ref = b["value_ref"]
+                record = artifacts[ref["artifact_id"]]
+                dimensions = []
+                for column in record["artifact"]["columns"]:
+                    name = column["name"]
+                    if (
+                        name
+                        in {
+                            "flight_date",
+                            "day",
+                            "month",
+                            "carrier_code",
+                            "origin_code",
+                            "dest_code",
+                            "cancellation_code",
+                            "station_id",
+                        }
+                        and name != ref["column"]
+                    ):
+                        identity = cell(artifacts, {**ref, "column": name}, None, False)
+                        if identity["raw"] is not None:
+                            dimensions.append(f"{label(name)} {identity['display']}")
+                scope = "、".join(dimensions) or "所选记录"
+                out["title"] = f"{label(ref['column'])}（{scope}）"
         elif b["type"] == "text":
             if not set(b["evidence_ids"]) <= set(artifacts) | set(sources):
                 raise DataError("REPORT_EVIDENCE_NOT_ALLOWED")

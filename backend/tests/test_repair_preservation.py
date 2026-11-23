@@ -136,3 +136,19 @@ def test_summary_diagnostic_keeps_fixed_classification_and_no_error_body():
     assert details["classification"] == "local_timeout"
     assert details["kind"] == "initial"
     assert "candidate" not in details
+
+
+def test_partial_repair_preserves_requested_primary_for_service_validation():
+    from unittest.mock import Mock
+
+    guard = RepairGuard()
+    guard.raw = {"report": {"primary_comparison_finding_id": "finding_synthetic"}}
+    guard.blocks = [
+        {"id": "note", "type": "text", "text_template": "限制", "values": {}, "evidence_ids": []}
+    ]
+    service = Mock()
+    service.prepare.return_value = {}
+    guard.fallback(service, {}, [])
+    args, kwargs = service.prepare.call_args
+    assert args[1]["primary_comparison_finding_id"] == "finding_synthetic"
+    assert kwargs["retained_report"] is True

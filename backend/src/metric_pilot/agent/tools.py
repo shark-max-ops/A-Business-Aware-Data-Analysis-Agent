@@ -37,7 +37,9 @@ from metric_pilot.reports.service import ReportService
 SPECS = {
     "query_historical_weather": (
         a.WeatherArgs,
-        "查 ATL/ORD/JFK 当地日天气，支持 yesterday；返回固定版本和schema，数字须查询取值。",
+        "查 ATL/ORD/JFK 当地日天气，支持 yesterday；返回固定版本和schema，数字须查询取值。"
+        "若本地计数已答一个子问，先 record_finding 绑定日期、对象和数量，再调用本工具。"
+        "纯天气且地点日期明确时直接查天气。",
     ),
     "search_official_advisories": (
         AdvisorySearch,
@@ -402,7 +404,12 @@ class ToolRegistry:
                 }
                 if exc.code == "REPORT_TEMPLATE_KEYS"
                 else {"error_details": exc.details}
-                if exc.code in {"REPORT_ROW_BINDING_KEYS", "REPORT_ROW_BINDING_MISMATCH"}
+                if exc.code
+                in {
+                    "REPORT_ROW_BINDING_KEYS",
+                    "REPORT_ROW_BINDING_MISMATCH",
+                    "COMPARISON_CONFLICTING_COUNTS",
+                }
                 else {},
                 error_code=exc.code,
                 retryable=exc.code
@@ -534,8 +541,9 @@ class ToolRegistry:
                 }
             return {
                 **finding,
-                "next_step_hint": "已有本轮记录；若所需比较已在成功结果中，"
-                "请直接提交表格与简短解释，额外核查列为下一步。",
+                "next_step_hint": "报告首段使用本发现ID作为primary_comparison_finding_id。"
+                if coverage and coverage.get("numerator")
+                else "已有本轮记录；若还有明确子问，继续核查；都已处理则提交报告。",
             }
         if name == "list_tables":
             return {"tables": [t.name for t in self.schema.tables]}
@@ -760,6 +768,10 @@ class ToolRegistry:
                     )
                 result.data["row_indices"] = list(range(len(result.data["preview"])))
                 if self.run.get("investigation_id"):
+                    result.data["finding_hint"] = (
+                        "若此结果回答双方占比，保存同一条comparison，绑定双方、分子分母。"
+                        "若已回答独立子问，先保存该事实再转查其他来源。"
+                    )
                     metadata = result.data["artifact"]
                     self.query_summaries.append(
                         {

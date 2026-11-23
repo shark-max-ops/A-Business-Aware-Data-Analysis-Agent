@@ -1,5 +1,6 @@
 """从已冻结的双对象计数生成比较首段。"""
 
+from datetime import date, timedelta
 from fractions import Fraction
 
 import sqlglot
@@ -33,15 +34,25 @@ def zero_reference(record, key, target, date_range):
     identity = []
     for item in predicates:
         if (
-            isinstance(item, (exp.GTE, exp.LT))
+            isinstance(item, (exp.GTE, exp.LT, exp.EQ))
             and isinstance(item.this, exp.Column)
             and item.this.name == "flight_date"
         ):
-            bound = "start" if isinstance(item, exp.GTE) else "end_exclusive"
-            if isinstance(item.expression, exp.Literal) and item.expression.this == date_range.get(
-                bound
-            ):
-                continue
+            literal = item.expression
+            if isinstance(literal, exp.Cast) and literal.to.sql() == "DATE":
+                literal = literal.this
+            if isinstance(literal, exp.Literal) and literal.is_string:
+                start, end = date_range["start"], date_range["end_exclusive"]
+                if isinstance(item, exp.GTE) and literal.this == start:
+                    continue
+                if isinstance(item, exp.LT) and literal.this == end:
+                    continue
+                if (
+                    isinstance(item, exp.EQ)
+                    and literal.this == start
+                    and date.fromisoformat(end) - date.fromisoformat(start) == timedelta(days=1)
+                ):
+                    continue
         identity.append(item)
     if len(identity) != 1:
         return None
@@ -117,6 +128,15 @@ def comparison_answer(check, artifacts, date_range):
         n, d = map(numeric, vals)
         if not (0 <= n <= d and n == int(n) and d == int(d)):
             raise DataError("COMPARISON_INVALID_COUNTS")
+        proof_id = check.get("zero_count_artifact_id")
+        if d and proof_id and zero_reference(artifacts[proof_id], key, target, date_range):
+            raise DataError(
+                "COMPARISON_CONFLICTING_COUNTS",
+                {
+                    "object": target,
+                    "instruction": "独立计数为零，分组分母为正。请核对范围和身份列。",
+                },
+            )
         add("", ref(num))
         add("/")
         add("", ref(den))

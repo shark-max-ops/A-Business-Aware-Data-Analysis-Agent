@@ -347,6 +347,7 @@ class AgentRuntime:
                             "REPORT_REPAIR_CONTENT_LOSS",
                             "REPORT_CHART_AXIS_AMBIGUOUS",
                             "REPORT_TEMPLATE_KEYS",
+                            "REPORT_DUPLICATE_PERCENT",
                             "REPORT_ROW_BINDING_KEYS",
                             "REPORT_ROW_BINDING_MISMATCH",
                         }
@@ -411,6 +412,7 @@ class AgentRuntime:
                                             "required_block_ids": repair_guard.required,
                                             "instruction": (
                                                 "按报告契约修正；仅引用本次或服务端允许的同调查成功产物。"
+                                                "schema_version 填字符串「1」。百分比勿重复加 %。"
                                                 "只输出JSON对象，不加Markdown围栏；外层kind=report与report，"
                                                 "report直接包含schema_version、title、scope、blocks等草稿字段。"
                                                 "保留已核对的内容和引用含义，只修正所报错误；"
@@ -542,6 +544,7 @@ class AgentRuntime:
                         elif result.error_code in {
                             "INVALID_ARGUMENT",
                             "REPORT_TEMPLATE_KEYS",
+                            "REPORT_DUPLICATE_PERCENT",
                             "REPORT_ROW_BINDING_KEYS",
                             "REPORT_ROW_BINDING_MISMATCH",
                         }:

@@ -115,11 +115,15 @@ class RepairGuard:
                 ]
             )
         draft["metric_revision_ids"] = sorted(metrics)
+        primary_id = self.raw["report"].get("primary_comparison_finding_id")
+        if primary_id:
+            draft["primary_comparison_finding_id"] = primary_id
         omitted = [i for i in self.required if i not in {b["id"] for b in self.blocks}]
         prepared = service.prepare(
             run,
             draft,
             require_query=False,
+            retained_report=True,
             runtime_warnings=[
                 *warnings,
                 "Report repair incomplete; retained original validated blocks; omitted: "

@@ -46,7 +46,14 @@ class ReportService(KnowledgeStore):
         self.query = query
 
     def prepare(
-        self, run, draft, *, require_query=True, runtime_warnings=(), observation_text=None
+        self,
+        run,
+        draft,
+        *,
+        require_query=True,
+        runtime_warnings=(),
+        observation_text=None,
+        retained_report=False,
     ):
         """
         作用：读取本次成功产物并冻结所有报告依据
@@ -83,7 +90,7 @@ class ReportService(KnowledgeStore):
                 if entry["id"] not in obsolete
                 and entry["payload"]["frozen"].get("comparison", {}).get("numerator")
             ]
-            if primary_id is None and require_query:
+            if primary_id is None and (require_query or retained_report):
                 current = [entry for entry in candidates if entry["run_id"] == run["id"]]
                 if len(current) == 1:
                     primary_id = current[0]["id"]
@@ -157,6 +164,13 @@ class ReportService(KnowledgeStore):
                 if item["artifact"].get("external_snapshot_id"):
                     metadata = external.validate_artifact(external.run(run["id"]), item["artifact"])
                     external_snapshots[metadata["id"]] = metadata
+        if retained_report and primary:
+            metric_ids = {
+                revision
+                for item in artifacts.values()
+                for revision in item["artifact"]["metric_revision_ids"]
+            }
+            draft = draft.model_copy(update={"metric_revision_ids": sorted(metric_ids)})
         return materialize(
             draft,
             {

@@ -2,7 +2,7 @@
 
 import pytest
 from metric_pilot.data.common import DataError
-from metric_pilot.reports.comparison_answer import comparison_answer
+from metric_pilot.reports.comparison_answer import comparison_answer, zero_reference
 
 
 def answer(rows, proof_sql=None, limited=False):
@@ -80,3 +80,66 @@ def test_unrelated_zero_count_is_not_evidence():
 def test_invalid_counts_rejected():
     with pytest.raises(DataError, match="COMPARISON_INVALID_COUNTS"):
         answer([["ZX", 6, 5], ["ZZ", 0, 3]])
+
+
+def test_independent_zero_conflicts_with_positive_denominator():
+    with pytest.raises(DataError, match="COMPARISON_CONFLICTING_COUNTS"):
+        answer(
+            [["ZX", 1, 5], ["ZZ", 0, 3]],
+            "SELECT COUNT(*) FROM v_flights WHERE carrier_code='ZZ'",
+        )
+
+
+def test_zero_denominator_does_not_establish_equal_rates():
+    result = answer([["ZX", 0, 5], ["ZZ", 0, 0]])
+    summary = "".join(segment["text"] for segment in result["segments"])
+    assert "零分母" in summary and "无法比较两侧高低" in summary
+
+
+@pytest.mark.parametrize(("end", "confirmed"), [("2026-01-03", True), ("2026-02-01", False)])
+def test_single_date_count_covers_only_matching_one_day_scope(end, confirmed):
+    record = {
+        "artifact": {
+            "id": "zero",
+            "sql": "SELECT COUNT(*) AS n FROM v_flights WHERE flight_date = DATE '2026-01-02' "
+            "AND carrier_code = 'ZZ'",
+            "truncated": False,
+            "columns": [{"name": "n"}],
+        },
+        "rows": [[0]],
+    }
+    scope = {"start": "2026-01-02", "end_exclusive": end}
+    assert bool(zero_reference(record, "carrier_code", "ZZ", scope)) is confirmed
+
+
+def test_checked_kpi_uses_identity_from_the_referenced_row():
+    from metric_pilot.reports.claims import POLICY
+    from metric_pilot.reports.contracts import ReportDraft
+    from metric_pilot.reports.materialize import render_blocks
+
+    draft = ReportDraft(
+        schema_version="1",
+        title="synthetic",
+        scope="synthetic",
+        blocks=[
+            dict(
+                type="kpi",
+                id="count",
+                title="unverified group",
+                value_ref=dict(artifact_id="qa_test", row=1, column="n"),
+                format="integer",
+            )
+        ],
+    )
+    record = {
+        "artifact": {
+            "columns": [
+                {"name": "carrier_code", "type": "VARCHAR"},
+                {"name": "n", "type": "INTEGER"},
+            ]
+        },
+        "rows": [["ZX", 1], ["ZZ", 0]],
+    }
+    blocks, _ = render_blocks(draft, {"qa_test": record}, {}, policy=POLICY)
+    assert "ZZ" in blocks[0]["title"] and "ZX" not in blocks[0]["title"]
+    assert blocks[0]["value"]["raw"] == 0
