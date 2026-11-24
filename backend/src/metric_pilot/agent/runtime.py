@@ -410,12 +410,16 @@ class AgentRuntime:
                                             "details": details,
                                             "valid_table_draft": repair_draft,
                                             "required_block_ids": repair_guard.required,
+                                            "unchanged_block_ids": [
+                                                b["id"] for b in repair_guard.blocks
+                                            ],
                                             "instruction": (
                                                 "按报告契约修正；仅引用本次或服务端允许的同调查成功产物。"
                                                 "schema_version 填字符串「1」。百分比勿重复加 %。"
                                                 "只输出JSON对象，不加Markdown围栏；外层kind=report与report，"
                                                 "report直接包含schema_version、title、scope、blocks等草稿字段。"
-                                                "保留已核对的内容和引用含义，只修正所报错误；"
+                                                "仅改错误块，unchanged_block_ids 须逐字保留；"
+                                                "原 title、scope、limitations 也须原样返回。"
                                                 "原文文字直接写模板，不得替换为无关查询数字。"
                                                 "INVESTIGATION_RECORD_REQUIRED 时"
                                                 "先核查并 record_finding。"

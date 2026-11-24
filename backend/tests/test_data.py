@@ -763,3 +763,9 @@ def test_negative_duration_retained_and_flagged(workspace, tmp_path, column, int
             ).fetchone()[0]
             == -64.0
         )
+
+
+def test_median_on_allowed_flight_view():
+    """中位数查询经过同一受控视图、函数和结果行数检查。"""
+    query = validate_sql("SELECT MEDIAN(arrival_delay) FROM v_flights", {}, {"v_flights"}, 10)
+    assert "MEDIAN" in query.functions

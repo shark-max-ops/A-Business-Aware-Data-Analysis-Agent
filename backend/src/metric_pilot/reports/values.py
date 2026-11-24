@@ -107,6 +107,19 @@ def text_segments(block, artifacts):
     输出：安全展示片段
     """
     text = block["text_template"]
+    # 排名前缀限定了子集，子集内的数量须来自聚合结果。
+    if re.search(
+        r"前\s*(?:\d+|[一二三四五六七八九十百]+)\s*(?:条|行|班|名)(?:记录)?"
+        r"\s*(?:中|里|之中)\s*(?:仅|共有|共|有)?\s*(?:\d+|[一二三四五六七八九十百]+)\s*(?:条|行|班|名)",
+        text,
+    ):
+        raise DataError(
+            "REPORT_SUBSET_COUNT_UNBOUND",
+            {
+                "instruction": "对相同排序、并列和行数范围单独聚合，引用计数列；"
+                "无关的额外计数请省略。"
+            },
+        )
     slots = list(SLOT.finditer(text))
     remaining = SLOT.sub("", text)
     if any(token in remaining for token in ("{{", "}}", "{%", "{#")):
@@ -148,11 +161,75 @@ def text_segments(block, artifacts):
     for match in slots:
         if match.start() > position:
             result.append({"text": text[position : match.start()]})
-        value = cell(artifacts, block["values"][match[1]])
-        if value["value_ref"]["column"].endswith("_pct") and re.match(
-            r"^\s*[%％]", text[match.end() :]
+        count_slot = re.search(r"(?:共计|合计|共有|共)\s*$", text[: match.start()]) and re.match(
+            r"\s*[个家班条次天名座项种]", text[match.end() :]
+        )
+        value = cell(artifacts, block["values"][match[1]], require_numeric=bool(count_slot))
+        column = value["value_ref"]["column"]
+        suffix = text[match.end() :]
+        # 两侧已从同一列的不同记录取值时，其中任何一侧都不能充当差额。
+        if re.search(
+            r"(?:比[^。，；]{1,18}[多少]|减少|增加|相差)\s*(?:约)?\s*$", text[: match.start()]
+        ) and re.match(r"\s*班", suffix):
+            ref = value["value_ref"]
+            prior = [s["value"]["value_ref"] for s in result if "value" in s]
+            if ref in prior and any(
+                r["artifact_id"] == ref["artifact_id"]
+                and r["column"] == column
+                and r["row"] != ref["row"]
+                for r in prior
+            ):
+                raise DataError(
+                    "REPORT_DIFFERENCE_REF",
+                    {
+                        "column": column,
+                        "instruction": "此引用是比较一侧的原值。使用冻结差额列，"
+                        "或保留两侧数值与独立建议。",
+                    },
+                )
+        if re.match(r"\s*班", suffix) and (
+            column == "days" or column.startswith("days_with_") or column.endswith("_days")
         ):
-            raise DataError("REPORT_DUPLICATE_PERCENT")
+            raise DataError(
+                "REPORT_VALUE_TYPE",
+                {
+                    "column": column,
+                    "instruction": "天数列不能填写航班数，引用航班计数列或改写天数单位。",
+                },
+            )
+        # 明确的每百班表达与百分比数值同尺度，量词由模板提供。
+        per_hundred = (
+            column.endswith("_pct")
+            and re.search(
+                r"每(?:百|100)班(?:航班)?(?:中)?(?:约|大约)?(?:有|取消|备降|延误)?(?:约|大约)?\s*$",
+                text[: match.start()],
+            )
+            and re.match(r"\s*班", suffix)
+        )
+        named_count = (
+            column.endswith("_pct")
+            and re.search(
+                r"每(?:百|100)班(?:航班)?(?:取消|备降|延误)(?:班次|数)(?:约为|为)?\s*$",
+                text[: match.start()],
+            )
+            and re.match(r"\s*(?:[，。；、（(]|$)", suffix)
+        )
+        if named_count:
+            value["display"] = value["display"].removesuffix("%") + " 班"
+        elif per_hundred:
+            value["display"] = value["display"].removesuffix("%")
+        elif column.endswith("_pct") and re.match(
+            r"^\s*(?:[%％]|个百分点|班(?:次)?(?:[（(，。、；\s]|$))", text[match.end() :]
+        ):
+            raise DataError(
+                "REPORT_DUPLICATE_PERCENT",
+                {
+                    "column": column,
+                    "instruction": "该列已显示百分号。若表达每百班，可写为取消率加该引用；"
+                    "需按班表达时查询独立无百分号的每百班数列。"
+                    "百分点差必须引用差值列。",
+                },
+            )
         result.append({"text": value["display"], "key": match[1], "value": value})
         position = match.end()
     if position < len(text):

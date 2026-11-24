@@ -205,7 +205,7 @@ def parse_list(raw, day):
         "SEND TIME",
     }.issubset(titles):
         raise DataError("ADVISORY_SOURCE_FORMAT")
-    results, seen = [], set()
+    results, seen = [], {}
     for row in rows:
         cells = row["cells"]
         links = [link for c in cells for link in c["links"] if "adv_otherdis" in link]
@@ -222,11 +222,16 @@ def parse_list(raw, day):
             identity = (int(values[0]), datetime.strptime(values[2], "%m/%d/%y").date())
         except ValueError:
             raise DataError("ADVISORY_SOURCE_FORMAT") from None
-        if identity != (number, day) or issued.date() != day or number in seen:
+        if identity != (number, day) or issued.date() != day:
             raise DataError("ADVISORY_IDENTITY_MISMATCH")
-        if not re.fullmatch(r"[A-Z0-9]{2,5}(?:/[A-Z0-9]{2,5})*", values[1]):
+        if not re.fullmatch(r"[A-Z0-9]{2,12}(?:/[A-Z0-9]{2,12})*", values[1]):
             raise DataError("ADVISORY_SOURCE_FORMAT")
-        seen.add(number)
+        prev = seen.get(number)
+        if prev is not None:
+            if prev != (values[1], values[3]):
+                raise DataError("ADVISORY_IDENTITY_MISMATCH")
+            continue
+        seen[number] = (values[1], values[3])
         kind, action = classify(values[3])
         results.append(
             dict(

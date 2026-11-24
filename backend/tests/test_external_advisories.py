@@ -301,7 +301,17 @@ def test_genuine_empty_list_and_failure_page(tmp_path):
         输入：无。
         输出：无。
         """
-        for raw in (listing([]), listing([entry(facility="ORD/ZAU")])):
+        for raw in (
+            listing([]),
+            listing([entry(facility="ORD/ZAU")]),
+            listing(
+                [
+                    entry(number=101, facility="FCAJXW"),
+                    entry(number=102, facility="DENSKI/ZDV"),
+                    entry(number=102, facility="DENSKI/ZDV"),
+                ]
+            ),
+        ):
             http, _ = client(tmp_path, [raw])
             result = await search_official_advisories(
                 AdvisorySearch(airport="DFW", start=DAY), tmp_path, http=http, now=NOW

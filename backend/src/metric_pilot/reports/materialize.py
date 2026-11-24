@@ -85,7 +85,15 @@ def render_blocks(draft, artifacts, sources, main_range=None, policy=None, obser
                 out["title"] = f"{label(ref['column'])}（{scope}）"
         elif b["type"] == "text":
             if not set(b["evidence_ids"]) <= set(artifacts) | set(sources):
-                raise DataError("REPORT_EVIDENCE_NOT_ALLOWED")
+                raise DataError(
+                    "REPORT_EVIDENCE_NOT_ALLOWED",
+                    {
+                        "allowed_artifact_ids": sorted(artifacts),
+                        "allowed_source_ids": sorted(sources)[:32],
+                        "instruction": "文字依据只引用这些冻结产物或来源；"
+                        "发现 ID 和指标 ID 不属于 evidence_ids。",
+                    },
+                )
             out.update(
                 segments=text_segments(b, artifacts),
                 evidence_ids=b["evidence_ids"],

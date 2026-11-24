@@ -11,8 +11,40 @@ from metric_pilot.reports.contracts import RenderedBlock
 from metric_pilot.reports.values import NUMERIC, cell, numeric
 
 
-def zero_reference(record, key, target, date_range):
-    """仅接受服务端日期范围内的单表、单身份等值 COUNT(*)。"""
+def _shared_filters(sql, key):
+    """提取比较查询 WHERE 顶层 AND 中的单表非日期、非身份等值过滤条件。"""
+    if not sql:
+        return set()
+    try:
+        tree = sqlglot.parse_one(sql, read="duckdb")
+    except sqlglot.errors.ParseError:
+        return set()
+    if not isinstance(tree, exp.Select):
+        return set()
+    from_clause = tree.args.get("from_") or tree.args.get("from")
+    source = from_clause.this if from_clause else None
+    if not isinstance(source, exp.Table) or source.sql().lower() != "v_flights":
+        return set()
+    condition = tree.args.get("where")
+    if not condition:
+        return set()
+    predicates = (
+        condition.this.flatten() if isinstance(condition.this, exp.And) else [condition.this]
+    )
+    allowed = set()
+    for item in predicates:
+        if (
+            isinstance(item, exp.EQ)
+            and isinstance(item.this, exp.Column)
+            and isinstance(item.expression, exp.Literal)
+            and item.this.name.lower() not in {key.lower(), "flight_date"}
+        ):
+            allowed.add((item.this.name.lower(), item.expression.is_string, item.expression.this))
+    return allowed
+
+
+def zero_reference(record, key, target, date_range, comparison_sql=None):
+    """仅接受服务端日期范围内、与主比较共享过滤条件的单表、单身份等值 COUNT(*)。"""
     meta = record["artifact"]
     tree = sqlglot.parse_one(meta["sql"], read="duckdb")
     if meta["truncated"] or len(record["rows"]) != 1 or not isinstance(tree, exp.Select):
@@ -31,6 +63,7 @@ def zero_reference(record, key, target, date_range):
     predicates = (
         condition.this.flatten() if isinstance(condition.this, exp.And) else [condition.this]
     )
+    shared = _shared_filters(comparison_sql, key)
     identity = []
     for item in predicates:
         if (
@@ -53,6 +86,14 @@ def zero_reference(record, key, target, date_range):
                     and date.fromisoformat(end) - date.fromisoformat(start) == timedelta(days=1)
                 ):
                     continue
+        if (
+            shared
+            and isinstance(item, exp.EQ)
+            and isinstance(item.this, exp.Column)
+            and isinstance(item.expression, exp.Literal)
+            and (item.this.name.lower(), item.expression.is_string, item.expression.this) in shared
+        ):
+            continue
         identity.append(item)
     if len(identity) != 1:
         return None
@@ -99,6 +140,7 @@ def comparison_answer(check, artifacts, date_range):
             }
         )
 
+    comparison_sql = record["artifact"].get("sql")
     for target in check["expected"]:
         matches = [i for i, row in enumerate(record["rows"]) if row[names.index(key)] == target]
         add(f"{target}：")
@@ -107,7 +149,13 @@ def comparison_answer(check, artifacts, date_range):
             continue
         if not matches:
             proof_id = check.get("zero_count_artifact_id")
-            ref = zero_reference(artifacts[proof_id], key, target, date_range) if proof_id else None
+            ref = (
+                zero_reference(
+                    artifacts[proof_id], key, target, date_range, comparison_sql=comparison_sql
+                )
+                if proof_id
+                else None
+            )
             if ref:
                 add("同范围记录数为")
                 add("", ref)
@@ -129,7 +177,13 @@ def comparison_answer(check, artifacts, date_range):
         if not (0 <= n <= d and n == int(n) and d == int(d)):
             raise DataError("COMPARISON_INVALID_COUNTS")
         proof_id = check.get("zero_count_artifact_id")
-        if d and proof_id and zero_reference(artifacts[proof_id], key, target, date_range):
+        if (
+            d
+            and proof_id
+            and zero_reference(
+                artifacts[proof_id], key, target, date_range, comparison_sql=comparison_sql
+            )
+        ):
             raise DataError(
                 "COMPARISON_CONFLICTING_COUNTS",
                 {

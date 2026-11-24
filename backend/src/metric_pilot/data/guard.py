@@ -15,6 +15,7 @@ FUNCTIONS = {
     "COUNT",
     "SUM",
     "AVG",
+    "MEDIAN",
     "MIN",
     "MAX",
     "COALESCE",
