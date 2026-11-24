@@ -90,7 +90,7 @@ export function KnowledgePage() {
   };
 
   return <div className="knowledge-workspace">
-    <div className="page-heading"><div><p className="eyebrow">YOUR KNOWLEDGE LIBRARY</p><h1>让知识，成为分析的起点。</h1><p>管理参考资料与计算规则，在 Wiki 中探索它们的联系。</p></div><Button type="text" onClick={() => void perform(refresh)} loading={busy}>刷新目录 ↻</Button></div>
+    <div className="page-heading"><div><h1>让知识，成为分析的起点。</h1><p>管理参考资料与计算规则，在 Wiki 中探索它们的联系。</p></div><Button type="text" onClick={() => void perform(refresh)} loading={busy} icon={<svg className="ui-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.35-3.42M13 2.8v2.5h-2.5" /></svg>}>刷新目录</Button></div>
     {error && <Alert showIcon type="error" message="操作未完成" description={error} closable onClose={() => setError('')} />}
     {notice && <Alert showIcon type="success" message={notice} closable onClose={() => setNotice('')} />}
     {jobs.some(job => job.state === 'queued' || job.state === 'running') && <p role="status" className="library-processing">资料正在整理中，你可以继续阅读已有文档。</p>}

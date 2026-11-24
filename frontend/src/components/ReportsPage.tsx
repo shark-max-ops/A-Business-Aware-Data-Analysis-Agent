@@ -1,7 +1,7 @@
 import { dateRangeLabel } from '../api/data';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Alert, Button, Empty, Input, Modal, Select, Spin, Table, Tag } from 'antd';
+import { Alert, Button, Empty, Input, Modal, Select, Spin, Table } from 'antd';
 import { chartNumber, jsonRequest, reportApi } from '../api/reports';
 import type { FrozenValue, Report, ReportBlock, ReportSummary, Selection } from '../api/reports';
 import { EvidenceDrawer } from './EvidenceDrawer';
@@ -25,7 +25,7 @@ export function ReportScope({ block }: { block: ReportBlock }) {
 /** 作用：显示冻结报告块，所有数值直接使用服务端显示值；输入：块及取证回调；输出：正文块。 */
 function ReportBlockView({ block, inspect }: { block: ReportBlock; inspect: (selection: Selection) => void }) {
   if (block.type === 'kpi') return <article className="report-kpi"><p>{block.title}</p><button onClick={() => inspect({ block_id: block.id })} className="kpi-number" aria-label={`${block.title}：${block.value?.display}，查看依据`}>{block.value?.display}</button></article>;
-  if (block.type === 'text') return <section className="report-text">{block.verification === 'checked_relation' && <h3>已核对的结果集关系 <Button type="link" onClick={() => inspect({ block_id: block.id })}>查看核对依据</Button></h3>}{(block.segments ?? []).map((segment, index) => segment.value ? <button className="evidence-value" key={index} onClick={() => inspect({ block_id: block.id, value_key: segment.key ?? undefined })}>{segment.text}</button> : <span key={index}>{segment.text}</span>)}{(block.row_bindings ?? []).length > 0 && <small> 已校验所声明的分组与数值来自同一行；文字解释仍需复核。</small>}{(block.evidence_ids ?? []).length > 0 && <button className="source-link" onClick={() => inspect({ block_id: block.id })}>查看引用资料 ↗</button>}</section>;
+  if (block.type === 'text') return <section className={`report-text${block.verification === 'checked_relation' ? ' report-text-checked' : ''}`}>{block.verification === 'checked_relation' && <div className="report-checked-head"><h3>已核对的结果集关系</h3><Button type="link" size="small" onClick={() => inspect({ block_id: block.id })}>查看核对依据</Button></div>}<div className="report-text-body">{(block.segments ?? []).map((segment, index) => segment.value ? <button className="evidence-value" key={index} onClick={() => inspect({ block_id: block.id, value_key: segment.key ?? undefined })}>{segment.text}</button> : <span key={index}>{segment.text}</span>)}</div>{(block.row_bindings ?? []).length > 0 && <small className="report-binding-note">已校验所声明的分组与数值来自同一行；文字解释仍需复核。</small>}{(block.evidence_ids ?? []).length > 0 && <button className="source-link" onClick={() => inspect({ block_id: block.id })}>查看引用资料 ↗</button>}</section>;
   const evidence = <Button type="text" size="small" onClick={() => inspect({ block_id: block.id })}>查看依据</Button>;
   if (block.type === 'chart') return <section className="report-block report-chart-block"><ReportChart block={block} inspect={inspect} evidence={evidence} /><ReportScope block={block} /></section>;
   const rows = block.rows ?? [];
@@ -110,10 +110,10 @@ export function ReportsPage() {
     finally { setBusy(false); }
   }
   useEffect(() => { void load(''); }, []);
-  return <div className="reports-page"><div className="page-heading"><div><p className="eyebrow">已保存的分析</p><h1>每个数字，都能找到依据</h1><p>报告保留生成时的数据与资料版本，随时打开，仍是当时的结果。</p></div><Link className="report-open-link" to="/analysis">开始新分析 ↗</Link></div>
+  return <div className="reports-page"><div className="page-heading"><div><h1>每个数字，都能找到依据</h1><p>报告保留生成时的数据与资料版本，随时打开，仍是当时的结果。</p></div><Link className="report-open-link" to="/analysis">开始新分析 ↗</Link></div>
     {error && <Alert type="error" message="报告列表读取失败" description={error} action={<Button onClick={() => { void load(''); }}>重试</Button>} />}
     {!items.length && !busy && !error && <section className="panel"><Empty description="还没有保存的报告"><Link to="/analysis">提出一个问题，生成第一份报告</Link></Empty></section>}
-    <div className="report-list">{items.map(item => <Link className="report-list-card" key={item.id} to={`/reports/${item.id}/revisions/${item.revision_id}`}><div className="report-card-meta"><span>{item.scope_context?.main_label ?? "???????"} · {item.source_kind === 'synthetic' ? '合成测试数据' : '固定数据版本'}</span><span>版本 {item.version}</span></div><h2>{item.title}</h2><p>{item.scope_context?.main_label ?? "历史范围未记录"}</p><p>{item.scope_context?.policy === "server_scope_v1" ? "分析说明（未核实）" : "历史分析说明（未核实）"}：{item.scope}</p><div className="report-card-bottom"><span>{new Date(item.created_at).toLocaleString('zh-CN', { hour12: false })}</span><strong>阅读报告 ↗</strong></div></Link>)}</div>
+    <div className="report-list">{items.map(item => <Link className="report-list-card" key={item.id} to={`/reports/${item.id}/revisions/${item.revision_id}`}><div className="report-card-meta"><span>{item.scope_context?.main_label ?? '历史范围未记录'} · {item.source_kind === 'synthetic' ? '合成测试数据' : '固定数据版本'}</span><span className="report-card-version">v{item.version}</span></div><h2>{item.title}</h2><p>{item.scope_context?.policy === 'server_scope_v1' ? '分析说明（未核实）' : '历史分析说明（未核实）'}：{item.scope}</p><div className="report-card-bottom"><span>{new Date(item.created_at).toLocaleString('zh-CN', { hour12: false })}</span><strong>阅读报告 ↗</strong></div></Link>)}</div>
     {busy && <div className="report-loading"><Spin /> 正在读取报告…</div>}
     {cursor && !busy && <Button onClick={() => { void load(cursor); }}>加载更多报告</Button>}
   </div>;
@@ -179,12 +179,12 @@ export function ReportDetailPage() {
 
   return <div className="report-reader">
     {historyError && <Alert type="error" message="更早版本读取失败" description={historyError} />}
-    <div className="report-toolbar"><Link to="/reports">← 所有报告</Link><div className="report-actions"><Select aria-label="报告版本" dropdownRender={menu => <>{menu}{historyCursor && <Button type="text" block loading={historyBusy} onMouseDown={event => event.preventDefault()} onClick={() => { void olderVersions(); }}>加载更早版本</Button>}</>} value={report.revision_id} options={history.map(item => ({ value: item.revision_id, label: `版本 ${item.version}${item.version === latest ? ' · 最新' : ''}` }))} onChange={id => navigate(`/reports/${report.report_id}/revisions/${id}`)} /><a href={base + '/export?format=markdown'}>导出 Markdown</a><a href={base + '/export?format=json'}>导出 JSON</a><Button disabled={report.version < latest} onClick={() => { setTitle(report.title); setScope(report.scope); setLimitations((report.draft.limitations ?? []).join('\n')); setEditError(''); setEditing(true); }}>修改说明</Button></div></div>
+    <div className="report-toolbar"><Link className="report-back-link" to="/reports">← 所有报告</Link><div className="report-actions"><Select aria-label="报告版本" dropdownRender={menu => <>{menu}{historyCursor && <Button type="text" block loading={historyBusy} onMouseDown={event => event.preventDefault()} onClick={() => { void olderVersions(); }}>加载更早版本</Button>}</>} value={report.revision_id} options={history.map(item => ({ value: item.revision_id, label: `版本 ${item.version}${item.version === latest ? ' · 最新' : ''}` }))} onChange={id => navigate(`/reports/${report.report_id}/revisions/${id}`)} /><div className="report-export-group"><a className="report-action-link" href={base + '/export?format=markdown'}>导出 Markdown</a><a className="report-action-link" href={base + '/export?format=json'}>导出 JSON</a></div><Button disabled={report.version < latest} onClick={() => { setTitle(report.title); setScope(report.scope); setLimitations((report.draft.limitations ?? []).join('\n')); setEditError(''); setEditing(true); }}>修改说明</Button></div></div>
     {newest && report.version < latest && <p className="report-note" role="status">当前为历史版本。<Link to={`/reports/${report.report_id}/revisions/${newest.revision_id}`}>查看最新版本 {latest} ↗</Link></p>}
     <article className="report-sheet"><header className="report-header">
       <h1>{report.title}</h1>
       <div className="report-meta"><span>{report.scope_context?.main_label ?? '历史范围未记录'}</span><span>{report.data_snapshot.manifest?.source_kind === 'synthetic' ? '合成测试数据' : '固定数据版本'}</span></div>
-      <div className="report-stamp"><Tag color="green">数字与引用已核对</Tag><span>{new Date(report.created_at).toLocaleString('zh-CN', { hour12: false })}</span></div>
+      <div className="report-stamp"><span className="report-verified-badge"><i aria-hidden="true" />数字与引用已核对</span><span>{new Date(report.created_at).toLocaleString('zh-CN', { hour12: false })}</span></div>
       <details className="report-header-details"><summary>{report.scope_context?.policy === "server_scope_v1" ? "分析说明（未核实）" : "历史分析说明（未核实）"}</summary>
         <p className="report-origin">{report.verification_policy ? '分析主题由模型拟定' : '历史分析主题'} · 版本 {report.version}</p>
         <p className="report-origin">分析问题：{report.question}</p>

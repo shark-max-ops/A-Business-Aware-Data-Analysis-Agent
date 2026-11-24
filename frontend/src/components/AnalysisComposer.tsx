@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Button, Input } from 'antd';
 import type { TextAreaRef } from 'antd/es/input/TextArea';
 
@@ -18,6 +19,7 @@ type Props = {
   stopping: boolean;
   compactDisabled: string;
   model: string | null;
+  meter?: ReactNode;
 };
 
 const commandInput = /^\/[a-z\u3400-\u9fff]*$/i;
@@ -25,7 +27,7 @@ const commandInput = /^\/[a-z\u3400-\u9fff]*$/i;
 /** 仅在输入斜杠时展开命令，并沿用现有调查动作。 */
 export function AnalysisComposer({
   question, onQuestion, onSend, onStop, onCompact, onFindings, onData,
-  continuing, active, busy, disabled, canSend, stopping, compactDisabled, model,
+  continuing, active, busy, disabled, canSend, stopping, compactDisabled, model, meter,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(0);
@@ -89,17 +91,20 @@ export function AnalysisComposer({
       }}
     />
     <div className="composer-bottom">
-      <span className="composer-model" title={model ?? '模型未配置'}>{model ?? '模型未配置'}</span>
-      {active ? (
-        <Button className="composer-send composer-stop" aria-label="停止分析" title="停止分析" disabled={stopping} onClick={onStop}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="5.5" width="9" height="9" rx="1.7" fill="currentColor" /></svg>
-        </Button>
-      ) : (
-        <Button type="primary" className="composer-send" aria-label="发送问题" title="发送问题"
-          loading={busy} disabled={!canSend || typedCommand} onClick={onSend}>
-          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 15V5m-4 4 4-4 4 4" /></svg>
-        </Button>
-      )}
+      <div className="composer-bottom-left">{meter}</div>
+      <div className="composer-bottom-right">
+        <span className="composer-model" title={model ?? '模型未配置'}>{model ?? '模型未配置'}</span>
+        {active ? (
+          <Button className="composer-send composer-stop" aria-label="停止分析" title="停止分析" disabled={stopping} onClick={onStop}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="5.5" width="9" height="9" rx="1.7" fill="currentColor" /></svg>
+          </Button>
+        ) : (
+          <Button type="primary" className="composer-send" aria-label="发送问题" title="发送问题"
+            loading={busy} disabled={!canSend || typedCommand} onClick={onSend}>
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 15V5m-4 4 4-4 4 4" /></svg>
+          </Button>
+        )}
+      </div>
     </div>
   </div>;
 }

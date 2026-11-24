@@ -30,12 +30,12 @@ export function App() {
     <aside className="workspace-sidebar" aria-label="工作区侧栏" onClick={event => {
       if ((event.target as HTMLElement).closest('.conversation-item, .new-conversation')) setSidebarOpen(false);
     }}>
-      <Button className="sidebar-close" type="text" aria-label="关闭导航" onClick={() => setSidebarOpen(false)}>×</Button>
-      <Link to="/analysis" className="brand"><SharkMark className="brand-mark" /><span>分析工作台<small>Business-aware analysis</small></span></Link>
+      <Button className="sidebar-close" type="text" aria-label="关闭导航" onClick={() => setSidebarOpen(false)}><svg className="ui-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg></Button>
+      <Link to="/analysis" className="brand"><SharkMark className="brand-mark" /><span className="brand-copy"><strong className="brand-name">Caliber</strong><small>Business-aware analysis</small></span></Link>
       <nav aria-label="主导航">
-        <NavLink to="/analysis"><span aria-hidden="true">＋</span>分析</NavLink>
-        <NavLink to="/knowledge"><span aria-hidden="true">◈</span>知识管理</NavLink>
-        <NavLink to="/reports"><span aria-hidden="true">▤</span>报告</NavLink>
+        <NavLink to="/analysis"><svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2.5 12.5h11M4.5 9.5l2.5-3 2.5 2 3-4.5" /></svg>分析</NavLink>
+        <NavLink to="/knowledge"><svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 3.5A1.5 1.5 0 0 1 4.5 2H13v11.5H4.5A1.5 1.5 0 0 1 3 12V3.5Zm0 8.5A1.5 1.5 0 0 1 4.5 10.5H13" /></svg>知识管理</NavLink>
+        <NavLink to="/reports"><svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="2" width="10" height="12" rx="1.5" /><path d="M5.5 6h5M5.5 9h5M5.5 11.5h3" /></svg>报告</NavLink>
       </nav>
       <div id="workspace-sessions" className="workspace-sessions" />
       {!analysis && <div className="sidebar-note">从资料出发，<br />让每个发现都有依据。</div>}
@@ -46,7 +46,7 @@ export function App() {
       </div>
     </aside>
     <div className="workspace-body">
-      <header className="mobile-workspace-header"><Button type="text" aria-label="打开导航" onClick={() => setSidebarOpen(true)}>☰</Button><span>分析工作台</span><span className={`status-dot ${state.kind === 'ready' ? 'online' : ''}`} /></header>
+      <header className="mobile-workspace-header"><Button type="text" aria-label="打开导航" onClick={() => setSidebarOpen(true)}><svg className="ui-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" /></svg></Button><span className="mobile-brand-name">Caliber</span><span className={`status-dot ${state.kind === 'ready' ? 'online' : ''}`} /></header>
       <main className={`workspace-content ${analysis ? 'route-analysis' : 'route-library'}`}>
         <div className="service-notices">
           {state.kind === 'loading' && <div role="status" className="connection-notice"><Spin size="small" /> 正在获取服务状态…</div>}

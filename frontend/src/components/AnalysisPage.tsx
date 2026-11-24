@@ -309,7 +309,7 @@ export function AnalysisPage() {
 
   return <>
     {sidebarSlot && createPortal(<section className="analysis-history" aria-label="分析会话">
-      <Button className="new-conversation" block disabled={blocked} onClick={() => { setSnapshotId(defaultSnapshotId); setDateRange(snapshotRange(snapshots.find(item => item.id === defaultSnapshotId))); void newConversation().catch(e => setError(e.message)); }}><span aria-hidden="true">＋</span> 新会话</Button>
+      <Button className="new-conversation" block disabled={blocked} onClick={() => { setSnapshotId(defaultSnapshotId); setDateRange(snapshotRange(snapshots.find(item => item.id === defaultSnapshotId))); void newConversation().catch(e => setError(e.message)); }}><svg className="ui-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M8 3.2v9.6M3.2 8h9.6" /></svg><span>新会话</span></Button>
       <div className="session-section-title"><h2>最近会话</h2><span>{conversations.length}</span></div>
       {conversations.length > 8 && <Input aria-label="搜索会话" placeholder="搜索会话" value={sessionFilter} onChange={event => setSessionFilter(event.target.value)} allowClear />}
       <div className="session-list">{conversations.filter(item => item.title.toLowerCase().includes(sessionFilter.toLowerCase())).map(item => <ConversationItem title={item.title} selected={conversationId === item.id} disabled={blocked} key={item.id} onClick={() => setConversationId(item.id)} />)}
@@ -317,22 +317,28 @@ export function AnalysisPage() {
       </div>
     </section>, sidebarSlot)}
     <section className={`analysis-workspace${!visibleRuns.length ? ' is-empty' : ''}`}>
-      <header className="workspace-toolbar"><div className="workspace-toolbar-title"><span className="eyebrow">ANALYSIS</span><span title={investigation?.goal}>{investigation?.goal || '数据调查'}</span></div><div className="workspace-actions"><Button type="text" disabled={!investigation || loading} onClick={() => setInfoOpen(true)}>调查信息</Button><Button type="text" disabled={!investigation || loading} onClick={() => setFindingsOpen(true)}>调查发现 · {currentCount}</Button><Button type="text" onClick={() => setDrawer(true)}>工作区数据源 ↗</Button></div></header>
+      <header className="workspace-toolbar"><div className="workspace-toolbar-title"><span title={investigation?.goal}>{investigation?.goal || '数据调查'}</span></div><div className="workspace-actions"><Button type="text" disabled={!investigation || loading} onClick={() => setInfoOpen(true)}>调查信息</Button><Button type="text" disabled={!investigation || loading} onClick={() => setFindingsOpen(true)}>调查发现 · {currentCount}</Button><Button type="text" onClick={() => setDrawer(true)}>工作区数据源 ↗</Button></div></header>
       {error && <Alert className="analysis-alert" type="error" showIcon message={error} action={<Button onClick={() => setAttempt(a => a + 1)}>重新连接</Button>} />}
       {!configured && <Alert className="analysis-alert" type="warning" message="模型未配置或分析服务尚未就绪" description="请检查本机模型配置和后端状态。健康检查不会请求模型。" />}
       {!snapshots.length && <Alert className="analysis-alert" type="info" message="暂无可分析的数据，请先导入数据快照" />}
       <div className="analysis-main">
         <div className="analysis-status-bar">
-          <div className="analysis-data-bar"><label htmlFor="snapshot">分析数据</label><Select id="snapshot" aria-label="本次数据快照" value={investigation?.snapshot_id || snapshotId || undefined} disabled={blocked || !!investigation || legacy} onChange={setSnapshotId} options={snapshots.map(item => ({ value: item.id, label: `${item.manifest?.source_kind === 'synthetic' ? '合成测试数据' : 'BTS Reporting'} · ${item.period ?? (item.periods ?? []).join('、')} · ${item.row_count.toLocaleString()} 条（完整快照） · ${item.id.slice(-8)}` }))} /></div>
-          <div className="investigation-controls"><Select aria-label="切换调查" value={legacy ? 'legacy' : investigation?.id} placeholder="首次提问会建立调查" disabled={blocked} onChange={selectInvestigation} options={[...investigations.map(item => ({ value: item.id, label: item.goal })), ...(runs.some(item => !item.investigation_id) ? [{ value: 'legacy', label: '历史独立运行' }] : [])]} /><Button type="text" disabled={blocked} onClick={() => openInvestigation(false)}>新调查</Button>{investigation && <Button type="text" disabled={blocked} onClick={() => openInvestigation(true)}>新建分支</Button>}</div>
-          {investigation ? <p className="fixed-date-range">固定日期范围：{dateRangeLabel(investigation.date_range ?? snapshotRange(snapshots.find(item => item.id === investigation.snapshot_id)))}。修改数据或日期请新建调查或分支。</p> : !legacy && <DateRangeFields snapshot={selectedSnapshot} value={dateRange} onChange={setDateRange} disabled={blocked} />}
-          {investigation && <p className="investigation-status">{investigation.status === 'running' ? '核查中' : investigation.status === 'budget_exhausted' ? '累计额度已用完' : '可继续调查'}</p>}
-          {visibleRuns.length > 0 && <Select<string> aria-label="定位轮次" className="run-history-select" placeholder="定位到历史问题" value={undefined} onChange={locateRun} options={visibleRuns.map(item => ({ value: item.id, label: `${item.question} · ${statusText[item.status]}` }))} />}
+          <div className="context-bar-primary">
+            <div className="analysis-data-bar"><label htmlFor="snapshot">分析数据</label><Select id="snapshot" aria-label="本次数据快照" value={investigation?.snapshot_id || snapshotId || undefined} disabled={blocked || !!investigation || legacy} onChange={setSnapshotId} options={snapshots.map(item => ({ value: item.id, label: `${item.manifest?.source_kind === 'synthetic' ? '合成测试数据' : 'BTS Reporting'} · ${item.period ?? (item.periods ?? []).join('、')} · ${item.row_count.toLocaleString()} 条（完整快照） · ${item.id.slice(-8)}` }))} /></div>
+            <div className="investigation-controls"><Select aria-label="切换调查" value={legacy ? 'legacy' : investigation?.id} placeholder="首次提问会建立调查" disabled={blocked} onChange={selectInvestigation} options={[...investigations.map(item => ({ value: item.id, label: item.goal })), ...(runs.some(item => !item.investigation_id) ? [{ value: 'legacy', label: '历史独立运行' }] : [])]} /><Button type="text" disabled={blocked} onClick={() => openInvestigation(false)}>新调查</Button>{investigation && <Button type="text" disabled={blocked} onClick={() => openInvestigation(true)}>新建分支</Button>}</div>
+          </div>
+          <div className="context-bar-secondary">
+            <div className="context-bar-meta">
+              {investigation ? <p className="fixed-date-range">固定日期范围：{dateRangeLabel(investigation.date_range ?? snapshotRange(snapshots.find(item => item.id === investigation.snapshot_id)))}。修改数据或日期请新建调查或分支。</p> : !legacy && <DateRangeFields snapshot={selectedSnapshot} value={dateRange} onChange={setDateRange} disabled={blocked} />}
+              {investigation && <p className={`investigation-status is-${investigation.status}`}>{investigation.status === 'running' ? '核查中' : investigation.status === 'budget_exhausted' ? '累计额度已用完' : '可继续调查'}</p>}
+            </div>
+            {visibleRuns.length > 0 && <Select<string> aria-label="定位轮次" className="run-history-select" placeholder="定位到历史问题" value={undefined} onChange={locateRun} options={visibleRuns.map(item => ({ value: item.id, label: `${item.question} · ${statusText[item.status]}` }))} />}
+          </div>
         </div>
         <div className="analysis-thread-frame">
         <div className="analysis-thread" ref={thread} onScroll={() => { const element = thread.current; if (element) { follow.current = element.scrollHeight - element.scrollTop - element.clientHeight <= 80; setAway(!follow.current); } }}><div className="analysis-turns">
           {loading && <p role="status">正在恢复调查与历史…</p>}
-          {!loading && !visibleRuns.length && <div className="welcome-state"><SharkMark className="welcome-symbol" /><p className="eyebrow">从数据，到有依据的发现</p><h1>今天，想了解什么？</h1><p>提出一个问题，一起查阅数据、核对线索，<br />让每个结论都能找到出处。</p></div>}
+          {!loading && !visibleRuns.length && <div className="welcome-state"><SharkMark className="welcome-symbol" /><h1>今天，想了解什么？</h1><p>提出一个问题，一起查阅数据、核对线索，<br />让每个结论都能找到出处。</p></div>}
           {visibleRuns.length > shown && <Button block onClick={() => { const element = thread.current; if (element) anchor.current = { height: element.scrollHeight, top: element.scrollTop }; follow.current = false; setShown(count => count + 20); }}>显示更早轮次</Button>}
           {!loading && visibleRuns.slice(-shown).map(item => <RunTurn key={`${conversationId}:${item.id}`} run={item} findingCount={investigation?.findings.filter(f => f.run_id === item.id).length ?? 0} onUpdate={onUpdate} onContextUsage={onContextUsage} onActivity={onActivity} onFindings={() => setFindingsOpen(true)} onResultArrive={onResultArrive} investigation={investigation ?? undefined} snapshot={snapshots.find(snapshot => snapshot.id === item.snapshot_id)} disabled={blocked} onFollowUp={followUp} onLocateRun={locateRun} investigationError={investigationError} />)}
         </div></div>
@@ -356,15 +362,14 @@ export function AnalysisPage() {
             : !active && !visibleRuns.length ? '当前会话暂无可压缩的历史'
             : requestingCompact ? '正在发送压缩请求'
             : run?.compact_context ? '此轮已请求压缩' : ''}
+          meter={<div className="context-meter" role="status" title={percent === null ? '暂无上下文计量' : idleUsage ? '续查起始上下文估算，尚未加入下一问' : '最近一次分析请求占可用输入预算的比例（服务端估算）'}>
+            <span className="context-meter-ring" aria-hidden="true"
+              style={{ backgroundImage: `conic-gradient(currentColor ${percent ?? 0}%, var(--line) 0)` }} />
+            <span className="sr-only">上下文使用估算</span>
+            <span>{percent === null ? '—' : `${percent}%`}</span>
+            {!active && (requestingCompact || (compactNotice?.key === draftKey && compactNotice.runCount === visibleRuns.length)) && <span className="context-meter-note">{requestingCompact ? '正在压缩…' : compactNotice?.text}</span>}
+          </div>}
         />
-
-        <div className="context-meter" role="status" title={percent === null ? '暂无上下文计量' : idleUsage ? '续查起始上下文估算，尚未加入下一问' : '最近一次分析请求占可用输入预算的比例（服务端估算）'}>
-          {!active && <span>{requestingCompact ? '正在压缩…' : compactNotice?.key === draftKey && compactNotice.runCount === visibleRuns.length ? compactNotice.text : ''}</span>}
-          <span className="context-meter-ring" aria-hidden="true"
-            style={{ backgroundImage: `conic-gradient(currentColor ${percent ?? 0}%, var(--line) 0)` }} />
-          <span className="sr-only">上下文使用估算</span>
-          <span>{percent === null ? '—' : `${percent}%`}</span>
-        </div>
       </div>
     </section>
     <Suspense fallback={<p>正在加载数据源…</p>}>{drawer && <DataSourceDrawer open={drawer} onClose={() => setDrawer(false)} onActivated={() => { if (!investigation) setSnapshotId(''); setCatalogAttempt(value => value + 1); }} />}</Suspense>

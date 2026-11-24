@@ -645,7 +645,168 @@ h3 { font-size: 16px; font-weight: 550; }
   .graph-node-detail { padding: 15px; }
   .report-sheet { padding: 22px 16px; }
 }
+/* 精致专业 BI 工作台增补：保留暖纸+陶土+鼠尾草色系，强化层级、数据药丸、紧凑上下文条与图表质感。 */
+::selection { background: #e8d5c9; color: #2c2a28; }
+body, input, textarea { caret-color: var(--accent); }
+.session-list::-webkit-scrollbar, .analysis-thread::-webkit-scrollbar, .route-library::-webkit-scrollbar { width: 6px; height: 6px; }
+.session-list::-webkit-scrollbar-thumb, .analysis-thread::-webkit-scrollbar-thumb, .route-library::-webkit-scrollbar-thumb { background: #d6cfc4; border-radius: 999px; }
+.session-list::-webkit-scrollbar-thumb:hover, .analysis-thread::-webkit-scrollbar-thumb:hover, .route-library::-webkit-scrollbar-thumb:hover { background: #bfb6a8; }
+.session-list::-webkit-scrollbar-track, .analysis-thread::-webkit-scrollbar-track, .route-library::-webkit-scrollbar-track { background: transparent; }
+
+/* 报告页顶栏、低饱和核对徽章、结构化已核对关系块与数据药丸 */
+.report-toolbar { margin: 4px 0 18px; padding: 8px 12px; background: #faf8f4; border: 1px solid var(--line); border-radius: 10px; }
+.report-back-link { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 7px; color: #5c564e; text-decoration: none; font-size: 12px; font-weight: 500; transition: background 140ms ease, color 140ms ease; }
+.report-back-link:hover { background: #eee9e1; color: var(--accent); }
+.report-actions { gap: 10px; }
+.report-export-group { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); overflow: hidden; }
+.report-action-link { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; color: #4a453f; text-decoration: none; font-size: 12px; font-weight: 500; transition: background 140ms ease, color 140ms ease; }
+.report-action-link + .report-action-link { border-left: 1px solid var(--line); }
+.report-action-link:hover { background: #f6f1ea; color: var(--accent); }
+.report-sheet { border-radius: 14px; padding: 28px 32px; box-shadow: none; }
+.report-header { padding-bottom: 16px; margin-bottom: 16px; }
+.report-header h1 { font-size: 25px; font-weight: 650; letter-spacing: -0.02em; margin: 0 0 10px; }
+.report-verified-badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border: 1px solid #cddcd2; border-radius: 999px; background: #eff5f1; color: #2f5e48; font-size: 11px; font-weight: 500; line-height: 1.6; }
+.report-verified-badge i { width: 6px; height: 6px; border-radius: 50%; background: #4d806b; }
+.report-text-checked { max-width: none; margin: 10px 0; padding: 13px 16px; background: #faf8f4; border: 1px solid #e6e0d7; border-radius: 10px; }
+.report-checked-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; padding-bottom: 7px; border-bottom: 1px solid #ece7df; }
+.report-checked-head h3 { margin: 0; font-size: 12px; font-weight: 600; color: #4b5e54; letter-spacing: 0.02em; }
+.report-checked-head .ant-btn { height: auto; padding: 0 2px; font-size: 12px; color: var(--accent); }
+.report-text-body { font-size: 14px; line-height: 1.75; color: var(--ink); }
+.report-binding-note { display: block; margin-top: 8px; font-size: 11px; color: var(--muted); }
+.report-text .evidence-value { display: inline; padding: 1px 6px; margin: 0 1px; border: 1px solid #e2d9cd; border-radius: 5px; background: #f3eee7; color: #2c2a28; font-weight: 600; transition: background 140ms ease, border-color 140ms ease, color 140ms ease; }
+.report-text .evidence-value:hover, .report-text .evidence-value:focus-visible { background: #f6e7df; border-color: #d5aa97; color: var(--accent); }
+.report-block .ant-table-tbody > tr > td .evidence-value { border: 1px solid transparent; border-radius: 5px; padding: 2px 6px; margin: -2px -6px; background: transparent; color: var(--ink); font-weight: 500; transition: background 120ms ease, border-color 120ms ease, color 120ms ease; }
+.report-block .ant-table-tbody > tr > td .evidence-value:hover, .report-block .ant-table-tbody > tr > td .evidence-value:focus-visible { background: #f5eae3; border-color: #dec0b2; color: var(--accent); }
+.report-unverified { margin: 14px 0 8px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: #faf9f6; }
+.report-unverified > summary { cursor: pointer; font-size: 12px; font-weight: 500; color: #6e675e; list-style-position: inside; }
+.report-unverified > .ant-alert { margin: 10px 0 8px; }
+.report-kpi-grid { border-radius: 10px; margin: 12px 0 16px; }
+.report-kpi { padding: 14px 16px; transition: background 140ms ease; }
+.report-kpi:hover { background: #fcfaf6; }
+.report-kpi .kpi-number { border-bottom-style: dashed; border-bottom-color: #cfc5b8; }
+
+/* 分析页紧凑 2 行 BI 上下文条 + 统一输入框底栏（含上下文占用圆环） */
+.workspace-toolbar { border-bottom: 1px solid var(--line); background: #f8f6f2; }
+.analysis-status-bar { padding: 8px 4px 8px; display: grid; gap: 6px; }
+.context-bar-primary { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 8px 14px; align-items: center; }
+.analysis-status-bar .analysis-data-bar { margin: 0; padding: 0; gap: 8px; }
+.analysis-status-bar .analysis-data-bar label { font-size: 11px; font-weight: 500; color: #7a7267; }
+.analysis-status-bar .investigation-controls { margin: 0; gap: 4px; flex-wrap: nowrap; }
+.analysis-status-bar .investigation-controls .ant-btn { padding: 2px 8px; border-radius: 6px; color: #6b6359; }
+.analysis-status-bar .investigation-controls .ant-btn:hover { background: #ece7df; color: var(--accent); }
+.context-bar-secondary { display: flex; align-items: center; justify-content: space-between; gap: 8px 14px; flex-wrap: wrap; }
+.context-bar-meta { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; min-width: 0; flex: 1; }
+.analysis-status-bar .fixed-date-range { margin: 0; color: #736b61; font-size: 11px; line-height: 1.5; }
+.investigation-status { display: inline-flex; align-items: center; gap: 5px; margin: 0; padding: 1px 8px; border-radius: 999px; background: #eef1ec; color: #476857; font-size: 11px; font-weight: 500; white-space: nowrap; }
+.investigation-status::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: #55856c; }
+.investigation-status.is-running { background: #f4ebe4; color: var(--accent); }
+.investigation-status.is-running::before { background: var(--accent); }
+.investigation-status.is-budget_exhausted { background: #f4ece0; color: #8c6b36; }
+.investigation-status.is-budget_exhausted::before { background: #a68b5a; }
+.analysis-status-bar .run-history-select { width: min(260px, 100%); flex-shrink: 0; margin: 0; }
+.composer { margin: 6px 0 12px; padding: 10px 12px 8px; border-radius: 14px; border-color: #dcd4c8; box-shadow: 0 2px 10px rgba(54, 47, 39, 0.05); }
+.composer:focus-within { border-color: #bfa594; box-shadow: 0 4px 16px rgba(155, 78, 54, 0.08); }
+.composer-bottom { justify-content: space-between; gap: 10px; margin-top: 4px; padding-top: 6px; border-top: 1px solid #f0ebe3; }
+.composer-bottom-left, .composer-bottom-right { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.composer-bottom-left { flex: 1; }
+.composer-bottom .context-meter { min-height: 22px; padding: 0 2px; justify-content: flex-start; gap: 6px; color: #7d7367; }
+.composer-bottom .context-meter-ring::before { background: #fffefa; }
+.context-meter-note { color: #5b7866; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-model { max-width: 180px; padding: 2px 8px; border-radius: 6px; background: #f5f1ea; color: #6c6358; font-size: 11px; }
+
+/* 图表与空态精细化 */
+.bar-track { height: 12px; border-radius: 999px; background: #efeae2; }
+.bar-fill { border-radius: 999px; transition: filter 140ms ease; }
+.line-chart circle { transition: r 120ms ease; }
+.line-chart circle:hover, .line-chart circle:focus-visible { stroke: var(--accent); stroke-width: 2.5px; }
+.turn-investigation .ant-empty { margin: 14px 0; padding: 14px 12px; border: 1px dashed #e2dcd2; border-radius: 10px; background: #faf8f4; }
+.turn-investigation .ant-empty-image { height: 34px; margin-bottom: 6px; }
+.turn-investigation .ant-empty-description { font-size: 12px; color: #7e766b; }
+
+@media (max-width: 960px) {
+  .context-bar-primary { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .analysis-status-bar .run-history-select { width: 100%; }
+}
+@media (max-width: 740px) {
+  .report-toolbar { padding: 8px 10px; }
+  .report-actions { gap: 8px; }
+  .report-sheet { padding: 20px 16px; }
+  .report-text-checked { padding: 11px 12px; }
+  .composer { margin-bottom: 8px; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .workspace-sidebar, .graph-node-shape, .library-document-card, .graph-edge { transition: none; }
+  .workspace-sidebar, .graph-node-shape, .library-document-card, .graph-edge, .report-back-link, .report-action-link, .evidence-value, .bar-fill, .workspace-sidebar nav a, .session-list .conversation-item, .report-list-card, .composer { transition: none; }
   .graph-node:hover .graph-node-shape, .graph-node:focus-visible .graph-node-shape { transform: none; }
 }
+
+/* Impeccable 工艺精修：Caliber 品牌锁字、统一 1.6px 矢量图标、≥4.5:1 对比度与去幽灵卡片。 */
+body { font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
+h1, h2 { text-wrap: balance; }
+a { text-underline-offset: 3px; }
+.ui-icon, .nav-icon { width: 16px; height: 16px; flex-shrink: 0; display: inline-block; }
+
+/* 侧栏品牌 Caliber 与导航质感 */
+.brand { gap: 11px; padding: 2px 10px 22px; }
+.brand-mark { width: 34px; height: 30px; }
+.brand-copy { display: grid; gap: 2px; min-width: 0; }
+.brand-name { font-size: 18px; font-weight: 650; letter-spacing: -0.025em; line-height: 1.15; color: var(--ink); }
+.brand small { color: #6b645b; font-size: 10px; letter-spacing: 0.03em; line-height: 1.25; }
+.mobile-brand-name { font-size: 15px; font-weight: 650; letter-spacing: -0.02em; color: var(--ink); }
+.workspace-sidebar nav { gap: 2px; }
+.workspace-sidebar nav a { gap: 10px; padding: 8px 12px; color: #575148; border-radius: 8px; font-size: 13px; font-weight: 500; transition: background 120ms ease, color 120ms ease; }
+.workspace-sidebar nav a .nav-icon { color: #756d63; transition: color 120ms ease; }
+.workspace-sidebar nav a:hover { background: #e6e1d8; color: var(--ink); }
+.workspace-sidebar nav a:hover .nav-icon { color: var(--accent); }
+.workspace-sidebar nav a.active { color: var(--ink); background: #e3ddd3; font-weight: 600; }
+.workspace-sidebar nav a.active .nav-icon { color: var(--accent); }
+.analysis-history .new-conversation { display: inline-flex; align-items: center; gap: 8px; height: 36px; border-color: #d9d2c6; background: #faf8f4; color: var(--ink); font-weight: 500; }
+.analysis-history .new-conversation:hover:not(:disabled) { border-color: #c5b4a4; background: #fffefa; color: var(--accent); }
+.session-section-title { color: #6d665d; font-size: 11px; font-variant-numeric: tabular-nums; }
+.session-section-title h2 { color: #6d665d; font-size: 11px; font-weight: 500; letter-spacing: 0.02em; }
+.session-list .conversation-item { color: #5b544c; transition: background 120ms ease, color 120ms ease; }
+.session-list .conversation-item:hover { background: #e7e2d8; color: var(--ink); }
+.session-list .conversation-item.selected { background: #e2dcd1; color: var(--ink); font-weight: 550; }
+.sidebar-empty, .sidebar-note { color: #6d665d; }
+.connection { color: #5e574e; }
+.status-dot.online { background: #4d806b; }
+.model-status, .sidebar-footer small { color: #6d665d; font-size: 11px; }
+
+/* 分析页顶栏、欢迎空态与输入区（单层边框层级，无幽灵投影） */
+.workspace-toolbar-title { font-size: 13px; font-weight: 550; color: var(--ink); }
+.welcome-state { margin: 16px auto 28px; }
+.welcome-symbol { width: 52px; margin-bottom: 16px; }
+.welcome-state h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.025em; margin-bottom: 10px; }
+.welcome-state > p:last-child { font-size: 13px; color: #686259; line-height: 1.85; }
+.analysis-report-preview { box-shadow: none; }
+.composer { box-shadow: none; transition: border-color 140ms ease, box-shadow 140ms ease; }
+.composer:focus-within { border-color: #bfa594; box-shadow: 0 0 0 3px rgba(155, 78, 54, 0.08); }
+
+/* 报告列表卡片：统一暖纸+陶土色系，去除双层投影与旧绿偏色 */
+.report-list { gap: 16px; }
+.report-list-card { padding: 20px 22px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--paper); transition: border-color 140ms ease, background 140ms ease; }
+.report-list-card:hover { border-color: #c7b3a4; background: #fcfaf6; box-shadow: none; color: var(--ink); }
+.report-card-meta, .report-card-bottom { color: #6d665d; font-size: 11px; font-variant-numeric: tabular-nums; }
+.report-card-version { padding: 1px 7px; border: 1px solid var(--line); border-radius: 999px; background: #f6f3ee; color: #5e574e; font-weight: 500; }
+.report-list-card h2 { font-size: 17px; font-weight: 600; line-height: 1.45; margin: 12px 0 8px; color: var(--ink); }
+.report-list-card:hover h2 { color: var(--accent); }
+.report-list-card > p { color: #666057; font-size: 13px; line-height: 1.7; margin: 0 0 18px; }
+.report-card-bottom { border-top: 1px solid #eeeae3; padding-top: 12px; }
+
+/* 证据抽屉与知识库卡片：统一暖纸 + 低饱和鼠尾草色板 */
+.evidence-content > section { border-bottom-color: #ece7df; }
+.evidence-content h3 { color: var(--ink); font-weight: 600; }
+.evidence-content p { color: #645e56; }
+.evidence-highlight { background: #eff5f1; border: 1px solid #d5e2d9 !important; border-radius: 12px; padding: 18px 20px !important; }
+.evidence-highlight p { color: #4b6959; font-size: 12px; font-weight: 500; }
+.evidence-highlight strong { color: #26523e; font-variant-numeric: tabular-nums; }
+.evidence-highlight small { color: #566e60; }
+.evidence-source { border-color: var(--line); background: #faf8f4; border-radius: 10px; }
+.evidence-source > summary { color: #3d5a4c; font-weight: 500; }
+.library-document-card { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; transition: border-color 140ms ease, background 140ms ease; }
+.library-document-card:hover { border-color: #c7b3a4; background: #fcfaf6; box-shadow: none; }
+.document-card-copy > span { color: #6d665d; }
+.document-card-meta { color: #6d665d; font-variant-numeric: tabular-nums; }
+.document-card-meta .ant-tag { border-color: var(--line); background: #f6f3ee; color: #5e574e; }
+.library-filters button { color: #6d665d; }
+.library-filters button[aria-pressed="true"] { color: var(--accent); background: #f3eae4; border-color: #e2cfc4; }
+.rule-introduction { background: #f6f2eb; border: 1px solid #eae3d8; color: #5f584e; }
