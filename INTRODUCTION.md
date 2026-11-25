@@ -1,4 +1,4 @@
-# A-Business-Aware-Data-Analysis-Agent：让每个业务结论，都能回到数据依据
+# Caliber：让每个业务结论，都能回到数据依据
 
 ## 1. 自我介绍
 
@@ -6,7 +6,7 @@
 
 ## 2. 我的作品是什么
 
-**A-Business-Aware-Data-Analysis-Agent 是一款面向航班运营分析人员的本地 AI 调查工作台：他们用自然语言提出取消率、延误、机场或航司比较等问题，系统会查阅业务资料、执行受控 SQL，并根据真实结果继续核查，最终生成每个数字都能回查依据的报告。**
+**Caliber 是一款面向航班运营分析人员的本地 AI 调查工作台：他们用自然语言提出取消率、延误、机场或航司比较等问题，系统会查阅业务资料、执行受控 SQL，并根据真实结果继续核查，最终生成每个数字都能回查依据的报告。**
 
 它不是“问一句、给一段话”的聊天机器人，而是一条完整的调查链路：
 
@@ -52,7 +52,7 @@ LLM_MODEL=your-tool-capable-model
 
 ```powershell
 uv run alembic upgrade head
-uv run python -m metric_pilot.data.ingest --input ./fixtures/synthetic_flight_records.csv --period 2026-01 --synthetic --carriers ./fixtures/synthetic_airline_lookup.csv --airports ./fixtures/synthetic_airport_lookup.csv --activate
+uv run python -m metric_pilot.data.ingest --input ./fixtures/synthetic_flight_records.csv --period YYYY-MM --synthetic --carriers ./fixtures/synthetic_airline_lookup.csv --airports ./fixtures/synthetic_airport_lookup.csv --activate
 ```
 
 仓库附带的合成数据适合快速体验，不是官方航班数据，不能用于真实业务结论。
@@ -80,7 +80,7 @@ npm.cmd run dev
 访问 **http://127.0.0.1:5173**，进入“分析”：
 
 1. 在“工作区数据源”确认已选择刚导入的合成快照；
-2. 点击“新调查”，选择日期范围，例如 `2026-01-01` 至 `2026-02-01`；
+2. 点击“新调查”，选择导入快照对应的完整月份范围；
 3. 输入问题：**“查看本月数据范围与缺失情况，找出值得进一步核查的异常。”**
 4. 查看当前行动、工具结果和本轮发现；点击报告中的数字，打开 SQL、参数和冻结结果；
 5. 在同一调查中继续追问，或导出 Markdown／JSON 报告。
@@ -97,7 +97,7 @@ npm.cmd run dev
 | 数据与查询 | 必须只读、必须固定快照、不能用 `startswith('SELECT')` 冒充 SQL 校验 | 实现数据接入、多月快照、SQL AST 校验、只读执行、超时取消和冻结产物 |
 | Agent 调查 | 模型可以选择下一步，但权限、ID、预算和报告取值由服务端控制 | 实现运行循环、工具注册、事件流、续查、上下文压缩和证据归属校验 |
 | 报告与知识 | 数字必须能回查；正式指标必须人工审核；旧报告不能随规则更新而改变 | 实现 ValueRef 取值、报告冻结、版本与导出、文档管理及 Wiki 展示 |
-| 页面与体验 | 页面要围绕“目标、行动、发现、依据、限制”展开，技术细节按需查看 | 实现分析、知识、报告页面，证据抽屉、移动端适配和 A-Business-Aware-Data-Analysis-Agent 品牌视觉 |
+| 页面与体验 | 页面要围绕“目标、行动、发现、依据、限制”展开，技术细节按需查看 | 实现分析、知识、报告页面，证据抽屉、移动端适配和 Caliber 品牌视觉 |
 | 测试与验收 | 自动检查通过不等于业务语义正确，关键数字要用独立 CSV 复核 | 补单测、类型检查、构建、浏览器流程和真实模型试用，并记录失败样本 |
 
 ### 我重点改了什么
@@ -110,7 +110,7 @@ npm.cmd run dev
 
 ### 截图凭证
 
-以下均为开发过程中保存的真实页面截图，使用合成数据，不包含模型密钥。截图拍摄于 2026-11-17，早于最终的 A-Business-Aware-Data-Analysis-Agent 品牌更名，因此页面标题仍显示“分析工作台”；功能路径和最终版本一致。
+以下均为开发过程中保存的真实页面截图，使用合成数据，不包含模型密钥，展示 Caliber 品牌与核心功能。
 
 **① 分析入口：固定数据快照和日期范围后再发起调查**
 
